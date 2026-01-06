@@ -70,7 +70,33 @@ services:
     networks:
       - ai-network
     restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - ai-network
+    restart: unless-stopped
 
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - ai-network
+    restart: unless-stopped
 networks:
   ai-network:
     driver: bridge
@@ -79,3 +105,5 @@ volumes:
   ollama-data:
   redis-data:
   postgres-data:
+  prometheus-data:
+  grafana-data:
