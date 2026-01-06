@@ -1,329 +1,292 @@
-# AI Orchestrator
+# AI Orchestrator - Universal AI Coding Platform
 
-A production-ready AI model orchestration system that intelligently routes requests across multiple models and runtimes (Ollama, vLLM, Transformers, llama.cpp).
+## 🎯 What is This?
 
-## Features
+A **Universal AI Orchestrator** with a powerful AI agent that can:
+- Generate code in **ANY programming language**
+- Migrate code between **ANY tech stacks**
+- Fix bugs in **ANY codebase**
+- Analyze and optimize **ANY project**
+- Works with Java, Python, Go, JavaScript, C#, Rust, Kotlin, Swift, Dart, PHP, Ruby, and more!
 
-- **Intelligent Routing**: Automatically selects the best model and runtime based on task type, complexity, and resource availability
-- **Multiple Runtimes**: Support for Ollama, vLLM, HuggingFace Transformers, and llama.cpp
-- **Load Balancing**: Built-in load balancing with circuit breakers and rate limiting
-- **Fallback Strategies**: Automatic fallback to alternative models/runtimes on failure
-- **Resource Management**: Smart GPU/CPU/memory allocation and monitoring
-- **Streaming Support**: Real-time streaming inference for all runtimes
-- **Security**: API key authentication, rate limiting, and audit logging
-- **RESTful API**: Complete REST API with health checks and metrics
+**Key Feature:** Language-agnostic AI agent powered by LLM intelligence (no hardcoded patterns).
 
-## Quick Start
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
+- Python 3.12+
+- Docker Desktop
+- OpenAI API Key (or other LLM provider)
 
-- Python 3.11+
-- NVIDIA GPU (optional, but recommended)
-- Docker and Docker Compose (for containerized deployment)
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd ai-orchestrator
+### Setup (One-Time)
+```powershell
+# Run setup script
+.\setup.ps1
 ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
+### Start the AI Orchestrator
+```powershell
+# Set your OpenAI API key
+$env:OPENAI_API_KEY='your-api-key-here'
+
+# Start the server
+.\start.ps1
 ```
 
-3. Configure your models and runtimes:
-   - Edit `config/models.yaml` to define available models
-   - Edit `config/runtimes.yaml` to configure runtimes
-   - Edit `config/policies.yaml` to set routing policies
-   - Edit `config/hardware.yaml` to match your hardware
+### Access the API
+- **API Server:** http://localhost:8080
+- **API Documentation:** http://localhost:8080/docs
+- **Health Check:** http://localhost:8080/health
 
-4. Run the orchestrator:
-```bash
-python main.py
-```
+---
 
-The API will be available at `http://localhost:8080`
+## 💡 Usage Examples
 
-### Docker Deployment
-
-```bash
-docker-compose up -d
-```
-
-This starts:
-- AI Orchestrator (port 8080)
-- Ollama (port 11434)
-- Redis (port 6379)
-- PostgreSQL (port 5432)
-
-## API Usage
-
-### Run Inference
-
-```bash
-curl -X POST http://localhost:8080/inference \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: dev-key-12345" \
-  -d '{
-    "prompt": "Write a Python function to calculate fibonacci numbers",
-    "task_type": "code_generation",
-    "parameters": {
-      "temperature": 0.2,
-      "max_tokens": 1024
-    }
-  }'
-```
-
-### List Available Models
-
-```bash
-curl http://localhost:8080/models \
-  -H "X-API-Key: dev-key-12345"
-```
-
-### Health Check
-
-```bash
-curl http://localhost:8080/health
-```
-
-### System Status
-
-```bash
-curl http://localhost:8080/status \
-  -H "X-API-Key: dev-key-12345"
-```
-
-### Streaming Inference
-
-```bash
-curl -X POST http://localhost:8080/inference/stream \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: dev-key-12345" \
-  -d '{
-    "prompt": "Tell me a story",
-    "task_type": "creative_writing"
-  }'
-```
-
-## Configuration
-
-### Models (config/models.yaml)
-
-Define available models with their specifications:
-
-```yaml
-models:
-  mistral:
-    family: mistral
-    size: 7b
-    context_length: 32768
-    capabilities: [general, fast]
-    memory_requirement: 6gb
-    recommended_runtime: [ollama, llamacpp]
-```
-
-### Runtimes (config/runtimes.yaml)
-
-Configure runtime servers:
-
-```yaml
-runtimes:
-  ollama:
-    host: localhost
-    port: 11434
-    timeout: 300
-```
-
-### Policies (config/policies.yaml)
-
-Set routing and resource policies:
-
-```yaml
-policies:
-  routing:
-    by_task_type:
-      code_generation:
-        models: [deepseek-coder, codellama]
-        temperature: 0.2
-```
-
-### Hardware (config/hardware.yaml)
-
-Define your hardware configuration:
-
-```yaml
-hardware:
-  gpus:
-    - id: gpu_0
-      type: nvidia
-      model: RTX_4090
-      memory: 24gb
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────┐
-│           FastAPI REST API              │
-├─────────────────────────────────────────┤
-│           Orchestrator Core             │
-│  ┌──────────┬─────────┬──────────────┐  │
-│  │  Router  │ Planner │   Registry   │  │
-│  └──────────┴─────────┴──────────────┘  │
-├─────────────────────────────────────────┤
-│            Runtime Layer                │
-│  ┌────────┬──────┬────────┬──────────┐  │
-│  │ Ollama │ vLLM │ Trans. │ LlamaCpp │  │
-│  └────────┴──────┴────────┴──────────┘  │
-├─────────────────────────────────────────┤
-│         Infrastructure Layer            │
-│  ┌────────┬────────┬──────────────────┐ │
-│  │ Memory │Security│    Monitoring    │ │
-│  └────────┴────────┴──────────────────┘ │
-└─────────────────────────────────────────┘
-```
-
-## Task Types
-
-The orchestrator supports various task types with automatic model selection:
-
-- `code_generation`: Generate code snippets and applications
-- `code_review`: Review and analyze code
-- `reasoning`: Complex reasoning and problem-solving
-- `quick_query`: Fast responses for simple questions
-- `creative_writing`: Stories, articles, creative content
-- `data_analysis`: Analyze and interpret data
-- `documentation`: Generate documentation
-- `chat`: General conversation
-
-## Advanced Features
-
-### Custom Model Routes
-
+### Example 1: Generate Code
 ```python
-from core.orchestrator import Orchestrator
-
-orchestrator = Orchestrator()
-await orchestrator.initialize()
-
-# Run with specific model
-result = await orchestrator.run_inference(
-    prompt="Your prompt here",
-    model="deepseek-coder",
-    task_type="code_generation"
-)
+POST /api/generate
+{
+  "language": "rust",
+  "requirements": "Create a web server with JWT authentication"
+}
 ```
 
-### Task Migration
-
-Migrate running tasks between models/runtimes:
-
-```bash
-curl -X POST http://localhost:8080/migrate \
-  -H "X-API-Key: dev-key-12345" \
-  -d '{
-    "task_id": "task-123",
-    "target_model": "qwen2.5",
-    "target_runtime": "vllm"
-  }'
+### Example 2: Migrate Code
+```python
+POST /api/migrate
+{
+  "source_code": "<Java code>",
+  "source_stack": "Java 8 Spring Boot",
+  "target_stack": "Go 1.22 Gin"
+}
 ```
 
-### Load/Unload Models
-
-```bash
-# Load a model
-curl -X POST http://localhost:8080/models/mistral/load \
-  -H "X-API-Key: dev-key-12345"
-
-# Unload a model
-curl -X POST http://localhost:8080/models/mistral/unload \
-  -H "X-API-Key: dev-key-12345"
+### Example 3: Fix Code
+```python
+POST /api/fix
+{
+  "code": "<buggy code>",
+  "issue": "Memory leak in loop",
+  "language": "python"
+}
 ```
 
-## Monitoring
-
-### Metrics Endpoint
-
-```bash
-curl http://localhost:8080/metrics \
-  -H "X-API-Key: dev-key-12345"
+### Example 4: Analyze Project
+```python
+POST /api/analyze
+{
+  "project_path": "/path/to/project"
+}
 ```
 
-Returns:
-- Total requests
-- Success/failure rates
-- Average processing time
-- Token usage
-- Resource utilization
+---
 
-## Security
-
-- API key authentication
-- Rate limiting per user
-- Audit logging
-- Input validation
-- Output sanitization
-
-## Development
-
-### Running Tests
-
-```bash
-pytest
-```
-
-### Code Structure
+## 🏗️ Architecture
 
 ```
-ai-orchestrator/
-├── main.py                 # Application entry point
-├── config/                 # Configuration files
-├── core/                   # Core orchestration logic
-│   ├── orchestrator.py
-│   ├── router.py
-│   ├── planner.py
-│   ├── registry.py
-│   ├── memory.py
-│   └── security.py
-├── runtimes/              # Runtime implementations
-│   ├── base.py
-│   ├── ollama.py
-│   ├── vllm.py
-│   ├── transformers.py
-│   └── llamacpp.py
-├── agents/                # Agent utilities
-├── schemas/               # Data schemas
-└── requirements.txt       # Dependencies
+┌─────────────────────────────────────────────┐
+│         Universal AI Agent                   │
+│  (Works with ANY language)                   │
+│  - Code Generation                           │
+│  - Code Migration                            │
+│  - Code Fixing                               │
+│  - Code Analysis                             │
+│  - Code Testing                              │
+│  - Code Optimization                         │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│         LLM Inference Engine                 │
+│  - OpenAI (GPT-4)                           │
+│  - Anthropic (Claude)                        │
+│  - Ollama (Local)                            │
+│  - Azure OpenAI                              │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│         Infrastructure                       │
+│  - Docker Workbenches                        │
+│  - MCP Integration                           │
+│  - WebSocket Console                         │
+│  - Universal Build System                    │
+└─────────────────────────────────────────────┘
 ```
 
-## Troubleshooting
+---
 
-### Ollama not connecting
-- Ensure Ollama is running: `ollama serve`
-- Check configuration in `config/runtimes.yaml`
+## 📁 Project Structure
 
-### GPU out of memory
-- Reduce batch size in runtime config
-- Use smaller models or quantized versions
-- Adjust `gpu_memory_fraction` in config
+```
+d:\Projects\IA-ORCH\
+├── agents/                      # AI Agents
+│   ├── universal_ai_agent.py   # ⭐ Main AI Agent
+│   ├── advanced_code_analyzer.py
+│   ├── project_scanner.py
+│   └── lead_architect.py
+│
+├── core/                        # Core Infrastructure
+│   ├── orchestrator.py         # Main orchestrator
+│   ├── llm/
+│   │   └── inference.py        # LLM engine
+│   ├── workbench/
+│   │   ├── manager.py          # Docker management
+│   │   └── blueprint.py        # Tech stack definitions
+│   ├── mcp/                    # MCP integration
+│   ├── state/                  # Shared state
+│   ├── console/                # WebSocket console
+│   └── buildtools/             # Build system
+│
+├── runtimes/                    # Runtime engines
+├── config/                      # Configuration
+├── main.py                      # FastAPI server
+├── requirements.txt             # Dependencies
+├── docker-compose.yml           # Docker services
+├── setup.ps1                    # Setup script
+└── start.ps1                    # Start script
+```
 
-### Slow inference
-- Enable vLLM for high-throughput workloads
-- Use quantized models (Q4, Q5)
-- Check hardware profile matches your GPU
+---
 
-## License
+## 🔧 Configuration
 
-MIT License
+### Environment Variables
+```powershell
+# LLM Provider (openai, anthropic, ollama, azure)
+$env:LLM_PROVIDER='openai'
 
-## Contributing
+# LLM Model
+$env:LLM_MODEL='gpt-4-turbo-preview'
 
-Contributions welcome! Please submit pull requests or open issues.
+# OpenAI API Key
+$env:OPENAI_API_KEY='your-api-key-here'
 
-## Support
+# Anthropic API Key (if using Claude)
+$env:ANTHROPIC_API_KEY='your-api-key-here'
+```
 
-For questions and support, please open an issue on GitHub.
+### Docker Services
+The orchestrator uses Docker Compose for:
+- **Redis** - State management
+- **PostgreSQL** - Data persistence
+- **Prometheus** - Metrics
+- **Grafana** - Monitoring
+
+---
+
+## 🎓 Capabilities
+
+### Supported Languages
+Java, Python, Go, JavaScript, TypeScript, C#, C++, Rust, Kotlin, Swift, Dart, PHP, Ruby, Scala, Haskell, and more!
+
+### Supported Frameworks
+Spring Boot, Django, FastAPI, React, Angular, Vue, Flutter, .NET, Rails, Laravel, Express, Gin, Echo, and more!
+
+### Supported Operations
+- **Code Generation** - Create new code from requirements
+- **Code Migration** - Migrate between any tech stacks
+- **Code Fixing** - Fix bugs, security issues, performance problems
+- **Code Analysis** - Deep code analysis and recommendations
+- **Code Testing** - Generate comprehensive test suites
+- **Code Optimization** - Improve performance and efficiency
+- **Code Documentation** - Auto-generate documentation
+- **Code Review** - Expert code review with feedback
+
+---
+
+## 📚 Documentation
+
+- **QUICKSTART.md** - Quick start guide
+- **SOLUTION_AUDIT.md** - Complete system audit
+- **TROUBLESHOOTING.md** - Common issues and solutions
+- **implementation_plan.md** - PaaS platform architecture
+
+---
+
+## 🤝 API Endpoints
+
+### Core Endpoints
+- `POST /api/generate` - Generate code
+- `POST /api/migrate` - Migrate code
+- `POST /api/fix` - Fix code issues
+- `POST /api/analyze` - Analyze code
+- `POST /api/test` - Generate tests
+- `POST /api/optimize` - Optimize code
+- `POST /api/document` - Generate documentation
+- `POST /api/review` - Code review
+
+### Infrastructure Endpoints
+- `POST /workbench/create` - Create Docker workbench
+- `GET /workbench/list` - List workbenches
+- `WS /console/{workbench_id}` - WebSocket terminal
+- `GET /health` - Health check
+- `GET /status` - System status
+- `GET /metrics` - Prometheus metrics
+
+---
+
+## 🎯 Use Cases
+
+### 1. Code Modernization
+Migrate legacy applications to modern tech stacks:
+- Java 8 → Java 21
+- AngularJS → Angular 18
+- Android → Flutter
+- Python 2 → Python 3
+
+### 2. Multi-Language Projects
+Work with polyglot codebases:
+- Backend: Java Spring Boot
+- Frontend: React TypeScript
+- Mobile: Flutter
+- Scripts: Python
+
+### 3. Code Quality
+Improve code quality across all languages:
+- Security scanning
+- Performance optimization
+- Best practices enforcement
+- Automated testing
+
+### 4. Developer Productivity
+Accelerate development:
+- Auto-generate boilerplate
+- Fix bugs automatically
+- Generate documentation
+- Code review assistance
+
+---
+
+## 🏆 Key Features
+
+✅ **Universal** - Works with ANY programming language
+✅ **Intelligent** - Uses LLM reasoning, not hardcoded patterns
+✅ **Powerful** - Handles complex migrations and transformations
+✅ **Fast** - Parallel processing with Docker workbenches
+✅ **Secure** - Isolated containers, credential encryption
+✅ **Scalable** - Kubernetes-ready architecture
+✅ **Extensible** - Plugin system via MCP
+
+---
+
+## 🚀 What's Next?
+
+The AI Orchestrator is the foundation for a **Commercial PaaS Platform**:
+- Git repository integration
+- Automated project analysis
+- Demo deployments
+- Payment processing
+- Client portal
+
+See `implementation_plan.md` for the complete roadmap.
+
+---
+
+## 📝 License
+
+Proprietary - All rights reserved
+
+---
+
+**Built with ❤️ using Universal AI**

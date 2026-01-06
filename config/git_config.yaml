@@ -1,0 +1,85 @@
+# Git Configuration
+# Store your Git provider credentials here
+
+# GitHub Configuration
+github:
+  enabled: true
+  api_url: "https://api.github.com"
+  auth_type: "token"  # token, oauth, ssh
+  credentials:
+    # Personal Access Token (recommended)
+    token: ""  # Set via environment variable: GITHUB_TOKEN
+    # OR OAuth (for web apps)
+    client_id: ""
+    client_secret: ""
+    # OR SSH Key
+    ssh_key_path: ""
+    ssh_passphrase: ""
+
+# GitLab Configuration
+gitlab:
+  enabled: true
+  api_url: "https://gitlab.com/api/v4"  # For self-hosted: https://your-gitlab.com/api/v4
+  auth_type: "token"  # token, oauth, ssh
+  credentials:
+    # Personal Access Token
+    token: ""  # Set via environment variable: GITLAB_TOKEN
+    # OR OAuth
+    client_id: ""
+    client_secret: ""
+    # OR SSH Key
+    ssh_key_path: ""
+    ssh_passphrase: ""
+
+# Bitbucket Configuration
+bitbucket:
+  enabled: true
+  api_url: "https://api.bitbucket.org/2.0"
+  auth_type: "token"  # token, oauth, ssh
+  credentials:
+    # App Password (recommended)
+    username: ""
+    app_password: ""  # Set via environment variable: BITBUCKET_APP_PASSWORD
+    # OR OAuth
+    client_id: ""
+    client_secret: ""
+    # OR SSH Key
+    ssh_key_path: ""
+    ssh_passphrase: ""
+
+# Azure DevOps Configuration
+azure_devops:
+  enabled: false
+  organization: ""  # Your Azure DevOps organization
+  api_url: "https://dev.azure.com"
+  auth_type: "token"
+  credentials:
+    personal_access_token: ""  # Set via environment variable: AZURE_DEVOPS_TOKEN
+
+# General Git Settings
+git:
+  default_branch: "main"
+  auto_commit: true
+  commit_message_template: "AI Orchestrator: {action} - {timestamp}"
+  user:
+    name: "AI Orchestrator"
+    email: "ai-orchestrator@example.com"
+
+# Security Settings
+security:
+  encrypt_credentials: true
+  credential_storage: "encrypted_file"  # encrypted_file, database, vault
+  encryption_key_env: "GIT_ENCRYPTION_KEY"  # Environment variable for encryption key
+
+# Clone Settings
+clone:
+  default_directory: "./projects"
+  shallow_clone: false
+  depth: 0  # 0 = full history, >0 = shallow clone
+  timeout: 300  # seconds
+
+# Webhook Settings (for automatic updates)
+webhooks:
+  enabled: false
+  port: 9000
+  secret: ""  # Set via environment variable: WEBHOOK_SECRET

@@ -5,6 +5,7 @@ import asyncio
 import time
 import uuid
 import logging
+import os
 from typing import Dict, Any, Optional, List, AsyncGenerator
 from pathlib import Path
 
@@ -13,6 +14,14 @@ from core.planner import Planner
 from core.registry import ModelRegistry
 from core.memory import MemoryManager
 from core.security import SecurityManager
+from core.mcp.client import MCPManager
+from core.state.blackboard import Blackboard
+from core.workbench.manager import WorkbenchManager
+from core.console.websocket_gateway import WebSocketGateway
+from core.buildtools.universal_build import UniversalBuildSystem, PortForwardingManager
+from core.llm.inference import LLMInference
+from agents.universal_ai_agent import UniversalAIAgent
+from agents.lead_architect import LeadArchitectAgent
 from runtimes.base import BaseRuntime
 from runtimes.ollama import OllamaRuntime
 from runtimes.vllm import VLLMRuntime
@@ -35,6 +44,27 @@ class Orchestrator:
         self.planner = Planner(config_path)
         self.memory = MemoryManager()
         self.security = SecurityManager()
+        
+        # LLM Engine
+        self.llm = LLMInference(
+            provider=os.getenv("LLM_PROVIDER", "openai"),
+            model=os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
+        )
+        
+        # UNIVERSAL AI AGENT (Main Agent)
+        self.universal_agent = UniversalAIAgent(orchestrator=self)
+        logger.info("✓ Universal AI Agent initialized - Works with ANY language")
+        
+        # MCP and Agent Swarm
+        self.mcp_manager = MCPManager()
+        self.blackboard = Blackboard()
+        self.lead_architect = LeadArchitectAgent(self)
+        
+        # Universal Architecture
+        self.workbench_manager = WorkbenchManager()
+        self.websocket_gateway = WebSocketGateway(self.workbench_manager)
+        self.build_system = UniversalBuildSystem()
+        self.port_manager = PortForwardingManager()
         
         # Runtime instances
         self.runtimes: Dict[str, BaseRuntime] = {}
@@ -64,6 +94,12 @@ class Orchestrator:
         
         # Initialize memory manager
         await self.memory.initialize()
+        
+        # Initialize Blackboard
+        await self.blackboard.initialize()
+        
+        # Initialize MCP Servers (placeholder for dynamic config)
+        await self.mcp_manager.register_server("system", "node", ["-e", "console.log('system tool')"])
         
         logger.info("Orchestrator initialized successfully")
         
@@ -119,6 +155,22 @@ class Orchestrator:
         try:
             self.metrics["total_requests"] += 1
             
+            # PHASE 1: Use Lead Architect for swarm orchestration
+            logger.info(f"Delegating inference to LeadArchitect: task={task_type}")
+            swarm_result = await self.lead_architect.act(prompt, context)
+            
+            # If the swarm produced code/output, we can either return it directly
+            # or continue with the legacy model-specific path if needed.
+            # For this refactor, we transition to Swarm-first.
+            
+            return {
+                "request_id": request_id,
+                "status": "success",
+                "swarm_output": swarm_result,
+                "processing_time": time.time() - start_time
+            }
+
+            # LEGACY PATH (Disabled for Swarm transition)
             # Create execution plan
             plan = await self.planner.create_plan(
                 task_type=task_type,
