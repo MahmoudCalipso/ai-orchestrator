@@ -94,3 +94,5 @@ dmypy.json
 
 # Audit logs (optional - comment out if you want to keep them)
 # logs/audit.jsonl
+
+.idea
