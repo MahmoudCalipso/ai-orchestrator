@@ -19,43 +19,59 @@ class LLMInference:
     - Azure OpenAI
     """
     
-    def __init__(self, provider: str = "openai", model: str = None):
-        self.provider = provider
-        self.model = model or self._get_default_model()
-        self.client = self._initialize_client()
-    
-    def _get_default_model(self) -> str:
-        """Get default model based on provider"""
-        defaults = {
-            "openai": "gpt-4-turbo-preview",
-            "anthropic": "claude-3-opus-20240229",
-            "ollama": "codellama:34b",
-            "azure": "gpt-4"
-        }
-        return defaults.get(self.provider, "gpt-4-turbo-preview")
-    
-    def _initialize_client(self):
-        """Initialize LLM client based on provider"""
-        if self.provider == "openai":
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                logger.warning("OPENAI_API_KEY not set, using mock mode")
-                return None
-            return openai.OpenAI(api_key=api_key)
+    def __init__(self, provider: str = None, model: str = None, api_key: str = None):
+        """
+        Initialize LLM Inference Engine
         
+        Args:
+            provider: LLM provider (openai, anthropic, ollama, azure)
+            model: Model name
+            api_key: API key (not needed for ollama)
+        """
+        # Default to Ollama (local, no API key needed)
+        self.provider = provider or os.getenv("LLM_PROVIDER", "ollama")
+        
+        # Set default models based on provider
+        if self.provider == "ollama":
+            self.model = model or os.getenv("OLLAMA_MODEL", "codellama:13b")
+            self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        elif self.provider == "openai":
+            self.model = model or os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         elif self.provider == "anthropic":
-            # Anthropic client initialization
-            pass
-        
-        elif self.provider == "ollama":
-            # Ollama client initialization
-            pass
-        
+            self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-3-opus-20240229")
+            self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         elif self.provider == "azure":
-            # Azure OpenAI client initialization
-            pass
+            self.model = model or os.getenv("AZURE_OPENAI_MODEL", "gpt-4")
+            self.api_key = api_key or os.getenv("AZURE_OPENAI_KEY")
+        else:
+            self.model = model or "codellama:13b"
         
-        return None
+        # Initialize client based on provider
+        if self.provider == "ollama":
+            # Ollama uses OpenAI-compatible API
+            self.client = OpenAI(
+                base_url=self.base_url,
+                api_key="ollama"  # Ollama doesn't need real API key
+            )
+            logger.info(f"✓ Ollama initialized - Model: {self.model} (Local, No API key needed)")
+        elif self.provider == "openai":
+            if not self.api_key:
+                logger.warning("⚠ OpenAI API key not found, using mock mode")
+                self.client = None
+            else:
+                self.client = OpenAI(api_key=self.api_key)
+                logger.info(f"✓ OpenAI initialized - Model: {self.model}")
+        elif self.provider == "anthropic":
+            if not self.api_key:
+                logger.warning("⚠ Anthropic API key not found, using mock mode")
+                self.client = None
+            else:
+                self.client = Anthropic(api_key=self.api_key)
+                logger.info(f"✓ Anthropic initialized - Model: {self.model}")
+        else:
+            logger.warning(f"⚠ Unknown provider: {self.provider}, using mock mode")
+            self.client = None
     
     async def generate(
         self,
