@@ -1,0 +1,284 @@
+hardware:
+  # GPU Configuration
+  gpus:
+    - id: gpu_0
+      type: nvidia
+      model: RTX_4090
+      memory: 24gb
+      compute_capability: 8.9
+      cuda_cores: 16384
+      tensor_cores: 512
+      pcie_generation: 4
+      power_limit: 450w
+      status: active
+      allocation:
+        reserved: 2gb
+        available: 22gb
+      
+    - id: gpu_1
+      type: nvidia
+      model: RTX_4080
+      memory: 16gb
+      compute_capability: 8.9
+      cuda_cores: 9728
+      tensor_cores: 304
+      pcie_generation: 4
+      power_limit: 320w
+      status: active
+      allocation:
+        reserved: 1gb
+        available: 15gb
+        
+    - id: gpu_2
+      type: nvidia
+      model: A100
+      memory: 40gb
+      compute_capability: 8.0
+      cuda_cores: 6912
+      tensor_cores: 432
+      pcie_generation: 4
+      power_limit: 400w
+      status: standby
+      allocation:
+        reserved: 2gb
+        available: 38gb
+
+  # CPU Configuration
+  cpus:
+    total_cores: 32
+    physical_cores: 16
+    threads_per_core: 2
+    base_frequency: 3.4ghz
+    boost_frequency: 5.2ghz
+    cache:
+      l1: 1mb
+      l2: 16mb
+      l3: 64mb
+    architecture: x86_64
+    instruction_sets: [AVX2, AVX512, FMA]
+    
+  # Memory Configuration
+  memory:
+    total: 128gb
+    type: DDR5
+    frequency: 5600mhz
+    channels: 4
+    allocation:
+      system: 16gb
+      available: 112gb
+      swap: 32gb
+      
+  # Storage Configuration
+  storage:
+    model_cache:
+      path: /models
+      type: nvme_ssd
+      capacity: 2tb
+      available: 1.2tb
+      read_speed: 7000mbps
+      write_speed: 5000mbps
+      
+    inference_cache:
+      path: /cache
+      type: nvme_ssd
+      capacity: 500gb
+      available: 300gb
+      
+    logs:
+      path: /logs
+      type: ssd
+      capacity: 100gb
+      available: 70gb
+      
+  # Network Configuration
+  network:
+    bandwidth: 10gbps
+    latency: 1ms
+    interfaces:
+      - name: eth0
+        speed: 10gbps
+        type: ethernet
+        status: active
+        
+      - name: ib0
+        speed: 200gbps
+        type: infiniband
+        status: inactive
+
+# Hardware Profiles
+profiles:
+  high_performance:
+    description: Maximum performance for production workloads
+    gpu:
+      utilization_target: 95
+      memory_fraction: 0.95
+      power_limit: 100
+    cpu:
+      threads: 16
+      affinity: true
+    memory:
+      allocation: auto
+      hugepages: true
+    recommended_for:
+      - vllm_large_models
+      - high_throughput_inference
+      
+  balanced:
+    description: Balance between performance and resource availability
+    gpu:
+      utilization_target: 80
+      memory_fraction: 0.85
+      power_limit: 85
+    cpu:
+      threads: 8
+      affinity: false
+    memory:
+      allocation: auto
+      hugepages: false
+    recommended_for:
+      - ollama_medium_models
+      - standard_inference
+      
+  efficient:
+    description: Resource-efficient for development and testing
+    gpu:
+      utilization_target: 60
+      memory_fraction: 0.70
+      power_limit: 70
+    cpu:
+      threads: 4
+      affinity: false
+    memory:
+      allocation: conservative
+      hugepages: false
+    recommended_for:
+      - llamacpp_quantized
+      - development_testing
+      
+  cpu_only:
+    description: CPU-only inference for compatibility
+    gpu:
+      enabled: false
+    cpu:
+      threads: 16
+      affinity: true
+    memory:
+      allocation: aggressive
+      hugepages: true
+    recommended_for:
+      - llamacpp_gguf
+      - fallback_scenarios
+
+# Model-to-Hardware Mapping
+model_requirements:
+  tier_1_small:  # <10B params
+    models: [phi3, mistral, orca2]
+    min_gpu_memory: 4gb
+    recommended_gpu_memory: 6gb
+    min_system_memory: 8gb
+    quantization: q4_k_m
+    hardware_profile: efficient
+    gpu_assignment: [gpu_0, gpu_1]
+    
+  tier_2_medium:  # 10B-40B params
+    models: [llama3.1, qwen2.5, deepseek-coder, codellama]
+    min_gpu_memory: 16gb
+    recommended_gpu_memory: 24gb
+    min_system_memory: 32gb
+    quantization: q4_k_m
+    hardware_profile: balanced
+    gpu_assignment: [gpu_0, gpu_2]
+    
+  tier_3_large:  # 40B-80B params
+    models: [qwen2.5, wizardlm2]
+    min_gpu_memory: 32gb
+    recommended_gpu_memory: 48gb
+    min_system_memory: 64gb
+    quantization: q5_k_m
+    hardware_profile: high_performance
+    gpu_assignment: [gpu_2]
+    multi_gpu: true
+    
+  tier_4_xlarge:  # >80B params
+    models: [wizardlm2]
+    min_gpu_memory: 80gb
+    recommended_gpu_memory: 160gb
+    min_system_memory: 128gb
+    quantization: q4_k_m
+    hardware_profile: high_performance
+    gpu_assignment: [gpu_0, gpu_1, gpu_2]
+    multi_gpu: required
+
+# Resource Monitoring
+monitoring:
+  enabled: true
+  interval: 5  # seconds
+  
+  metrics:
+    gpu:
+      - utilization
+      - memory_used
+      - memory_free
+      - temperature
+      - power_draw
+      - fan_speed
+      
+    cpu:
+      - utilization
+      - temperature
+      - frequency
+      
+    memory:
+      - used
+      - available
+      - swap_used
+      - page_faults
+      
+    disk:
+      - read_throughput
+      - write_throughput
+      - iops
+      - latency
+      
+  alerts:
+    gpu_memory_threshold: 90
+    gpu_temperature_threshold: 85
+    cpu_temperature_threshold: 85
+    memory_threshold: 90
+    disk_threshold: 90
+    
+  auto_actions:
+    high_temperature:
+      action: reduce_power_limit
+      threshold: 85
+      
+    high_memory:
+      action: clear_cache
+      threshold: 90
+      
+    sustained_high_load:
+      action: scale_out
+      threshold: 85
+      duration: 300
+
+# Optimization Settings
+optimizations:
+  cuda:
+    cudnn_benchmark: true
+    cudnn_deterministic: false
+    allow_tf32: true
+    
+  memory:
+    enable_memory_pool: true
+    kv_cache_dtype: float16
+    use_memory_efficient_attention: true
+    
+  compute:
+    use_flash_attention: true
+    use_xformers: true
+    fused_kernels: true
+    
+  io:
+    async_loading: true
+    pin_memory: true
+    num_workers: 4

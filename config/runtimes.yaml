@@ -1,0 +1,168 @@
+runtimes:
+  ollama:
+    type: inference_server
+    priority: 1
+    config:
+      host: localhost
+      port: 11434
+      endpoint: /api/generate
+      stream_endpoint: /api/chat
+      timeout: 300
+      max_retries: 3
+      gpu_layers: -1  # Use all available GPU layers
+      num_thread: 8
+      num_gpu: 1
+      rope_frequency_base: 10000
+      rope_frequency_scale: 1.0
+    features:
+      streaming: true
+      batching: true
+      quantization: true
+      multi_gpu: false
+    resource_limits:
+      max_concurrent_requests: 4
+      max_context_tokens: 32768
+      gpu_memory_fraction: 0.9
+    supported_formats:
+      - gguf
+      - safetensors
+    
+  vllm:
+    type: inference_server
+    priority: 2
+    config:
+      host: localhost
+      port: 8000
+      endpoint: /v1/completions
+      chat_endpoint: /v1/chat/completions
+      timeout: 600
+      max_retries: 3
+      tensor_parallel_size: 1
+      gpu_memory_utilization: 0.95
+      max_model_len: 32768
+      enforce_eager: false
+      trust_remote_code: true
+    features:
+      streaming: true
+      batching: true
+      continuous_batching: true
+      paged_attention: true
+      multi_gpu: true
+      quantization: true
+      speculative_decoding: true
+    resource_limits:
+      max_concurrent_requests: 16
+      max_batch_size: 32
+      max_waiting_tokens: 1024
+    supported_formats:
+      - safetensors
+      - pytorch
+    
+  transformers:
+    type: library
+    priority: 3
+    config:
+      device: cuda
+      device_map: auto
+      torch_dtype: float16
+      low_cpu_mem_usage: true
+      trust_remote_code: true
+      use_flash_attention_2: true
+      max_memory:
+        "0": "40GB"
+        "1": "40GB"
+        cpu: "64GB"
+    features:
+      streaming: true
+      batching: false
+      quantization: true
+      lora: true
+      adapter_loading: true
+    resource_limits:
+      max_concurrent_requests: 1
+      max_batch_size: 1
+    supported_formats:
+      - safetensors
+      - pytorch
+      - gguf
+    quantization_options:
+      - int8
+      - int4
+      - nf4
+      - gptq
+      - awq
+    
+  llamacpp:
+    type: library
+    priority: 4
+    config:
+      n_ctx: 8192
+      n_batch: 512
+      n_threads: 8
+      n_gpu_layers: -1
+      use_mmap: true
+      use_mlock: false
+      rope_freq_base: 10000
+      rope_freq_scale: 1.0
+      verbose: false
+    features:
+      streaming: true
+      batching: false
+      quantization: true
+      multi_gpu: false
+      mmap: true
+    resource_limits:
+      max_concurrent_requests: 1
+      max_context_tokens: 32768
+    supported_formats:
+      - gguf
+
+# Runtime Selection Rules
+selection_rules:
+  by_model_size:
+    small:  # < 10B
+      preferred: [ollama, llamacpp]
+      fallback: [transformers]
+    medium:  # 10B - 40B
+      preferred: [ollama, vllm]
+      fallback: [transformers]
+    large:  # > 40B
+      preferred: [vllm, transformers]
+      fallback: [ollama]
+      
+  by_hardware:
+    single_gpu:
+      preferred: [ollama, llamacpp]
+    multi_gpu:
+      preferred: [vllm, transformers]
+    cpu_only:
+      preferred: [llamacpp, ollama]
+      
+  by_workload:
+    high_throughput:
+      preferred: [vllm]
+      min_batch_size: 4
+    low_latency:
+      preferred: [ollama, llamacpp]
+      max_batch_size: 1
+    development:
+      preferred: [transformers]
+      
+  by_feature:
+    continuous_batching:
+      required: [vllm]
+    adapter_loading:
+      required: [transformers]
+    quantization_only:
+      preferred: [ollama, llamacpp]
+
+# Health Check Configuration
+health_checks:
+  enabled: true
+  interval: 60  # seconds
+  timeout: 10
+  endpoints:
+    ollama: /api/tags
+    vllm: /health
+    transformers: null  # In-process check
+    llamacpp: null  # In-process check

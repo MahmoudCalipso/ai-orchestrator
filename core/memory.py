@@ -1,0 +1,147 @@
+"""
+Memory Manager - Manages conversation history and context
+"""
+import logging
+import asyncio
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
+
+
+class MemoryManager:
+    """Manages conversation memory and context"""
+    
+    def __init__(self, max_entries: int = 1000):
+        self.memory: Dict[str, Any] = {}
+        self.max_entries = max_entries
+        self.access_counts: Dict[str, int] = {}
+        self.last_access: Dict[str, datetime] = {}
+        
+    async def initialize(self):
+        """Initialize memory manager"""
+        logger.info("Memory manager initialized")
+        
+        # Start cleanup task
+        asyncio.create_task(self._cleanup_task())
+        
+    async def shutdown(self):
+        """Shutdown memory manager"""
+        logger.info("Memory manager shutting down")
+        
+    async def store(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = None
+    ):
+        """Store a value in memory"""
+        
+        self.memory[key] = {
+            "value": value,
+            "created_at": datetime.now(),
+            "ttl": ttl,
+            "expires_at": datetime.now() + timedelta(seconds=ttl) if ttl else None
+        }
+        
+        self.access_counts[key] = 0
+        self.last_access[key] = datetime.now()
+        
+        # Check if we need to evict old entries
+        if len(self.memory) > self.max_entries:
+            await self._evict_lru()
+            
+    async def retrieve(self, key: str) -> Optional[Any]:
+        """Retrieve a value from memory"""
+        
+        if key not in self.memory:
+            return None
+            
+        entry = self.memory[key]
+        
+        # Check if expired
+        if entry["expires_at"] and datetime.now() > entry["expires_at"]:
+            del self.memory[key]
+            return None
+            
+        # Update access tracking
+        self.access_counts[key] = self.access_counts.get(key, 0) + 1
+        self.last_access[key] = datetime.now()
+        
+        return entry["value"]
+        
+    async def delete(self, key: str):
+        """Delete a value from memory"""
+        
+        if key in self.memory:
+            del self.memory[key]
+            
+        if key in self.access_counts:
+            del self.access_counts[key]
+            
+        if key in self.last_access:
+            del self.last_access[key]
+            
+    async def clear(self):
+        """Clear all memory"""
+        
+        self.memory.clear()
+        self.access_counts.clear()
+        self.last_access.clear()
+        
+    async def get_keys(self, pattern: Optional[str] = None) -> List[str]:
+        """Get all keys matching pattern"""
+        
+        if pattern:
+            return [k for k in self.memory.keys() if pattern in k]
+        else:
+            return list(self.memory.keys())
+            
+    async def _evict_lru(self):
+        """Evict least recently used entry"""
+        
+        if not self.last_access:
+            return
+            
+        # Find least recently used key
+        lru_key = min(self.last_access.items(), key=lambda x: x[1])[0]
+        
+        await self.delete(lru_key)
+        logger.debug(f"Evicted LRU entry: {lru_key}")
+        
+    async def _cleanup_task(self):
+        """Periodic cleanup of expired entries"""
+        
+        while True:
+            try:
+                await asyncio.sleep(60)  # Run every minute
+                
+                now = datetime.now()
+                expired_keys = []
+                
+                for key, entry in self.memory.items():
+                    if entry["expires_at"] and now > entry["expires_at"]:
+                        expired_keys.append(key)
+                        
+                for key in expired_keys:
+                    await self.delete(key)
+                    
+                if expired_keys:
+                    logger.debug(f"Cleaned up {len(expired_keys)} expired entries")
+                    
+            except Exception as e:
+                logger.error(f"Error in cleanup task: {e}")
+                
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get memory statistics"""
+        
+        return {
+            "total_entries": len(self.memory),
+            "max_entries": self.max_entries,
+            "utilization": len(self.memory) / self.max_entries,
+            "most_accessed": sorted(
+                self.access_counts.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:10]
+        }
