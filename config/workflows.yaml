@@ -1,0 +1,50 @@
+workflows:
+  # Project generation workflow
+  generation:
+    enabled: true
+    max_concurrent: 5
+    timeout_minutes: 60
+    default_language: "python"
+    default_framework: "fastapi"
+    auto_create_repo: false
+    
+  # Migration workflow
+  migration:
+    enabled: true
+    max_concurrent: 3
+    timeout_minutes: 120
+    preserve_comments: true
+    generate_tests: true
+    auto_create_repo: false
+    
+  # Bug fix workflow
+  bug_fix:
+    enabled: true
+    auto_create_pr: true
+    require_tests: true
+    auto_merge: false
+    labels:
+      - "bug"
+      - "fix-needed"
+    
+  # Update workflow
+  update:
+    enabled: true
+    schedule: "0 0 * * 1"  # Weekly on Monday at midnight
+    auto_create_pr: true
+    security_only: false
+    update_registries: true
+    
+  # Storage cleanup workflow
+  cleanup:
+    enabled: true
+    schedule: "0 2 1 * *"  # Monthly on 1st at 2 AM
+    archive_threshold_days: 90
+    delete_threshold_days: 180
+    
+  # Build and test workflow
+  build_test:
+    enabled: true
+    run_on_pr: true
+    run_on_push: true
+    code_coverage_threshold: 80

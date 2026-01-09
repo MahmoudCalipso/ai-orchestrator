@@ -94,4 +94,20 @@ dmypy.json
 # Audit logs (optional - comment out if you want to keep them)
 # logs/audit.jsonl
 
-.idea
+# Storage directories
+storage/projects/
+storage/archives/
+storage/cache/
+!storage/.gitkeep
+
+# IDE - Enhanced
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# Test artifacts
+tests/
+.pytest_cache/
+.coverage
+htmlcov/

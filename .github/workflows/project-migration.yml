@@ -1,0 +1,185 @@
+name: Project Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: 'Source repository URL'
+        required: true
+        type: string
+      source_stack:
+        description: 'Source tech stack (e.g., "Java 17 Spring Boot")'
+        required: true
+        type: string
+      target_stack:
+        description: 'Target tech stack (e.g., "Python 3.12 FastAPI")'
+        required: true
+        type: string
+      target_architecture:
+        description: 'Target architecture pattern'
+        required: false
+        type: choice
+        default: 'repository_pattern'
+        options:
+          - repository_pattern
+          - clean_architecture
+          - hexagonal
+          - microservices
+      create_new_repo:
+        description: 'Create new Git repository for migrated code'
+        required: false
+        type: boolean
+        default: false
+      new_repo_name:
+        description: 'New repository name (if create_new_repo is true)'
+        required: false
+        type: string
+
+  issues:
+    types: [labeled]
+
+jobs:
+  migrate:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.issue.labels.*.name, 'migration')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Start Docker services
+        run: |
+          docker-compose up -d redis postgres
+          sleep 10
+      
+      - name: Clone source repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone ${{ inputs.source_repo }} source-project
+      
+      - name: Analyze source project
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER || 'openai' }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from core.orchestrator import Orchestrator
+          
+          async def analyze():
+              orchestrator = Orchestrator()
+              await orchestrator.initialize()
+              
+              analysis = await orchestrator.universal_agent.analyze_project(
+                  project_path='./source-project'
+              )
+              
+              with open('source-analysis.json', 'w') as f:
+                  json.dump(analysis, f, indent=2)
+              
+              print('Source project analyzed')
+              print(f'Files: {analysis.get(\"file_count\", 0)}')
+              print(f'Languages: {analysis.get(\"languages\", [])}')
+              
+              await orchestrator.shutdown()
+          
+          asyncio.run(analyze())
+          "
+      
+      - name: Migrate project
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER || 'openai' }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from core.orchestrator import Orchestrator
+          
+          async def migrate():
+              orchestrator = Orchestrator()
+              await orchestrator.initialize()
+              
+              request = {
+                  'source_path': './source-project',
+                  'source_stack': '${{ inputs.source_stack }}',
+                  'target_stack': '${{ inputs.target_stack }}',
+                  'target_architecture': '${{ inputs.target_architecture }}',
+                  'git': {
+                      'create_repo': ${{ inputs.create_new_repo }},
+                      'provider': 'github',
+                      'repository_name': '${{ inputs.new_repo_name }}'
+                  } if ${{ inputs.create_new_repo }} else None
+              }
+              
+              result = await orchestrator.universal_agent.migrate_project(
+                  project_path=request['source_path'],
+                  source_stack=request['source_stack'],
+                  target_stack=request['target_stack']
+              )
+              
+              # Store migrated project
+              project_id = await orchestrator.storage_manager.store_project(
+                  project_path=result['output_directory'],
+                  metadata={
+                      'name': '${{ inputs.new_repo_name }}' or 'migrated-project',
+                      'type': 'migration',
+                      'source_stack': '${{ inputs.source_stack }}',
+                      'target_stack': '${{ inputs.target_stack }}',
+                      'workflow_run_id': '${{ github.run_id }}'
+                  }
+              )
+              
+              print(f'Migration complete. Project ID: {project_id}')
+              
+              # Save summary
+              with open('migration-summary.json', 'w') as f:
+                  json.dump({
+                      'project_id': project_id,
+                      'source_stack': '${{ inputs.source_stack }}',
+                      'target_stack': '${{ inputs.target_stack }}',
+                      'files_migrated': len(result.get('migrated_files', {})),
+                      'architecture': '${{ inputs.target_architecture }}'
+                  }, f, indent=2)
+              
+              await orchestrator.shutdown()
+          
+          asyncio.run(migrate())
+          "
+      
+      - name: Upload migration artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-artifacts
+          path: |
+            source-analysis.json
+            migration-summary.json
+      
+      - name: Create summary
+        run: |
+          echo "## 🔄 Migration Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Source:** ${{ inputs.source_stack }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** ${{ inputs.target_stack }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Architecture:** ${{ inputs.target_architecture }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Migration has been completed and stored in local storage." >> $GITHUB_STEP_SUMMARY
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down
+          rm -rf source-project

@@ -1,0 +1,38 @@
+storage:
+  # Base storage path (absolute or relative)
+  base_path: "./storage"
+  
+  # Maximum size per project (in GB)
+  max_project_size: 10
+  
+  # Total storage quota (in GB, 0 = unlimited)
+  total_quota: 0
+  
+  # Archive projects older than X days
+  archive_after_days: 90
+  
+  # Enable automatic cleanup
+  cleanup_enabled: true
+  
+  # Cleanup schedule (cron format)
+  cleanup_schedule: "0 2 * * 0"  # Weekly at 2 AM Sunday
+  
+  # Backup configuration
+  backup:
+    enabled: true
+    frequency: "daily"  # daily, weekly, monthly
+    retention_days: 30
+    compression: true
+    destination: "./backups"
+  
+  # Compression settings
+  compression:
+    enabled: true
+    level: 6  # 1-9, higher = better compression but slower
+    format: "gzip"  # gzip, bzip2, xz
+  
+  # Storage monitoring
+  monitoring:
+    enabled: true
+    alert_threshold_percent: 80
+    check_interval_hours: 24

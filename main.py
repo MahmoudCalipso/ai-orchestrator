@@ -46,7 +46,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global orchestrator instance
-# Global orchestrator instance
 orchestrator: Orchestrator = None
 git_credentials: GitCredentialManager = None
 repo_manager: RepositoryManager = None
@@ -54,6 +53,11 @@ db_manager: DatabaseConnectionManager = None
 schema_analyzer: SchemaAnalyzer = None
 entity_generator: EntityGenerator = None
 language_registry: LanguageRegistry = None
+
+# IDE Services
+editor_service = None
+terminal_service = None
+debugger_service = None
 
 
 @asynccontextmanager
@@ -78,6 +82,14 @@ async def lifespan(app: FastAPI):
     language_registry = LanguageRegistry()
     language_registry.load_registries()
     logger.info("Platform components initialized")
+    
+    # Initialize IDE Services
+    from platform.ide import EditorService, TerminalService, DebuggerService
+    global editor_service, terminal_service, debugger_service
+    editor_service = EditorService()
+    terminal_service = TerminalService()
+    debugger_service = DebuggerService()
+    logger.info("IDE services initialized")
     
     logger.info("AI Orchestrator initialized successfully")
     
@@ -1295,6 +1307,576 @@ async def scan_security(
         }
     except Exception as e:
         logger.error(f"Security scan failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Storage Management Endpoints
+
+@app.get("/api/storage/stats")
+async def get_storage_stats(api_key: str = Depends(verify_api_key)):
+    """Get storage statistics"""
+    try:
+        from core.storage import StorageManager
+        
+        storage = StorageManager()
+        stats = await storage.get_storage_stats()
+        
+        return {
+            "status": "success",
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Failed to get storage stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/storage/projects")
+async def list_stored_projects(
+    status: Optional[str] = None,
+    language: Optional[str] = None,
+    min_size_gb: Optional[float] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """List stored projects with optional filters"""
+    try:
+        from core.storage import StorageManager
+        
+        storage = StorageManager()
+        projects = await storage.list_projects(
+            status=status,
+            language=language,
+            min_size_gb=min_size_gb
+        )
+        
+        return {
+            "status": "success",
+            "projects": projects,
+            "count": len(projects)
+        }
+    except Exception as e:
+        logger.error(f"Failed to list projects: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/storage/projects/{project_id}")
+async def get_stored_project(
+    project_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get project details"""
+    try:
+        from core.storage import StorageManager
+        
+        storage = StorageManager()
+        project = await storage.get_project(project_id)
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        return {
+            "status": "success",
+            "project": project
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get project: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/storage/projects/{project_id}")
+async def delete_stored_project(
+    project_id: str,
+    soft: bool = True,
+    api_key: str = Depends(verify_api_key)
+):
+    """Delete a project (soft or hard delete)"""
+    try:
+        from core.storage import StorageManager
+        
+        storage = StorageManager()
+        success = await storage.delete_project(project_id, soft=soft)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        return {
+            "status": "success",
+            "message": f"Project {'soft' if soft else 'hard'} deleted",
+            "project_id": project_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete project: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/storage/archive/{project_id}")
+async def archive_stored_project(
+    project_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Archive a project"""
+    try:
+        from core.storage import StorageManager
+        
+        storage = StorageManager()
+        success = await storage.archive_project(project_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        return {
+            "status": "success",
+            "message": "Project archived",
+            "project_id": project_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to archive project: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/storage/cleanup")
+async def cleanup_storage(api_key: str = Depends(verify_api_key)):
+    """Run storage cleanup"""
+    try:
+        from core.storage import StorageManager, BackupManager
+        
+        storage = StorageManager()
+        backup_mgr = BackupManager()
+        
+        # Archive old projects
+        archived_count = await storage.archive_old_projects(days=90)
+        
+        # Clean cache
+        freed_bytes = await storage.clean_cache()
+        
+        # Remove old backups
+        removed_backups = await backup_mgr.cleanup_old_backups(days=30)
+        
+        return {
+            "status": "success",
+            "archived_projects": archived_count,
+            "freed_bytes": freed_bytes,
+            "freed_gb": freed_bytes / (1024**3),
+            "removed_backups": removed_backups
+        }
+    except Exception as e:
+        logger.error(f"Storage cleanup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/storage/backup/{project_id}")
+async def backup_project(
+    project_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Backup a specific project"""
+    try:
+        from core.storage import BackupManager
+        
+        backup_mgr = BackupManager()
+        backup_id = await backup_mgr.backup_project(project_id)
+        
+        return {
+            "status": "success",
+            "backup_id": backup_id,
+            "project_id": project_id
+        }
+    except Exception as e:
+        logger.error(f"Backup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Phase 2: Browser IDE Endpoints
+
+@app.post("/api/ide/workspace")
+async def create_ide_workspace(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Create IDE workspace"""
+    try:
+        workspace_id = request.get("workspace_id")
+        result = await editor_service.create_workspace(workspace_id)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to create IDE workspace: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ide/files/{workspace_id}/{path:path}")
+async def read_file(
+    workspace_id: str,
+    path: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Read file from workspace"""
+    try:
+        result = await editor_service.read_file(workspace_id, path)
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to read file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ide/files/{workspace_id}/{path:path}")
+async def write_file(
+    workspace_id: str,
+    path: str,
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Write file to workspace"""
+    try:
+        content = request.get("content", "")
+        result = await editor_service.write_file(workspace_id, path, content)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to write file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/ide/files/{workspace_id}/{path:path}")
+async def delete_file(
+    workspace_id: str,
+    path: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Delete file from workspace"""
+    try:
+        result = await editor_service.delete_file(workspace_id, path)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to delete file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ide/files/{workspace_id}")
+async def list_files(
+    workspace_id: str,
+    directory: str = ".",
+    api_key: str = Depends(verify_api_key)
+):
+    """List files in workspace directory"""
+    try:
+        files = await editor_service.list_files(workspace_id, directory)
+        return {"files": files}
+    except Exception as e:
+        logger.error(f"Failed to list files: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ide/terminal")
+async def create_terminal(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Create terminal session"""
+    try:
+        workspace_id = request.get("workspace_id")
+        shell = request.get("shell", "/bin/bash")
+        session_id = await terminal_service.create_session(workspace_id, shell)
+        return {"session_id": session_id}
+    except Exception as e:
+        logger.error(f"Failed to create terminal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.websocket("/api/ide/terminal/{session_id}")
+async def terminal_websocket(websocket: WebSocket, session_id: str):
+    """WebSocket endpoint for terminal"""
+    await websocket.accept()
+    await terminal_service.handle_websocket(websocket, session_id)
+
+
+@app.post("/api/ide/debug")
+async def create_debug_session(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Create debug session"""
+    try:
+        workspace_id = request.get("workspace_id")
+        language = request.get("language")
+        program = request.get("program")
+        args = request.get("args", [])
+        
+        session_id = await debugger_service.create_session(
+            workspace_id,
+            language,
+            program,
+            args
+        )
+        return {"session_id": session_id}
+    except Exception as e:
+        logger.error(f"Failed to create debug session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ide/debug/{session_id}/dap")
+async def handle_dap_message(
+    session_id: str,
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Handle Debug Adapter Protocol message"""
+    try:
+        result = await debugger_service.handle_dap_message(session_id, request)
+        return result
+    except Exception as e:
+        logger.error(f"DAP message failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Phase 2: Real-Time Monitoring Endpoints
+
+@app.get("/api/monitoring/metrics")
+async def get_monitoring_metrics(
+    limit: int = 100,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get monitoring metrics"""
+    try:
+        from platform.monitoring import RealtimeMonitoringService
+        monitoring = RealtimeMonitoringService()
+        metrics = monitoring.get_metrics(limit)
+        return {"metrics": metrics}
+    except Exception as e:
+        logger.error(f"Failed to get metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/monitoring/metrics/current")
+async def get_current_metrics(api_key: str = Depends(verify_api_key)):
+    """Get current system metrics"""
+    try:
+        from platform.monitoring import RealtimeMonitoringService
+        monitoring = RealtimeMonitoringService()
+        metrics = monitoring.get_current_metrics()
+        return metrics or {}
+    except Exception as e:
+        logger.error(f"Failed to get current metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.websocket("/api/monitoring/stream")
+async def monitoring_stream(websocket: WebSocket):
+    """WebSocket endpoint for real-time metrics streaming"""
+    await websocket.accept()
+    
+    from platform.monitoring import RealtimeMonitoringService
+    monitoring = RealtimeMonitoringService()
+    await monitoring.register_websocket(websocket)
+    
+    try:
+        while True:
+            await websocket.receive_text()  # Keep connection alive
+    except Exception:
+        pass
+    finally:
+        await monitoring.unregister_websocket(websocket)
+
+
+@app.get("/api/monitoring/builds")
+async def list_builds(
+    status: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """List build progress"""
+    try:
+        from platform.monitoring import RealtimeMonitoringService
+        monitoring = RealtimeMonitoringService()
+        builds = monitoring.list_builds(status)
+        return {"builds": [b.to_dict() for b in builds]}
+    except Exception as e:
+        logger.error(f"Failed to list builds: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/monitoring/builds/{build_id}")
+async def get_build(
+    build_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get build progress"""
+    try:
+        from platform.monitoring import RealtimeMonitoringService
+        monitoring = RealtimeMonitoringService()
+        build = monitoring.get_build(build_id)
+        if not build:
+            raise HTTPException(status_code=404, detail="Build not found")
+        return build.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get build: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Phase 2: Collaboration Endpoints
+
+@app.post("/api/collaboration/session")
+async def create_collaboration_session(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Create collaboration session"""
+    try:
+        from platform.collaboration import CollaborationService
+        collaboration = CollaborationService()
+        
+        project_id = request.get("project_id")
+        owner_id = request.get("owner_id")
+        owner_name = request.get("owner_name")
+        
+        session_id = await collaboration.create_session(project_id, owner_id, owner_name)
+        return {"session_id": session_id}
+    except Exception as e:
+        logger.error(f"Failed to create collaboration session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.websocket("/api/collaboration/{session_id}")
+async def collaboration_websocket(
+    websocket: WebSocket,
+    session_id: str,
+    user_id: str,
+    username: str
+):
+    """WebSocket endpoint for collaboration"""
+    await websocket.accept()
+    
+    from platform.collaboration import CollaborationService
+    collaboration = CollaborationService()
+    await collaboration.handle_websocket(websocket, session_id, user_id, username)
+
+
+# Phase 2: Workspace Management Endpoints
+
+@app.post("/api/workspace")
+async def create_workspace(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Create workspace"""
+    try:
+        from platform.workspace import WorkspaceManager
+        workspace_mgr = WorkspaceManager()
+        
+        name = request.get("name")
+        owner_id = request.get("owner_id")
+        owner_name = request.get("owner_name")
+        
+        workspace = workspace_mgr.create_workspace(name, owner_id, owner_name)
+        return workspace.to_dict()
+    except Exception as e:
+        logger.error(f"Failed to create workspace: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/workspace/{workspace_id}")
+async def get_workspace(
+    workspace_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get workspace"""
+    try:
+        from platform.workspace import WorkspaceManager
+        workspace_mgr = WorkspaceManager()
+        
+        workspace = workspace_mgr.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        return workspace.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get workspace: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/workspace/user/{user_id}")
+async def list_user_workspaces(
+    user_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """List user workspaces"""
+    try:
+        from platform.workspace import WorkspaceManager
+        workspace_mgr = WorkspaceManager()
+        
+        workspaces = workspace_mgr.list_user_workspaces(user_id)
+        return {"workspaces": [w.to_dict() for w in workspaces]}
+    except Exception as e:
+        logger.error(f"Failed to list workspaces: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/workspace/{workspace_id}/members")
+async def invite_member(
+    workspace_id: str,
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Invite member to workspace"""
+    try:
+        from platform.workspace import WorkspaceManager, WorkspaceRole
+        workspace_mgr = WorkspaceManager()
+        
+        inviter_id = request.get("inviter_id")
+        user_id = request.get("user_id")
+        username = request.get("username")
+        role = WorkspaceRole(request.get("role", "developer"))
+        
+        success = workspace_mgr.invite_member(
+            workspace_id,
+            inviter_id,
+            user_id,
+            username,
+            role
+        )
+        
+        if not success:
+            raise HTTPException(status_code=403, detail="Permission denied or member already exists")
+        
+        return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to invite member: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/workspace/{workspace_id}/members/{user_id}")
+async def remove_member(
+    workspace_id: str,
+    user_id: str,
+    remover_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Remove member from workspace"""
+    try:
+        from platform.workspace import WorkspaceManager
+        workspace_mgr = WorkspaceManager()
+        
+        success = workspace_mgr.remove_member(workspace_id, remover_id, user_id)
+        
+        if not success:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        
+        return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to remove member: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

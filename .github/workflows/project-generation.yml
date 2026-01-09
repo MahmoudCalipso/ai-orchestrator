@@ -1,0 +1,169 @@
+name: Project Generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Project name'
+        required: true
+        type: string
+      description:
+        description: 'Project description'
+        required: true
+        type: string
+      backend_language:
+        description: 'Backend language'
+        required: true
+        type: choice
+        options:
+          - python
+          - java
+          - go
+          - typescript
+          - csharp
+          - rust
+      frontend_language:
+        description: 'Frontend language'
+        required: false
+        type: choice
+        options:
+          - typescript
+          - javascript
+          - dart
+      database_type:
+        description: 'Database type'
+        required: false
+        type: choice
+        options:
+          - postgresql
+          - mysql
+          - mongodb
+          - none
+      use_figma:
+        description: 'Use Figma design'
+        required: false
+        type: boolean
+        default: false
+      figma_file_id:
+        description: 'Figma file ID (if use_figma is true)'
+        required: false
+        type: string
+      enable_kubernetes:
+        description: 'Generate Kubernetes manifests'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Start Docker services
+        run: |
+          docker-compose up -d redis postgres
+          sleep 10
+      
+      - name: Generate project
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER || 'openai' }}
+          FIGMA_ACCESS_TOKEN: ${{ secrets.FIGMA_ACCESS_TOKEN }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from core.orchestrator import Orchestrator
+          
+          async def generate():
+              orchestrator = Orchestrator()
+              await orchestrator.initialize()
+              
+              request = {
+                  'project_name': '${{ inputs.project_name }}',
+                  'description': '${{ inputs.description }}',
+                  'languages': {
+                      'backend': '${{ inputs.backend_language }}',
+                      'frontend': '${{ inputs.frontend_language }}' if '${{ inputs.frontend_language }}' else None
+                  },
+                  'database': {
+                      'type': '${{ inputs.database_type }}',
+                      'generate_from_schema': False
+                  } if '${{ inputs.database_type }}' != 'none' else None,
+                  'template': {
+                      'figma_file': '${{ inputs.figma_file_id }}'
+                  } if ${{ inputs.use_figma }} else None,
+                  'kubernetes': {
+                      'enabled': ${{ inputs.enable_kubernetes }},
+                      'environment': 'trial'
+                  },
+                  'generate_dockerfile': True
+              }
+              
+              # Call generation endpoint
+              result = await orchestrator.universal_agent.generate_project(request)
+              
+              # Save to storage
+              project_id = await orchestrator.storage_manager.store_project(
+                  project_path=result['output_directory'],
+                  metadata={
+                      'name': '${{ inputs.project_name }}',
+                      'type': 'generation',
+                      'workflow_run_id': '${{ github.run_id }}'
+                  }
+              )
+              
+              print(f'Project generated with ID: {project_id}')
+              print(f'Files generated: {len(result[\"generated_files\"])}')
+              
+              # Save summary
+              with open('generation-summary.json', 'w') as f:
+                  json.dump({
+                      'project_id': project_id,
+                      'project_name': '${{ inputs.project_name }}',
+                      'files_count': len(result['generated_files']),
+                      'has_dockerfile': bool(result.get('dockerfile')),
+                      'has_kubernetes': bool(result.get('kubernetes_manifests'))
+                  }, f, indent=2)
+              
+              await orchestrator.shutdown()
+          
+          asyncio.run(generate())
+          "
+      
+      - name: Upload generation summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: generation-summary
+          path: generation-summary.json
+      
+      - name: Create summary
+        run: |
+          echo "## 🚀 Project Generation Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Project:** ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend:** ${{ inputs.backend_language }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend:** ${{ inputs.frontend_language || 'None' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database:** ${{ inputs.database_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Kubernetes:** ${{ inputs.enable_kubernetes }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Project has been generated and stored in local storage." >> $GITHUB_STEP_SUMMARY
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down

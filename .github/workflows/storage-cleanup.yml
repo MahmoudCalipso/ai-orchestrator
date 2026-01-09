@@ -1,0 +1,126 @@
+name: Storage Cleanup
+
+on:
+  schedule:
+    # Run monthly on the 1st at 2 AM UTC
+    - cron: '0 2 1 * *'
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Archive old projects
+        run: |
+          python -c "
+          import asyncio
+          from core.storage import StorageManager
+          
+          async def archive():
+              storage = StorageManager()
+              
+              # Archive projects older than 90 days
+              archived_count = await storage.archive_old_projects(days=90)
+              print(f'Archived {archived_count} projects')
+              
+              # Get list of archived projects
+              archived = await storage.list_projects(status='archived')
+              print(f'Total archived projects: {len(archived)}')
+          
+          asyncio.run(archive())
+          "
+      
+      - name: Clean cache
+        run: |
+          python -c "
+          import asyncio
+          from core.storage import StorageManager
+          
+          async def clean():
+              storage = StorageManager()
+              
+              # Clean temporary cache
+              freed_bytes = await storage.clean_cache()
+              freed_gb = freed_bytes / (1024**3)
+              print(f'Freed {freed_gb:.2f} GB from cache')
+          
+          asyncio.run(clean())
+          "
+      
+      - name: Remove old backups
+        run: |
+          python -c "
+          import asyncio
+          from core.storage import BackupManager
+          
+          async def cleanup_backups():
+              backup_mgr = BackupManager()
+              
+              # Remove backups older than 30 days
+              removed_count = await backup_mgr.cleanup_old_backups(days=30)
+              print(f'Removed {removed_count} old backups')
+          
+          asyncio.run(cleanup_backups())
+          "
+      
+      - name: Generate storage report
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from core.storage import StorageManager
+          
+          async def report():
+              storage = StorageManager()
+              
+              stats = await storage.get_storage_stats()
+              
+              report = {
+                  'total_projects': stats['total_projects'],
+                  'active_projects': stats['active_projects'],
+                  'archived_projects': stats['archived_projects'],
+                  'total_size_gb': stats['total_size_gb'],
+                  'available_space_gb': stats.get('available_space_gb', 'unlimited')
+              }
+              
+              print('Storage Report:')
+              print(json.dumps(report, indent=2))
+              
+              with open('storage-report.json', 'w') as f:
+                  json.dump(report, f, indent=2)
+          
+          asyncio.run(report())
+          "
+      
+      - name: Upload storage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-report
+          path: storage-report.json
+      
+      - name: Create summary
+        run: |
+          echo "## 🧹 Storage Cleanup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat storage-report.json | python -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          print(f\"**Total Projects:** {data['total_projects']}\")
+          print(f\"**Active Projects:** {data['active_projects']}\")
+          print(f\"**Archived Projects:** {data['archived_projects']}\")
+          print(f\"**Total Size:** {data['total_size_gb']:.2f} GB\")
+          " >> $GITHUB_STEP_SUMMARY

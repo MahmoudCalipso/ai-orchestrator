@@ -1,0 +1,205 @@
+name: Automated Bug Fix
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  fix-bug:
+    if: contains(github.event.issue.labels.*.name, 'bug') || contains(github.event.issue.labels.*.name, 'fix-needed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Start Docker services
+        run: |
+          docker-compose up -d redis postgres
+          sleep 10
+      
+      - name: Analyze issue
+        id: analyze
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          import os
+          from core.orchestrator import Orchestrator
+          
+          async def analyze_issue():
+              orchestrator = Orchestrator()
+              await orchestrator.initialize()
+              
+              issue_text = f'''
+              Title: {os.environ['ISSUE_TITLE']}
+              
+              {os.environ['ISSUE_BODY']}
+              '''
+              
+              # Use AI to analyze the issue
+              analysis = await orchestrator.llm_engine.generate(
+                  prompt=f'''Analyze this bug report and extract:
+                  1. The file(s) that likely contain the bug
+                  2. The specific issue description
+                  3. Suggested fix approach
+                  
+                  Bug Report:
+                  {issue_text}
+                  
+                  Respond in JSON format with keys: files, issue, fix_approach
+                  ''',
+                  task_type='code_analysis'
+              )
+              
+              print(analysis)
+              
+              with open('issue-analysis.json', 'w') as f:
+                  f.write(analysis)
+              
+              await orchestrator.shutdown()
+          
+          asyncio.run(analyze_issue())
+          "
+      
+      - name: Generate fix
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from core.orchestrator import Orchestrator
+          
+          async def generate_fix():
+              orchestrator = Orchestrator()
+              await orchestrator.initialize()
+              
+              # Read analysis
+              with open('issue-analysis.json', 'r') as f:
+                  analysis = json.loads(f.read())
+              
+              # Generate fix for each file
+              fixes = {}
+              for file_path in analysis.get('files', []):
+                  try:
+                      with open(file_path, 'r') as f:
+                          code = f.read()
+                      
+                      fixed_code = await orchestrator.universal_agent.fix_code(
+                          code=code,
+                          issue=analysis.get('issue', ''),
+                          language=None  # Auto-detect
+                      )
+                      
+                      fixes[file_path] = fixed_code
+                      
+                      # Write fixed code
+                      with open(file_path, 'w') as f:
+                          f.write(fixed_code)
+                  except Exception as e:
+                      print(f'Error fixing {file_path}: {e}')
+              
+              print(f'Fixed {len(fixes)} files')
+              
+              await orchestrator.shutdown()
+          
+          asyncio.run(generate_fix())
+          "
+      
+      - name: Generate tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from core.orchestrator import Orchestrator
+          
+          async def generate_tests():
+              orchestrator = Orchestrator()
+              await orchestrator.initialize()
+              
+              with open('issue-analysis.json', 'r') as f:
+                  analysis = json.loads(f.read())
+              
+              for file_path in analysis.get('files', []):
+                  try:
+                      with open(file_path, 'r') as f:
+                          code = f.read()
+                      
+                      tests = await orchestrator.universal_agent.generate_tests(
+                          code=code,
+                          language=None,
+                          test_framework=None
+                      )
+                      
+                      # Determine test file path
+                      test_path = file_path.replace('.py', '_test.py')
+                      
+                      with open(test_path, 'w') as f:
+                          f.write(tests)
+                      
+                      print(f'Generated tests for {file_path}')
+                  except Exception as e:
+                      print(f'Error generating tests for {file_path}: {e}')
+              
+              await orchestrator.shutdown()
+          
+          asyncio.run(generate_tests())
+          "
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'fix: automated bug fix for issue #${{ github.event.issue.number }}'
+          title: '🤖 Automated Fix: ${{ github.event.issue.title }}'
+          body: |
+            ## Automated Bug Fix
+            
+            This PR contains an automated fix for issue #${{ github.event.issue.number }}
+            
+            ### Changes
+            - AI-generated bug fix
+            - Automated test generation
+            
+            ### Issue
+            ${{ github.event.issue.title }}
+            
+            Please review the changes carefully before merging.
+            
+            Closes #${{ github.event.issue.number }}
+          branch: fix/issue-${{ github.event.issue.number }}
+          delete-branch: true
+      
+      - name: Comment on issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🤖 An automated fix has been generated and a pull request has been created. Please review the changes.'
+            })
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down
