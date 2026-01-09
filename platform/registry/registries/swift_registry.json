@@ -1,0 +1,75 @@
+{
+    "language": "Swift",
+    "latest_version": "6.0.3",
+    "supported_versions": [
+        "5.9",
+        "5.10",
+        "6.0"
+    ],
+    "frameworks": [
+        {
+            "name": "SwiftUI",
+            "version": "6.0",
+            "type": "UI Framework",
+            "description": "Declarative UI framework for Apple platforms"
+        },
+        {
+            "name": "UIKit",
+            "version": "17.2",
+            "type": "UI Framework",
+            "description": "Framework for constructing and managing a graphical, event-driven user interface for iOS"
+        },
+        {
+            "name": "Vapor",
+            "version": "4.106.3",
+            "type": "Web Framework",
+            "description": "Server-side Swift web framework"
+        },
+        {
+            "name": "Combine",
+            "version": "5.9",
+            "type": "Reactive",
+            "description": "Declarative Swift API for processing values over time"
+        },
+        {
+            "name": "CoreData",
+            "version": "17.2",
+            "type": "Persistence",
+            "description": "Framework for managing the model layer objects in your application"
+        },
+        {
+            "name": "Realm",
+            "version": "10.46.0",
+            "type": "Database",
+            "description": "Mobile database that runs directly inside phones, tablets or wearables"
+        },
+        {
+            "name": "SwiftData",
+            "version": "5.9",
+            "type": "Persistence",
+            "description": "Framework for data modeling and management using Swift"
+        }
+    ],
+    "packages": {
+        "Alamofire": "5.8.1",
+        "Kingfisher": "7.10.2",
+        "SnapKit": "5.7.1",
+        "RxSwift": "6.6.0",
+        "Moya": "15.0.3",
+        "SwiftyJSON": "5.0.1",
+        "PromiseKit": "8.1.1",
+        "KeychainAccess": "4.2.2",
+        "SwiftLint": "0.54.0",
+        "Quick": "7.3.1",
+        "Nimble": "13.1.0",
+        "SDWebImage": "5.18.8",
+        "Lottie": "4.4.0",
+        "Charts": "5.0.0",
+        "Firebase": "10.20.0",
+        "SwiftGen": "6.6.2",
+        "R.swift": "7.4.0",
+        "CombineCocoa": "0.4.1",
+        "Swinject": "2.8.4",
+        "SwiftFormat": "0.53.0"
+    }
+}

@@ -1,0 +1,77 @@
+{
+    "language": "C++",
+    "latest_version": "C++23",
+    "versions": [
+        "C++11",
+        "C++14",
+        "C++17",
+        "C++20",
+        "C++23"
+    ],
+    "frameworks": [
+        {
+            "name": "Qt",
+            "version": "6.6.1",
+            "type": "GUI Framework",
+            "description": "Cross-platform application development framework"
+        },
+        {
+            "name": "Boost",
+            "version": "1.84.0",
+            "type": "Library Collection",
+            "description": "Free peer-reviewed portable C++ source libraries"
+        },
+        {
+            "name": "POCO",
+            "version": "1.13.0",
+            "type": "Application Framework",
+            "description": "C++ class libraries for building network and internet-based applications"
+        },
+        {
+            "name": "Crow",
+            "version": "1.0.3",
+            "type": "Web Framework",
+            "description": "Fast and easy to use C++ micro web framework"
+        },
+        {
+            "name": "Drogon",
+            "version": "1.9.2",
+            "type": "Web Framework",
+            "description": "C++14/17/20 based HTTP application framework"
+        },
+        {
+            "name": "gRPC",
+            "version": "1.60.0",
+            "type": "RPC Framework",
+            "description": "High performance, open source universal RPC framework"
+        },
+        {
+            "name": "wxWidgets",
+            "version": "3.2.4",
+            "type": "GUI Framework",
+            "description": "Cross-platform GUI library"
+        }
+    ],
+    "packages": {
+        "CMake": "3.28.1",
+        "vcpkg": "2024.01.12",
+        "Conan": "2.0.17",
+        "GoogleTest": "1.14.0",
+        "Catch2": "3.5.2",
+        "spdlog": "1.13.0",
+        "fmt": "10.2.1",
+        "nlohmann_json": "3.11.3",
+        "Eigen": "3.4.0",
+        "OpenCV": "4.9.0",
+        "protobuf": "25.2",
+        "abseil": "20240116.0",
+        "cpprestsdk": "2.10.19",
+        "asio": "1.28.1",
+        "range-v3": "0.12.0",
+        "folly": "2024.01.08.00",
+        "benchmark": "1.8.3",
+        "doctest": "2.4.11",
+        "cereal": "1.3.2",
+        "magic_enum": "0.9.5"
+    }
+}

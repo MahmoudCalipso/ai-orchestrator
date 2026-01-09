@@ -1,0 +1,71 @@
+{
+    "language": "C",
+    "latest_version": "C23",
+    "versions": [
+        "C89",
+        "C99",
+        "C11",
+        "C17",
+        "C23"
+    ],
+    "frameworks": [
+        {
+            "name": "libuv",
+            "version": "1.48.0",
+            "type": "Async I/O",
+            "description": "Multi-platform support library with a focus on asynchronous I/O"
+        },
+        {
+            "name": "libcurl",
+            "version": "8.5.0",
+            "type": "HTTP Client",
+            "description": "Command line tool and library for transferring data with URLs"
+        },
+        {
+            "name": "SQLite",
+            "version": "3.45.0",
+            "type": "Database",
+            "description": "C-language library that implements a small, fast, self-contained SQL database engine"
+        },
+        {
+            "name": "OpenSSL",
+            "version": "3.2.0",
+            "type": "Cryptography",
+            "description": "Robust, commercial-grade, and full-featured toolkit for TLS and SSL protocols"
+        },
+        {
+            "name": "zlib",
+            "version": "1.3.1",
+            "type": "Compression",
+            "description": "Massively spiffy yet delicately unobtrusive compression library"
+        },
+        {
+            "name": "libev",
+            "version": "4.33",
+            "type": "Event Loop",
+            "description": "Full-featured and high-performance event loop"
+        }
+    ],
+    "packages": {
+        "GCC": "13.2.0",
+        "Clang": "17.0.6",
+        "Make": "4.4.1",
+        "CMake": "3.28.1",
+        "glibc": "2.38",
+        "musl": "1.2.4",
+        "check": "0.15.2",
+        "unity": "2.5.2",
+        "cmocka": "1.1.7",
+        "valgrind": "3.22.0",
+        "gdb": "14.1",
+        "cppcheck": "2.13.0",
+        "libpthread": "2.38",
+        "libm": "2.38",
+        "libdl": "2.38",
+        "librt": "2.38",
+        "json-c": "0.17",
+        "pcre2": "10.42",
+        "libevent": "2.1.12",
+        "libxml2": "2.12.3"
+    }
+}

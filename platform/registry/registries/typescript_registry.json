@@ -1,0 +1,76 @@
+{
+    "language": "TypeScript",
+    "latest_version": "5.7.2",
+    "frameworks": [
+        {
+            "name": "TypeScript",
+            "version": "5.9.3",
+            "type": "Language",
+            "description": "TypeScript is JavaScript with syntax for types"
+        },
+        {
+            "name": "NestJS",
+            "version": "11.1.11",
+            "type": "Backend Framework",
+            "description": "A progressive Node.js framework for building efficient and scalable server-side applications"
+        },
+        {
+            "name": "Next.js",
+            "version": "16.1.1",
+            "type": "Full-stack Framework",
+            "description": "The React Framework for Production"
+        },
+        {
+            "name": "Remix",
+            "version": "2.15.2",
+            "type": "Full-stack Framework",
+            "description": "Build Better Websites"
+        },
+        {
+            "name": "tRPC",
+            "version": "11.0.0",
+            "type": "API Framework",
+            "description": "End-to-end typesafe APIs"
+        },
+        {
+            "name": "Prisma",
+            "version": "7.2.0",
+            "type": "ORM",
+            "description": "Next-generation ORM for Node.js and TypeScript"
+        },
+        {
+            "name": "TypeORM",
+            "version": "0.3.20",
+            "type": "ORM",
+            "description": "ORM for TypeScript and JavaScript (ES7, ES6, ES5)"
+        },
+        {
+            "name": "Drizzle ORM",
+            "version": "0.38.3",
+            "type": "ORM",
+            "description": "Headless TypeScript ORM"
+        }
+    ],
+    "packages": {
+        "ts-node": "10.9.2",
+        "tsx": "4.7.0",
+        "@types/node": "20.11.5",
+        "eslint": "8.56.0",
+        "prettier": "3.2.4",
+        "zod": "3.22.4",
+        "class-validator": "0.14.1",
+        "class-transformer": "0.5.1",
+        "rxjs": "7.8.1",
+        "date-fns": "3.3.1",
+        "lodash": "4.17.21",
+        "@types/lodash": "4.14.202",
+        "axios": "1.6.7",
+        "ky": "1.2.0",
+        "nanoid": "5.0.4",
+        "jsonwebtoken": "9.0.2",
+        "bcryptjs": "2.4.3",
+        "dotenv": "16.4.1",
+        "winston": "3.11.0",
+        "pino": "8.17.2"
+    }
+}

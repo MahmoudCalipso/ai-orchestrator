@@ -1,0 +1,70 @@
+{
+    "language": "Scala",
+    "latest_version": "3.3",
+    "versions": [
+        "2.12",
+        "2.13",
+        "3.0",
+        "3.3"
+    ],
+    "frameworks": [
+        {
+            "name": "Play Framework",
+            "version": "2.9.1",
+            "type": "Web Framework",
+            "description": "High velocity web framework for Java and Scala"
+        },
+        {
+            "name": "Akka",
+            "version": "2.9.0",
+            "type": "Actor Framework",
+            "description": "Toolkit for building highly concurrent, distributed, and resilient message-driven applications"
+        },
+        {
+            "name": "ZIO",
+            "version": "2.0.21",
+            "type": "Functional Effect",
+            "description": "Type-safe, composable library for asynchronous and concurrent programming"
+        },
+        {
+            "name": "Cats",
+            "version": "2.10.0",
+            "type": "Functional Library",
+            "description": "Lightweight, modular, and extensible library for functional programming"
+        },
+        {
+            "name": "Slick",
+            "version": "3.5.0",
+            "type": "Database",
+            "description": "Modern database query and access library for Scala"
+        },
+        {
+            "name": "http4s",
+            "version": "0.23.25",
+            "type": "HTTP Library",
+            "description": "Typeful, functional, streaming HTTP for Scala"
+        }
+    ],
+    "packages": {
+        "scalatest": "3.2.17",
+        "circe": "0.14.6",
+        "doobie": "1.0.0-RC5",
+        "sttp": "3.9.2",
+        "scalaz": "7.3.8",
+        "shapeless": "2.3.10",
+        "refined": "0.11.1",
+        "fs2": "3.9.4",
+        "monix": "3.4.1",
+        "scalamock": "5.2.0",
+        "scalacheck": "1.17.0",
+        "pureconfig": "0.17.5",
+        "enumeratum": "1.7.3",
+        "monocle": "3.2.0",
+        "tapir": "1.9.9",
+        "caliban": "2.5.3",
+        "sangria": "4.0.2",
+        "scalikejdbc": "4.2.1",
+        "quill": "4.8.0",
+        "logback": "1.4.14"
+    }
+}

@@ -1,0 +1,90 @@
+{
+    "language": "Python",
+    "latest_version": "3.12",
+    "versions": [
+        "3.8",
+        "3.9",
+        "3.10",
+        "3.11",
+        "3.12"
+    ],
+    "frameworks": [
+        {
+            "name": "FastAPI",
+            "version": "0.128.0",
+            "type": "Web Framework",
+            "description": "Modern, fast web framework for building APIs"
+        },
+        {
+            "name": "Django",
+            "version": "6.0.1",
+            "type": "Web Framework",
+            "description": "The web framework for perfectionists with deadlines"
+        },
+        {
+            "name": "Flask",
+            "version": "3.1.2",
+            "type": "Web Framework",
+            "description": "A lightweight WSGI web application framework"
+        },
+        {
+            "name": "Pydantic",
+            "version": "2.12.5",
+            "type": "Data Validation",
+            "description": "Data validation using Python type hints"
+        }
+    ],
+    "packages": {
+        "pydantic": "2.12.5",
+        "sqlalchemy": "2.0.45",
+        "numpy": "2.4.0",
+        "pandas": "2.3.3",
+        "pytest": "9.0.2",
+        "requests": "2.32.5",
+        "torch": "2.6.0",
+        "tensorflow": "2.18.0",
+        "scikit-learn": "1.6.1",
+        "matplotlib": "3.10.0",
+        "pillow": "11.1.0",
+        "opencv-python": "4.10.0",
+        "celery": "5.4.0",
+        "redis": "5.2.1",
+        "boto3": "1.35.90",
+        "google-cloud-storage": "2.19.0",
+        "azure-storage-blob": "12.24.0",
+        "black": "24.10.0",
+        "mypy": "1.14.1",
+        "pylint": "3.3.3",
+        "bandit": "1.8.0",
+        "safety": "3.2.11",
+        "httpx": "0.28.1",
+        "aiohttp": "3.11.11",
+        "uvicorn": "0.34.0",
+        "gunicorn": "23.0.0",
+        "alembic": "1.14.0",
+        "marshmallow": "3.24.1",
+        "click": "8.1.8",
+        "rich": "13.9.4",
+        "typer": "0.15.1",
+        "poetry": "1.8.5",
+        "pytest-cov": "6.0.0",
+        "pytest-asyncio": "0.25.2",
+        "faker": "33.1.0",
+        "factory-boy": "3.3.1",
+        "freezegun": "1.5.1",
+        "responses": "0.25.3",
+        "httpretty": "1.1.7",
+        "beautifulsoup4": "4.12.3",
+        "lxml": "5.3.0",
+        "scrapy": "2.12.0",
+        "selenium": "4.27.1",
+        "playwright": "1.49.1",
+        "jinja2": "3.1.5",
+        "pyyaml": "6.0.2",
+        "toml": "0.10.2",
+        "python-dotenv": "1.0.1",
+        "cryptography": "44.0.0",
+        "passlib": "1.7.4",
+        "python-jose": "3.3.0"
+    }
+}

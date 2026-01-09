@@ -1,0 +1,75 @@
+{
+    "language": "Go",
+    "latest_version": "1.23.4",
+    "supported_versions": [
+        "1.21",
+        "1.22",
+        "1.23"
+    ],
+    "frameworks": [
+        {
+            "name": "Gin",
+            "version": "1.11.0",
+            "type": "Web Framework",
+            "description": "HTTP web framework written in Go"
+        },
+        {
+            "name": "Echo",
+            "version": "4.15.0",
+            "type": "Web Framework",
+            "description": "High performance, minimalist Go web framework"
+        },
+        {
+            "name": "Fiber",
+            "version": "2.52.10",
+            "type": "Web Framework",
+            "description": "Express inspired web framework built on Fasthttp"
+        },
+        {
+            "name": "Chi",
+            "version": "5.0.11",
+            "type": "Web Framework",
+            "description": "Lightweight, idiomatic and composable router for building Go HTTP services"
+        },
+        {
+            "name": "GORM",
+            "version": "1.31.1",
+            "type": "ORM",
+            "description": "The fantastic ORM library for Golang"
+        },
+        {
+            "name": "Ent",
+            "version": "0.13.0",
+            "type": "ORM",
+            "description": "An entity framework for Go - Simple, yet powerful ORM for modeling and querying data"
+        },
+        {
+            "name": "gRPC",
+            "version": "1.61.0",
+            "type": "RPC Framework",
+            "description": "High performance, open source universal RPC framework"
+        }
+    ],
+    "packages": {
+        "gorilla/mux": "1.8.1",
+        "testify": "1.8.4",
+        "viper": "1.18.2",
+        "cobra": "1.8.0",
+        "zap": "1.26.0",
+        "logrus": "1.9.3",
+        "jwt-go": "5.2.0",
+        "validator": "10.17.0",
+        "go-redis": "9.4.0",
+        "mongo-driver": "1.13.1",
+        "sqlx": "1.3.5",
+        "migrate": "4.17.0",
+        "godotenv": "1.5.1",
+        "uuid": "1.6.0",
+        "bcrypt": "0.15.0",
+        "cors": "1.11.0",
+        "websocket": "1.5.1",
+        "prometheus": "1.18.0",
+        "otel": "1.22.0",
+        "wire": "0.6.0"
+    }
+}

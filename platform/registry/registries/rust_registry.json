@@ -1,0 +1,77 @@
+{
+    "language": "Rust",
+    "latest_version": "1.76",
+    "versions": [
+        "1.70",
+        "1.72",
+        "1.74",
+        "1.75",
+        "1.76"
+    ],
+    "frameworks": [
+        {
+            "name": "Actix-web",
+            "version": "4.12.1",
+            "type": "Web Framework",
+            "description": "Powerful, pragmatic, and extremely fast web framework"
+        },
+        {
+            "name": "Rocket",
+            "version": "0.5.1",
+            "type": "Web Framework",
+            "description": "Simple, fast, type-safe web framework"
+        },
+        {
+            "name": "Axum",
+            "version": "0.8.8",
+            "type": "Web Framework",
+            "description": "Ergonomic and modular web framework built with Tokio"
+        },
+        {
+            "name": "Tokio",
+            "version": "1.49.0",
+            "type": "Async Runtime",
+            "description": "An event-driven, non-blocking I/O platform"
+        },
+        {
+            "name": "Diesel",
+            "version": "2.3.5",
+            "type": "ORM",
+            "description": "A safe, extensible ORM and Query Builder"
+        },
+        {
+            "name": "SeaORM",
+            "version": "2.0.0-rc.27",
+            "type": "ORM",
+            "description": "An async & dynamic ORM for Rust"
+        },
+        {
+            "name": "SQLx",
+            "version": "0.7.3",
+            "type": "Database",
+            "description": "Async, pure Rust SQL crate featuring compile-time checked queries"
+        }
+    ],
+    "packages": {
+        "serde": "1.0.196",
+        "serde_json": "1.0.113",
+        "tokio": "1.36.0",
+        "reqwest": "0.11.24",
+        "clap": "4.5.0",
+        "anyhow": "1.0.79",
+        "thiserror": "1.0.56",
+        "tracing": "0.1.40",
+        "async-trait": "0.1.77",
+        "futures": "0.3.30",
+        "hyper": "1.1.0",
+        "tower": "0.4.13",
+        "chrono": "0.4.33",
+        "uuid": "1.7.0",
+        "regex": "1.10.3",
+        "lazy_static": "1.4.0",
+        "rayon": "1.8.1",
+        "log": "0.4.20",
+        "env_logger": "0.11.1",
+        "dotenv": "0.15.0"
+    }
+}

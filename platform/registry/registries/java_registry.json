@@ -1,0 +1,66 @@
+{
+    "language": "Java",
+    "latest_version": "23",
+    "supported_versions": [
+        "17",
+        "21",
+        "23"
+    ],
+    "frameworks": [
+        {
+            "name": "Spring Boot",
+            "version": "3.5.3",
+            "type": "Web Framework",
+            "description": "Production-ready Spring applications"
+        },
+        {
+            "name": "Quarkus",
+            "version": "3.23.0",
+            "type": "Web Framework",
+            "description": "Kubernetes Native Java stack"
+        },
+        {
+            "name": "Micronaut",
+            "version": "4.3.0",
+            "type": "Microservices",
+            "description": "A modern, JVM-based, full-stack framework for building modular, easily testable microservice and serverless applications"
+        }
+    ],
+    "packages": {
+        "lombok": "1.18.30",
+        "junit": "5.10.1",
+        "mockito": "5.10.0",
+        "jackson": "2.16.1",
+        "slf4j": "2.0.11",
+        "hibernate": "6.4.2",
+        "jpa": "3.1.0",
+        "mybatis": "3.5.15",
+        "flyway": "10.7.1",
+        "liquibase": "4.25.1",
+        "spring-security": "6.2.1",
+        "spring-cloud": "2023.0.0",
+        "spring-data": "3.2.2",
+        "apache-commons-lang3": "3.14.0",
+        "apache-commons-collections4": "4.4",
+        "guava": "33.0.0-jre",
+        "gson": "2.10.1",
+        "okhttp": "4.12.0",
+        "retrofit": "2.9.0",
+        "testcontainers": "1.19.3",
+        "rest-assured": "5.4.0",
+        "wiremock": "3.3.1",
+        "assertj": "3.25.2",
+        "awaitility": "4.2.0",
+        "mapstruct": "1.5.5.Final",
+        "modelmapper": "3.2.0",
+        "jooq": "3.19.3",
+        "querydsl": "5.1.0",
+        "caffeine": "3.1.8",
+        "ehcache": "3.10.8",
+        "micrometer": "1.12.2",
+        "resilience4j": "2.2.0",
+        "vavr": "0.10.4",
+        "javalin": "6.0.1",
+        "spark": "2.9.4"
+    }
+}

@@ -1,0 +1,70 @@
+{
+    "language": "Ruby",
+    "latest_version": "3.3",
+    "versions": [
+        "3.0",
+        "3.1",
+        "3.2",
+        "3.3"
+    ],
+    "frameworks": [
+        {
+            "name": "Ruby on Rails",
+            "version": "7.1.3",
+            "type": "Web Framework",
+            "description": "Full-stack web application framework that includes everything needed to create database-backed web applications"
+        },
+        {
+            "name": "Sinatra",
+            "version": "4.2.1",
+            "type": "Web Framework",
+            "description": "DSL for quickly creating web applications in Ruby with minimal effort"
+        },
+        {
+            "name": "Hanami",
+            "version": "2.3.2",
+            "type": "Web Framework",
+            "description": "Modern web framework for Ruby"
+        },
+        {
+            "name": "ActiveRecord",
+            "version": "7.1.3",
+            "type": "ORM",
+            "description": "Object-relational mapping in Rails"
+        },
+        {
+            "name": "Sequel",
+            "version": "5.77.0",
+            "type": "ORM",
+            "description": "Database toolkit for Ruby"
+        },
+        {
+            "name": "Grape",
+            "version": "2.0.0",
+            "type": "API Framework",
+            "description": "REST-like API framework for Ruby"
+        }
+    ],
+    "packages": {
+        "rspec": "3.12.0",
+        "puma": "6.4.2",
+        "sidekiq": "7.2.0",
+        "devise": "4.9.3",
+        "pundit": "2.3.1",
+        "cancancan": "3.5.0",
+        "kaminari": "1.2.2",
+        "carrierwave": "3.0.5",
+        "paperclip": "6.1.0",
+        "faker": "3.2.3",
+        "factory_bot": "6.4.5",
+        "capybara": "3.39.2",
+        "vcr": "6.2.0",
+        "webmock": "3.20.0",
+        "rubocop": "1.60.1",
+        "simplecov": "0.22.0",
+        "dotenv": "2.8.1",
+        "redis": "5.0.8",
+        "jwt": "2.7.1",
+        "rack-cors": "2.0.1"
+    }
+}

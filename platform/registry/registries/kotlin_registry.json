@@ -1,0 +1,69 @@
+{
+    "language": "Kotlin",
+    "latest_version": "2.1.0",
+    "versions": [
+        "1.9",
+        "2.0",
+        "2.1"
+    ],
+    "frameworks": [
+        {
+            "name": "Ktor",
+            "version": "3.0.3",
+            "type": "Web Framework",
+            "description": "Asynchronous framework for creating microservices and web applications"
+        },
+        {
+            "name": "Spring Boot",
+            "version": "3.4.1",
+            "type": "Web Framework",
+            "description": "Spring Boot with Kotlin support"
+        },
+        {
+            "name": "Exposed",
+            "version": "0.47.0",
+            "type": "ORM",
+            "description": "Kotlin SQL Framework"
+        },
+        {
+            "name": "Jetpack Compose",
+            "version": "1.6.0",
+            "type": "UI Framework",
+            "description": "Modern toolkit for building native Android UI"
+        },
+        {
+            "name": "Compose Multiplatform",
+            "version": "1.5.12",
+            "type": "UI Framework",
+            "description": "Declarative framework for sharing UIs across multiple platforms"
+        },
+        {
+            "name": "KMM",
+            "version": "1.9.22",
+            "type": "Multiplatform",
+            "description": "Kotlin Multiplatform Mobile for sharing code between iOS and Android"
+        }
+    ],
+    "packages": {
+        "kotlinx.coroutines": "1.7.3",
+        "kotlinx.serialization": "1.6.2",
+        "arrow-core": "1.2.1",
+        "koin": "3.5.3",
+        "mockk": "1.13.9",
+        "kotest": "5.8.0",
+        "ktor-client": "2.3.7",
+        "retrofit": "2.9.0",
+        "okhttp": "4.12.0",
+        "gson": "2.10.1",
+        "moshi": "1.15.0",
+        "fuel": "2.3.1",
+        "kodein": "7.21.1",
+        "kotlinx.datetime": "0.5.0",
+        "result": "1.1.18",
+        "konform": "0.4.0",
+        "detekt": "1.23.5",
+        "ktlint": "12.1.0",
+        "slf4j-kotlin": "2.0.11",
+        "logback": "1.4.14"
+    }
+}

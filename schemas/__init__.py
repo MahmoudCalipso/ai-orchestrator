@@ -269,7 +269,7 @@ SCHEMA_METADATA = {
     },
     'InferenceParameters': {
         'description': 'Parameters for controlling inference',
-        'fields': ['temperature', 'top_p', 'top_k', 'max_tokens', 'stop_sequences', etc.]
+        'fields': ['temperature', 'top_p', 'top_k', 'max_tokens', 'stop_sequences']
     },
 }
 
