@@ -36,10 +36,19 @@ class DatabaseType(str, Enum):
     CASSANDRA = "cassandra"
     NONE = "none"
 
+class FrameworkSpec(BaseModel):
+    """Framework specification with version and architecture"""
+    framework: str  # e.g., "Django", "FastAPI", "Spring Boot"
+    version: str  # e.g., "5.0.1", "0.109.0"
+    architecture: Optional[str] = None  # e.g., "MVP", "Clean Architecture"
+    sdk: Optional[str] = None  # For .NET (e.g., "8.0.101")
+    jdk: Optional[str] = None  # For Java (e.g., "17")
+
+
 class LanguageConfig(BaseModel):
-    """Language configuration for different components"""
-    backend: Optional[str] = None  # e.g., "Rust", "Go 1.22", "Python 3.12"
-    frontend: Optional[str] = None  # e.g., "Angular 17", "React 18"
+    """Enhanced language configuration for different components"""
+    backend: Optional[Union[str, FrameworkSpec]] = None  # Legacy string or new FrameworkSpec
+    frontend: Optional[Union[str, FrameworkSpec]] = None
     mobile: Optional[str] = None   # e.g., "Flutter 3.16", "React Native"
     desktop: Optional[str] = None  # e.g., "Tauri", "Electron"
     database_orm: Optional[str] = None # e.g., "Diesel", "GORM", "SQLAlchemy"

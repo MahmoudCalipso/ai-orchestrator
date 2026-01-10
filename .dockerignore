@@ -51,7 +51,7 @@ models/*.safetensors
 
 # Environment
 .env
-.env.*
+.env
 
 # Temporary
 *.tmp

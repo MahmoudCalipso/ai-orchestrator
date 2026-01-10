@@ -14,7 +14,7 @@ import uvicorn
 from core.orchestrator import Orchestrator
 from core.registry import ModelRegistry
 from core.security import SecurityManager, verify_api_key
-from platform.git import GitCredentialManager, RepositoryManager
+from services.git import GitCredentialManager, RepositoryManager
 from schemas.spec import (
     InferenceRequest,
     InferenceResponse,
@@ -35,8 +35,8 @@ from schemas.enhanced_spec import (
     GenerationResponse,
     MigrationResponse
 )
-from platform.database import DatabaseConnectionManager, SchemaAnalyzer, EntityGenerator
-from platform.registry import LanguageRegistry
+from services.database import DatabaseConnectionManager, SchemaAnalyzer, EntityGenerator
+from services.registry import LanguageRegistry
 
 # Configure logging
 logging.basicConfig(
@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
     logger.info("Platform components initialized")
     
     # Initialize IDE Services
-    from platform.ide import EditorService, TerminalService, DebuggerService
+    from services.ide import EditorService, TerminalService, DebuggerService
     global editor_service, terminal_service, debugger_service
     editor_service = EditorService()
     terminal_service = TerminalService()
@@ -402,8 +402,78 @@ async def generate_code(
                 "generated_files": {},
                 "documentation": "",
                 "dockerfile": "",
-                "kubernetes_manifests": {}
+                "kubernetes_manifests": {},
+                "framework_info": {},
+                "packages": {},
+                "best_practices": {}
             }
+            
+            # NEW: Process enhanced language specifications with framework registry
+            from core.generation.enhanced_handler import EnhancedGenerationHandler
+            
+            enhanced_handler = EnhancedGenerationHandler()
+            
+            # Get database type for package selection
+            database_type = None
+            if "database" in req_data and req_data["database"]:
+                database_type = req_data["database"].get("type")
+            
+            # Process language specifications
+            if "languages" in req_data:
+                lang_spec = enhanced_handler.process_language_spec(
+                    req_data["languages"],
+                    database_type
+                )
+                
+                result["framework_info"] = {
+                    "backend": lang_spec.get("backend"),
+                    "frontend": lang_spec.get("frontend")
+                }
+                result["packages"] = lang_spec.get("packages", {})
+                result["best_practices"] = lang_spec.get("best_practices", {})
+                result["architecture_patterns"] = lang_spec.get("architecture_patterns", {})
+                
+                # Generate package installation scripts
+                if lang_spec.get("backend"):
+                    backend_lang = lang_spec["backend"]["language"]
+                    backend_packages = lang_spec["packages"]["backend"]
+                    
+                    install_script = enhanced_handler.generate_package_install_script(
+                        backend_lang,
+                        backend_packages
+                    )
+                    result["generated_files"]["install_packages.sh"] = install_script
+                    
+                    # Generate requirements file
+                    requirements = enhanced_handler.generate_requirements_file(
+                        backend_lang,
+                        backend_packages
+                    )
+                    
+                    if backend_lang == "python":
+                        result["generated_files"]["requirements.txt"] = requirements
+                    elif backend_lang == "javascript":
+                        result["generated_files"]["package.json"] = requirements
+                
+                # Generate architecture-specific structure
+                if lang_spec.get("backend") and lang_spec["backend"].get("architecture"):
+                    architecture = lang_spec["backend"]["architecture"]
+                    backend_lang = lang_spec["backend"]["language"]
+                    
+                    arch_template = enhanced_handler.get_architecture_template(
+                        architecture,
+                        backend_lang
+                    )
+                    result["architecture_template"] = arch_template
+                    
+                    # Create directory structure documentation
+                    structure_doc = f"# Project Structure ({architecture})\n\n"
+                    structure_doc += f"{arch_template['description']}\n\n"
+                    structure_doc += "## Directory Structure:\n"
+                    for directory in arch_template["directories"]:
+                        structure_doc += f"- {directory}/\n"
+                    
+                    result["generated_files"]["ARCHITECTURE.md"] = structure_doc
             
             # 1. Entity-Based Generation
             entities = []
@@ -422,9 +492,23 @@ async def generate_code(
                     entities = await schema_analyzer.analyze(db_cfg)
                     logger.info(f"Reverse engineered {len(entities)} entities from database")
             
-            # 3. Generate Models, DTOs, Repositories, APIs
-            backend_lang = req_data.get("languages", {}).get("backend")
-            if backend_lang and entities:
+            # 3. Generate Models, DTOs, Repositories, APIs with enhanced framework info
+            backend_spec = result["framework_info"].get("backend")
+            if backend_spec and entities:
+                backend_lang = backend_spec.get("language", "python")
+                framework = backend_spec.get("framework", "fastapi")
+                
+                models = await entity_generator.generate_models(entities, backend_lang)
+                result["generated_files"].update(models)
+                
+                dtos = await entity_generator.generate_dtos(entities, backend_lang)
+                result["generated_files"].update(dtos)
+                
+                apis = await entity_generator.generate_api(entities, backend_lang, framework)
+                result["generated_files"].update(apis)
+            elif req_data.get("languages", {}).get("backend") and entities:
+                # Fallback to legacy format
+                backend_lang = req_data["languages"]["backend"]
                 models = await entity_generator.generate_models(entities, backend_lang)
                 result["generated_files"].update(models)
                 
@@ -436,7 +520,7 @@ async def generate_code(
             
             # 4. Figma Integration
             if "template" in req_data and req_data["template"] and req_data["template"].get("figma_file"):
-                from platform.figma import FigmaClient, FigmaAnalyzer, FigmaCodeGenerator
+                from services.figma import FigmaClient, FigmaAnalyzer, FigmaCodeGenerator
                 figma_client = FigmaClient()
                 figma_analyzer = FigmaAnalyzer()
                 figma_generator = FigmaCodeGenerator()
@@ -450,7 +534,7 @@ async def generate_code(
             
             # 5. Template Processing
             if "template" in req_data and req_data["template"] and req_data["template"].get("url"):
-                from platform.templates import TemplateProcessor
+                from services.templates import TemplateProcessor
                 from pathlib import Path
                 
                 template_processor = TemplateProcessor()
@@ -479,7 +563,7 @@ async def generate_code(
             
             # 6. Security Features
             if "security" in req_data and req_data["security"]:
-                from platform.security import AuthGenerator, VulnerabilityScanner
+                from services.security import AuthGenerator, VulnerabilityScanner
                 
                 auth_gen = AuthGenerator()
                 security_config = req_data["security"]
@@ -496,7 +580,7 @@ async def generate_code(
             
             # 7. AR Features
             if "ar_enabled" in req_data and req_data["ar_enabled"]:
-                from platform.ar import ARGenerator, ARPlatform, ARType
+                from services.ar import ARGenerator, ARPlatform, ARType
                 
                 ar_gen = ARGenerator(orchestrator)
                 ar_config = req_data.get("ar_config", {})
@@ -527,7 +611,7 @@ CMD ["python", "main.py"]
             
             # 9. Kubernetes Manifests
             if "kubernetes" in req_data and req_data["kubernetes"] and req_data["kubernetes"].get("enabled"):
-                from platform.kubernetes import KubernetesGenerator
+                from services.kubernetes import KubernetesGenerator
                 from schemas.generation_spec import KubernetesConfig
                 
                 k8s_gen = KubernetesGenerator()
@@ -1257,7 +1341,7 @@ async def analyze_figma_design(
 ):
     """Analyze Figma file and extract components"""
     try:
-        from platform.figma import FigmaClient, FigmaAnalyzer
+        from services.figma import FigmaClient, FigmaAnalyzer
         
         file_key = request.get("file_key")
         token = request.get("token")
@@ -1286,7 +1370,7 @@ async def scan_security(
 ):
     """Scan project for security vulnerabilities"""
     try:
-        from platform.security import VulnerabilityScanner
+        from services.security import VulnerabilityScanner
         
         path = request.get("project_path")
         language = request.get("language", "python")
@@ -1645,7 +1729,7 @@ async def get_monitoring_metrics(
 ):
     """Get monitoring metrics"""
     try:
-        from platform.monitoring import RealtimeMonitoringService
+        from services.monitoring import RealtimeMonitoringService
         monitoring = RealtimeMonitoringService()
         metrics = monitoring.get_metrics(limit)
         return {"metrics": metrics}
@@ -1658,7 +1742,7 @@ async def get_monitoring_metrics(
 async def get_current_metrics(api_key: str = Depends(verify_api_key)):
     """Get current system metrics"""
     try:
-        from platform.monitoring import RealtimeMonitoringService
+        from services.monitoring import RealtimeMonitoringService
         monitoring = RealtimeMonitoringService()
         metrics = monitoring.get_current_metrics()
         return metrics or {}
@@ -1672,7 +1756,7 @@ async def monitoring_stream(websocket: WebSocket):
     """WebSocket endpoint for real-time metrics streaming"""
     await websocket.accept()
     
-    from platform.monitoring import RealtimeMonitoringService
+    from services.monitoring import RealtimeMonitoringService
     monitoring = RealtimeMonitoringService()
     await monitoring.register_websocket(websocket)
     
@@ -1692,7 +1776,7 @@ async def list_builds(
 ):
     """List build progress"""
     try:
-        from platform.monitoring import RealtimeMonitoringService
+        from services.monitoring import RealtimeMonitoringService
         monitoring = RealtimeMonitoringService()
         builds = monitoring.list_builds(status)
         return {"builds": [b.to_dict() for b in builds]}
@@ -1708,7 +1792,7 @@ async def get_build(
 ):
     """Get build progress"""
     try:
-        from platform.monitoring import RealtimeMonitoringService
+        from services.monitoring import RealtimeMonitoringService
         monitoring = RealtimeMonitoringService()
         build = monitoring.get_build(build_id)
         if not build:
@@ -1730,7 +1814,7 @@ async def create_collaboration_session(
 ):
     """Create collaboration session"""
     try:
-        from platform.collaboration import CollaborationService
+        from services.collaboration import CollaborationService
         collaboration = CollaborationService()
         
         project_id = request.get("project_id")
@@ -1754,7 +1838,7 @@ async def collaboration_websocket(
     """WebSocket endpoint for collaboration"""
     await websocket.accept()
     
-    from platform.collaboration import CollaborationService
+    from services.collaboration import CollaborationService
     collaboration = CollaborationService()
     await collaboration.handle_websocket(websocket, session_id, user_id, username)
 
@@ -1768,7 +1852,7 @@ async def create_workspace(
 ):
     """Create workspace"""
     try:
-        from platform.workspace import WorkspaceManager
+        from services.workspace import WorkspaceManager
         workspace_mgr = WorkspaceManager()
         
         name = request.get("name")
@@ -1789,7 +1873,7 @@ async def get_workspace(
 ):
     """Get workspace"""
     try:
-        from platform.workspace import WorkspaceManager
+        from services.workspace import WorkspaceManager
         workspace_mgr = WorkspaceManager()
         
         workspace = workspace_mgr.get_workspace(workspace_id)
@@ -1810,7 +1894,7 @@ async def list_user_workspaces(
 ):
     """List user workspaces"""
     try:
-        from platform.workspace import WorkspaceManager
+        from services.workspace import WorkspaceManager
         workspace_mgr = WorkspaceManager()
         
         workspaces = workspace_mgr.list_user_workspaces(user_id)
@@ -1828,7 +1912,7 @@ async def invite_member(
 ):
     """Invite member to workspace"""
     try:
-        from platform.workspace import WorkspaceManager, WorkspaceRole
+        from services.workspace import WorkspaceManager, WorkspaceRole
         workspace_mgr = WorkspaceManager()
         
         inviter_id = request.get("inviter_id")
@@ -1864,7 +1948,7 @@ async def remove_member(
 ):
     """Remove member from workspace"""
     try:
-        from platform.workspace import WorkspaceManager
+        from services.workspace import WorkspaceManager
         workspace_mgr = WorkspaceManager()
         
         success = workspace_mgr.remove_member(workspace_id, remover_id, user_id)
@@ -1889,7 +1973,7 @@ async def generate_kubernetes_config(
 ):
     """Generate Kubernetes manifests"""
     try:
-        from platform.kubernetes import KubernetesGenerator
+        from services.kubernetes import KubernetesGenerator
         from schemas.generation_spec import KubernetesConfig
         
         app_name = request.get("app_name", "my-app")

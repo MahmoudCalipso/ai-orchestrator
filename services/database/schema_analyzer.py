@@ -5,7 +5,7 @@ import logging
 from typing import List, Dict, Any, Optional
 
 from schemas.generation_spec import EntityDefinition, EntityField, ValidationRule, DatabaseConfig, DatabaseType
-from platform.database.connection_manager import DatabaseConnectionManager
+from services.database.connection_manager import DatabaseConnectionManager
 
 logger = logging.getLogger(__name__)
 
