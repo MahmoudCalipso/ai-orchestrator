@@ -3,9 +3,7 @@ Debugger Service - Debugging support for browser IDE
 Implements Debug Adapter Protocol (DAP)
 """
 import asyncio
-import json
 from typing import Dict, Any, List, Optional
-from fastapi import WebSocket
 import uuid
 
 

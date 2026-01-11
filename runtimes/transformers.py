@@ -4,7 +4,7 @@ Transformers Runtime - Direct integration with HuggingFace Transformers
 import logging
 import yaml
 import torch
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Dict, Any, AsyncGenerator
 from pathlib import Path
 from runtimes.base import BaseRuntime
 
@@ -205,7 +205,6 @@ class TransformersRuntime(BaseRuntime):
     async def health_check(self) -> bool:
         """Check runtime health"""
         try:
-            import transformers
             return True
         except:
             return False

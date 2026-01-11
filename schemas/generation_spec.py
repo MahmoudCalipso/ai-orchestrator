@@ -47,11 +47,11 @@ class FrameworkSpec(BaseModel):
 
 class LanguageConfig(BaseModel):
     """Enhanced language configuration for different components"""
-    backend: Optional[Union[str, FrameworkSpec]] = None  # Legacy string or new FrameworkSpec
-    frontend: Optional[Union[str, FrameworkSpec]] = None
-    mobile: Optional[str] = None   # e.g., "Flutter 3.16", "React Native"
-    desktop: Optional[str] = None  # e.g., "Tauri", "Electron"
-    database_orm: Optional[str] = None # e.g., "Diesel", "GORM", "SQLAlchemy"
+    backend: Optional[Union[str, FrameworkSpec]] = Field(None, description="Backend stack (e.g. 'FastAPI', 'Spring Boot')")
+    frontend: Optional[Union[str, FrameworkSpec]] = Field(None, description="Frontend stack (e.g. 'React', 'Vue')")
+    mobile: Optional[str] = Field(None, description="Mobile framework (e.g. 'Flutter', 'React Native')")
+    desktop: Optional[str] = Field(None, description="Desktop framework (e.g. 'Electron')")
+    database_orm: Optional[str] = Field(None, description="ORM to use (e.g. 'SQLAlchemy', 'GORM')")
 
 class TemplateSource(BaseModel):
     """Template source configuration"""
@@ -142,17 +142,20 @@ class KubernetesConfig(BaseModel):
 
 class GenerationRequest(BaseModel):
     """Enhanced application generation request"""
-    project_name: str
-    description: Optional[str] = None
-    project_types: List[ProjectType] = Field(default_factory=lambda: [ProjectType.WEB])
-    languages: LanguageConfig
-    template: Optional[TemplateSource] = None
-    database: Optional[DatabaseConfig] = None
-    entities: List[EntityDefinition] = Field(default_factory=list)
-    git: Optional[GitActionConfig] = None
-    security: Optional[SecurityConfig] = Field(default_factory=SecurityConfig)
-    kubernetes: Optional[KubernetesConfig] = Field(default_factory=KubernetesConfig)
-    requirements: Optional[str] = None # Natural language requirements
+    project_name: str = Field(..., description="Name of the project to generate", example="MyAwesomeApp")
+    description: Optional[str] = Field(None, description="Detailed description of the application")
+    project_types: List[ProjectType] = Field(
+        default_factory=lambda: [ProjectType.WEB],
+        description="Types of projects to generate (Web, Mobile, etc.)"
+    )
+    languages: LanguageConfig = Field(..., description="Configuration for backend/frontend stacks")
+    template: Optional[TemplateSource] = Field(None, description="Optional template source (Git, local, Figma)")
+    database: Optional[DatabaseConfig] = Field(None, description="Database configuration and connection details")
+    entities: List[EntityDefinition] = Field(default_factory=list, description="List of entity definitions for the project")
+    git: Optional[GitActionConfig] = Field(None, description="Git repository creation and commit settings")
+    security: Optional[SecurityConfig] = Field(default_factory=SecurityConfig, description="Security and auth configuration")
+    kubernetes: Optional[KubernetesConfig] = Field(default_factory=KubernetesConfig, description="K8s deployment settings")
+    requirements: Optional[str] = Field(None, description="Natural language requirements for the generation")
 
 class FeatureAddRequest(BaseModel):
     """Request to add a feature to an existing project"""
@@ -164,10 +167,13 @@ class FeatureAddRequest(BaseModel):
 
 class MigrationRequest(BaseModel):
     """Enhanced application migration request"""
-    source_path: Optional[str] = None
-    source_repo: Optional[str] = None
-    source_stack: str # e.g. "Java 8 Spring Boot"
-    target_stack: str # e.g. "Go 1.22 Gin"
-    target_architecture: ArchitecturePattern = ArchitecturePattern.REPOSITORY_PATTERN
-    git: Optional[GitActionConfig] = None
-    entities_only: bool = False # If true, only migrates data structures
+    source_path: Optional[str] = Field(None, description="Local path to the source project")
+    source_repo: Optional[str] = Field(None, description="Git repository URL of the source project")
+    source_stack: str = Field(..., description="Source technology stack", example="Java 8 Spring Boot")
+    target_stack: str = Field(..., description="Target technology stack", example="Go 1.22 Gin")
+    target_architecture: ArchitecturePattern = Field(
+        ArchitecturePattern.REPOSITORY_PATTERN,
+        description="Target architecture pattern"
+    )
+    git: Optional[GitActionConfig] = Field(None, description="Git settings for the new project")
+    entities_only: bool = Field(False, description="Whether to migrate only the data structures")

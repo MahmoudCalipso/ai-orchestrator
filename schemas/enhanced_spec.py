@@ -4,9 +4,8 @@ Enhanced schemas matching exact user API specification
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from .generation_spec import (
-    LanguageConfig, DatabaseConfig, GitActionConfig, 
-    EntityDefinition, SecurityConfig, KubernetesConfig,
-    ArchitecturePattern
+    LanguageConfig, GitActionConfig, 
+    EntityDefinition, SecurityConfig, KubernetesConfig
 )
 
 class TemplateOfApp(BaseModel):

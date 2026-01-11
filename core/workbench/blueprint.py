@@ -2,7 +2,7 @@
 Docker Workbench Blueprint Registry
 Defines base images and configurations for all supported tech stacks
 """
-from typing import Dict, Any, List
+from typing import Dict, List
 from dataclasses import dataclass
 
 @dataclass

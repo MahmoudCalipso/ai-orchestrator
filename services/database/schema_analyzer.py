@@ -2,7 +2,7 @@
 Database schema analyzer for reverse engineering entities
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict
 
 from schemas.generation_spec import EntityDefinition, EntityField, ValidationRule, DatabaseConfig, DatabaseType
 from services.database.connection_manager import DatabaseConnectionManager
@@ -174,7 +174,7 @@ class SchemaAnalyzer:
     async def analyze_nosql(self, config: DatabaseConfig) -> List[EntityDefinition]:
         """Analyze NoSQL database schema (MongoDB)"""
         if config.type != DatabaseType.MONGODB:
-            logger.warning(f"NoSQL analysis only supports MongoDB currently")
+            logger.warning("NoSQL analysis only supports MongoDB currently")
             return []
         
         try:

@@ -1,19 +1,17 @@
 """
 AI Orchestrator - Main Entry Point
 """
-import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Union, List, Optional
+from typing import Dict, Any, Union, Optional
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
 from core.orchestrator import Orchestrator
-from core.registry import ModelRegistry
-from core.security import SecurityManager, verify_api_key
+from core.security import verify_api_key
 from services.git import GitCredentialManager, RepositoryManager
 from schemas.spec import (
     InferenceRequest,
@@ -26,14 +24,7 @@ from schemas.generation_spec import (
     GenerationRequest,
     MigrationRequest as EnhancedMigrationRequest,
     DatabaseConfig,
-    EntityDefinition,
-    KubernetesConfig
-)
-from schemas.enhanced_spec import (
-    EnhancedGenerationRequest,
-    TemplateOfApp,
-    GenerationResponse,
-    MigrationResponse
+    EntityDefinition
 )
 from services.database import DatabaseConnectionManager, SchemaAnalyzer, EntityGenerator
 from services.registry import LanguageRegistry
@@ -103,10 +94,28 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI Orchestrator",
-    description="Advanced AI Model Orchestration System",
+    title="🚀 AI Orchestrator API",
+    description="""
+# Advanced AI Model Orchestration System
+
+This API provides a unified interface for interacting with multiple LLMs (OpenAI, Anthropic, Ollama), 
+automated code generation, task migration, and workbench management.
+
+## WebSocket Protocols
+
+### Live Console
+- **Endpoint**: `/console/{workbench_id}`
+- **Usage**: Provides a real-time terminal connection to an active workbench.
+- **Protocol**: Custom JSON-wrapped terminal data.
+
+### Live Preview
+- **Endpoint**: `/preview/{workbench_id}`
+- **Usage**: Real-time project preview and screen sharing.
+""",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
 # Add CORS middleware
@@ -119,9 +128,9 @@ app.add_middleware(
 )
 
 
-@app.get("/", response_model=Dict[str, str])
+@app.get("/", response_model=Dict[str, str], tags=["Core"])
 async def root():
-    """Root endpoint"""
+    """Root endpoint to verify service is running."""
     return {
         "service": "AI Orchestrator",
         "version": "1.0.0",
@@ -129,9 +138,9 @@ async def root():
     }
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, tags=["Core"])
 async def health_check():
-    """Health check endpoint"""
+    """Check the health status of the orchestrator and runtimes."""
     try:
         status = await orchestrator.get_health_status()
         return HealthResponse(**status)
@@ -140,9 +149,9 @@ async def health_check():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/status", response_model=SystemStatus)
+@app.get("/status", response_model=SystemStatus, tags=["Core"])
 async def system_status(api_key: str = Depends(verify_api_key)):
-    """Get detailed system status"""
+    """Get detailed system metrics, resource usage, and loaded models."""
     try:
         status = await orchestrator.get_system_status()
         return SystemStatus(**status)
@@ -151,9 +160,9 @@ async def system_status(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/models", response_model=list[ModelInfo])
+@app.get("/models", response_model=list[ModelInfo], tags=["Models"])
 async def list_models(api_key: str = Depends(verify_api_key)):
-    """List all available models"""
+    """List all available AI models supported by the system."""
     try:
         models = await orchestrator.list_available_models()
         return [ModelInfo(**model) for model in models]
@@ -162,12 +171,12 @@ async def list_models(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/models/{model_name}", response_model=ModelInfo)
+@app.get("/models/{model_name}", response_model=ModelInfo, tags=["Models"])
 async def get_model_info(
     model_name: str,
     api_key: str = Depends(verify_api_key)
 ):
-    """Get information about a specific model"""
+    """Retrieve detailed metadata for a specific AI model."""
     try:
         model_info = await orchestrator.get_model_info(model_name)
         if not model_info:
@@ -180,12 +189,15 @@ async def get_model_info(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/inference", response_model=InferenceResponse)
+@app.post("/inference", response_model=InferenceResponse, tags=["Inference"])
 async def run_inference(
     request: InferenceRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Run inference with automatic model selection and routing"""
+    """
+    Run AI inference.
+    Supports automatic model selection and routing based on task type.
+    """
     try:
         logger.info(f"Inference request: task={request.task_type}, model={request.model}")
         
@@ -204,12 +216,12 @@ async def run_inference(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/inference/stream")
+@app.post("/inference/stream", tags=["Inference"])
 async def run_inference_stream(
     request: InferenceRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Run streaming inference"""
+    """Run streaming AI inference returned as server-sent events (SSE)."""
     from fastapi.responses import StreamingResponse
     
     async def generate():
@@ -229,12 +241,12 @@ async def run_inference_stream(
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-@app.post("/models/{model_name}/load")
+@app.post("/models/{model_name}/load", tags=["Models"])
 async def load_model(
     model_name: str,
     api_key: str = Depends(verify_api_key)
 ):
-    """Load a specific model"""
+    """Manually load a specific model into memory."""
     try:
         result = await orchestrator.load_model(model_name)
         return {"status": "success", "model": model_name, "details": result}
@@ -243,12 +255,12 @@ async def load_model(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/models/{model_name}/unload")
+@app.post("/models/{model_name}/unload", tags=["Models"])
 async def unload_model(
     model_name: str,
     api_key: str = Depends(verify_api_key)
 ):
-    """Unload a specific model"""
+    """Unload a specific model from memory to free up resources."""
     try:
         result = await orchestrator.unload_model(model_name)
         return {"status": "success", "model": model_name, "details": result}
@@ -257,12 +269,12 @@ async def unload_model(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/migrate")
+@app.post("/migrate", tags=["Migration"])
 async def migrate_task(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """Migrate a running task to a different model/runtime"""
+    """Migrate a running task to a different model or runtime environment."""
     try:
         result = await orchestrator.migrate_task(
             task_id=request.get("task_id"),
@@ -275,9 +287,9 @@ async def migrate_task(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/metrics")
+@app.get("/metrics", tags=["Core"])
 async def get_metrics(api_key: str = Depends(verify_api_key)):
-    """Get system metrics"""
+    """Retrieve operational metrics and success rates."""
     try:
         metrics = await orchestrator.get_metrics()
         return metrics
@@ -288,12 +300,15 @@ async def get_metrics(api_key: str = Depends(verify_api_key)):
 
 # New Universal Architecture Endpoints
 
-@app.post("/workbench/create")
+@app.post("/workbench/create", tags=["Workbench"])
 async def create_workbench(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """Create a new isolated workbench"""
+    """
+    Create a new isolated workbench for a specific tech stack.
+    Useful for local development and testing.
+    """
     try:
         stack = request.get("stack")
         project_name = request.get("project_name")
@@ -313,9 +328,9 @@ async def create_workbench(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/workbench/list")
+@app.get("/workbench/list", tags=["Workbench"])
 async def list_workbenches(api_key: str = Depends(verify_api_key)):
-    """List all active workbenches"""
+    """List all currently active isolated workbenches."""
     try:
         workbenches = await orchestrator.workbench_manager.list_workbenches()
         return {"workbenches": workbenches}
@@ -324,12 +339,15 @@ async def list_workbenches(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/migration/start")
+@app.post("/migration/start", tags=["Migration"])
 async def start_migration(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """Start a universal migration process"""
+    """
+    Start a universal migration process.
+    Automatically creates a workbench and tunnels for preview.
+    """
     try:
         source_stack = request.get("source_stack")
         target_stack = request.get("target_stack")
@@ -366,7 +384,11 @@ async def start_migration(
 
 @app.websocket("/console/{workbench_id}")
 async def console_websocket(websocket: WebSocket, workbench_id: str):
-    """WebSocket endpoint for live console"""
+    """
+    WebSocket endpoint for live terminal console.
+    
+    Allows real-time interaction with the workbench environment.
+    """
     import uuid
     session_id = str(uuid.uuid4())
     
@@ -379,14 +401,16 @@ async def console_websocket(websocket: WebSocket, workbench_id: str):
 
 # Universal AI Agent Endpoints
 
-@app.post("/api/generate")
+@app.post("/api/generate", tags=["Generation"])
 async def generate_code(
     request: Union[GenerationRequest, Dict[str, Any]],
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Generate code or full application.
-    Supports both simple single-file generation and complex project generation.
+    Perform AI-driven code or full application generation.
+    
+    Supports both single-file snippets and complex, multi-language project structures 
+    with database, security, and infrastructure (Kubernetes/Docker) logic.
     """
     try:
         # Check if it's a full generation request
@@ -563,7 +587,7 @@ async def generate_code(
             
             # 6. Security Features
             if "security" in req_data and req_data["security"]:
-                from services.security import AuthGenerator, VulnerabilityScanner
+                from services.security import AuthGenerator
                 
                 auth_gen = AuthGenerator()
                 security_config = req_data["security"]
@@ -593,7 +617,7 @@ async def generate_code(
             
             # 8. Dockerfile Generation
             if req_data.get("generate_dockerfile", True):
-                dockerfile_content = f"""
+                dockerfile_content = """
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -683,14 +707,16 @@ Use the provided Dockerfile and Kubernetes manifests for deployment.
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/migrate")
+@app.post("/api/migrate", tags=["Migration"])
 async def migrate_code(
     request: Union[EnhancedMigrationRequest, Dict[str, Any]],
     api_key: str = Depends(verify_api_key)
 ):
     """
     Migrate code from ANY stack to ANY stack.
-    Supports both snippet migration and full repository migration.
+    
+    Supports repository cloning, source analysis, and intelligent transformation 
+    to modern architecture patterns.
     """
     try:
         # Check if it's a full migration request
@@ -795,20 +821,16 @@ async def migrate_code(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/fix")
+@app.post("/api/fix", tags=["AI Agent"])
 async def fix_code(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Fix code issues in ANY language
+    Fix code issues in ANY language.
     
-    Request body:
-    {
-        "code": "<buggy code>",
-        "issue": "Memory leak in loop",
-        "language": "python"  # Optional
-    }
+    Automatically identifies and resolves common bugs, logic errors, 
+    and performance bottlenecks.
     """
     try:
         code = request.get("code")
@@ -830,20 +852,15 @@ async def fix_code(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/analyze")
+@app.post("/api/analyze", tags=["AI Agent"])
 async def analyze_code(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Analyze code in ANY language
+    Analyze code for quality, security, and performance.
     
-    Request body:
-    {
-        "code": "<code to analyze>",
-        "language": "python",  # Optional
-        "analysis_type": "comprehensive"  # comprehensive, security, performance
-    }
+    Provides detailed insights and metrics for code in any supported language.
     """
     try:
         code = request.get("code")
@@ -865,21 +882,12 @@ async def analyze_code(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/test")
+@app.post("/api/test", tags=["AI Agent"])
 async def generate_tests(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """
-    Generate tests for ANY language
-    
-    Request body:
-    {
-        "code": "<code to test>",
-        "language": "python",  # Optional
-        "test_framework": "pytest"  # Optional
-    }
-    """
+    """Generate unit and integration tests for code in any language."""
     try:
         code = request.get("code")
         language = request.get("language")
@@ -900,20 +908,15 @@ async def generate_tests(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/optimize")
+@app.post("/api/optimize", tags=["AI Agent"])
 async def optimize_code(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Optimize code in ANY language
+    Optimize code for performance, memory usage, or readability.
     
-    Request body:
-    {
-        "code": "<code to optimize>",
-        "language": "python",  # Optional
-        "optimization_goal": "performance"  # performance, memory, readability
-    }
+    Applies advanced refactoring and algorithmic improvements to the provided code.
     """
     try:
         code = request.get("code")
@@ -970,19 +973,16 @@ async def document_code(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/review")
+@app.post("/api/review", tags=["AI Agent"])
 async def review_code(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Review code in ANY language
+    Perform a comprehensive AI code review.
     
-    Request body:
-    {
-        "code": "<code to review>",
-        "language": "python"  # Optional
-    }
+    Identifies code smells, potential bugs, style violations, and suggests 
+    architectural improvements.
     """
     try:
         code = request.get("code")
@@ -1167,9 +1167,9 @@ async def add_feature(
 
 # Git Configuration Endpoints
 
-@app.get("/git/providers")
+@app.get("/git/providers", tags=["Git"])
 async def list_git_providers(api_key: str = Depends(verify_api_key)):
-    """List all Git providers and their status"""
+    """List all supported Git providers (GitHub, GitLab, Bitbucket) and their configuration status."""
     try:
         providers = git_credentials.list_providers()
         return {"providers": providers}
@@ -1178,9 +1178,9 @@ async def list_git_providers(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/git/config/{provider}")
+@app.get("/git/config/{provider}", tags=["Git"])
 async def get_git_config(provider: str, api_key: str = Depends(verify_api_key)):
-    """Get configuration for a specific Git provider"""
+    """Retrieve the non-sensitive configuration for a specific Git provider."""
     try:
         credentials = git_credentials.get_credentials(provider)
         safe_credentials = {k: v for k, v in credentials.items() if k not in ["token", "app_password", "client_secret"]}
@@ -1196,9 +1196,9 @@ async def get_git_config(provider: str, api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/git/config/{provider}")
+@app.post("/git/config/{provider}", tags=["Git"])
 async def set_git_config(provider: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
-    """Set credentials for a Git provider"""
+    """Update or set credentials (token, SSH key) for a specific Git provider."""
     try:
         credentials = request.get("credentials", request)
         success = git_credentials.set_credentials(provider, credentials)
@@ -1255,12 +1255,17 @@ async def get_general_git_config(api_key: str = Depends(verify_api_key)):
 
 # Enhanced Database & Registry Endpoints
 
-@app.post("/api/database/analyze")
+@app.post("/api/database/analyze", tags=["Database"])
 async def analyze_database(
     config: DatabaseConfig,
     api_key: str = Depends(verify_api_key)
 ):
-    """Analyze an existing database and extract entity definitions"""
+    """
+    Reverse engineer an existing database schema.
+    
+    Connects to the specified database (PostgreSQL, MySQL, etc.) and extracts 
+    entity, relationship, and field metadata for code generation.
+    """
     try:
         entities = await schema_analyzer.analyze(config)
         return {
@@ -1271,12 +1276,17 @@ async def analyze_database(
         logger.error(f"Database analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/entity/generate")
+@app.post("/api/entity/generate", tags=["Generation"])
 async def generate_from_entities(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate code from entity definitions"""
+    """
+    Generate models and API routes from a list of entity definitions.
+    
+    Useful when you have the entity JSON and want to generate the implementation 
+    for a specific language and framework.
+    """
     try:
         # Implementation would use entity_generator
         language = request.get("language")
@@ -1363,12 +1373,17 @@ async def analyze_figma_design(
 
 # Security Endpoints
 
-@app.post("/api/security/scan")
+@app.post("/api/security/scan", tags=["Security"])
 async def scan_security(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """Scan project for security vulnerabilities"""
+    """
+    Perform a security scan on a project.
+    
+    Includes code analysis (SAST) and dependency scanning to identify 
+    vulnerabilities and insecure patterns.
+    """
     try:
         from services.security import VulnerabilityScanner
         
@@ -1383,7 +1398,7 @@ async def scan_security(
             results["code_scan"] = await scanner.scan_code(path, language)
             
         if scan_type in ["dependencies", "all"]:
-            results["dependency_scan"] = await scanner.scan_dependencies(path, language)
+            results["dependency_scan"] = await scanner.scan_dependencies(path)
             
         return {
             "status": "success",
@@ -1394,11 +1409,47 @@ async def scan_security(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Vision 2026: Project Lifecycle E2E
+
+@app.post("/api/lifecycle/execute", tags=["Lifecycle"], summary="Execute E2E Project Lifecycle")
+async def execute_lifecycle(
+    project_id: str,
+    stack: str,
+    git_sync: bool = False,
+    repo_name: Optional[str] = None,
+    orchestrator: Orchestrator = Depends(get_orchestrator)
+):
+    """
+    Powerful 2026 E2E Lifecycle Endpoint:
+    1. Provisions a Real-time Testing environment (Docker).
+    2. Generates a live tunnel for testing.
+    3. (Optional) Syncs the codebase to your specific Git repository.
+    """
+    try:
+        context = {
+            "type": "finalization",
+            "project_id": project_id,
+            "stack": stack,
+            "git_sync": git_sync,
+            "repo_name": repo_name
+        }
+        
+        # Trigger the Lead Architect for the finalization dance
+        result = await orchestrator.lead_architect.act(
+            f"Finalize project {project_id} for the user.",
+            context
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Lifecycle execution failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Storage Management Endpoints
 
-@app.get("/api/storage/stats")
+@app.get("/api/storage/stats", tags=["Storage"])
 async def get_storage_stats(api_key: str = Depends(verify_api_key)):
-    """Get storage statistics"""
+    """Retrieve statistics about local storage usage, including total projects and archives."""
     try:
         from core.storage import StorageManager
         
@@ -1414,14 +1465,17 @@ async def get_storage_stats(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/storage/projects")
+@app.get("/api/storage/projects", tags=["Storage"])
 async def list_stored_projects(
     status: Optional[str] = None,
     language: Optional[str] = None,
     min_size_gb: Optional[float] = None,
     api_key: str = Depends(verify_api_key)
 ):
-    """List stored projects with optional filters"""
+    """
+    List all generated projects currently stored on disk.
+    Supports filtering by status (active, archived) and language.
+    """
     try:
         from core.storage import StorageManager
         
@@ -1442,12 +1496,12 @@ async def list_stored_projects(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/storage/projects/{project_id}")
+@app.get("/api/storage/projects/{project_id}", tags=["Storage"])
 async def get_stored_project(
     project_id: str,
     api_key: str = Depends(verify_api_key)
 ):
-    """Get project details"""
+    """Retrieve detailed metadata and file structure for a specific stored project."""
     try:
         from core.storage import StorageManager
         

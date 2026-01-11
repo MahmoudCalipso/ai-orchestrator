@@ -6,7 +6,6 @@ import click
 import requests
 import json
 import sys
-from typing import Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel

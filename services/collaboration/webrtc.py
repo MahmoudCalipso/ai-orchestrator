@@ -2,9 +2,8 @@
 WebRTC Collaboration Service
 Provides screen sharing, collaborative editing, and real-time chat
 """
-import asyncio
 import json
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional
 from fastapi import WebSocket
 from datetime import datetime
 import uuid

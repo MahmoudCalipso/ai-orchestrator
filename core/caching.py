@@ -6,7 +6,6 @@ import hashlib
 import json
 import logging
 from typing import Any, Optional, Dict
-from datetime import timedelta
 import pickle
 
 logger = logging.getLogger(__name__)
@@ -183,8 +182,6 @@ class SemanticCache:
             return None
 
         # Get embedding for input prompt
-        prompt_embedding = await self.get_embedding(prompt)
-
         # Find most similar cached prompt
         # Implementation would use cosine similarity
         # This is a simplified version

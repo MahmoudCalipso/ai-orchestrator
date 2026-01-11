@@ -3,7 +3,7 @@ MCP Protocol Models
 Based on Model Context Protocol specification
 """
 from typing import List, Optional, Any, Dict, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 class JSONRPCMessage(BaseModel):
     jsonrpc: str = "2.0"

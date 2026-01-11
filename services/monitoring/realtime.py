@@ -4,7 +4,6 @@ Provides build progress tracking, resource monitoring, and log streaming
 """
 import asyncio
 import psutil
-import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from fastapi import WebSocket

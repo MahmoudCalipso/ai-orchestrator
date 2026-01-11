@@ -249,7 +249,7 @@ class AdvancedCodeAnalyzer:
                     "recommendation": "Avoid eval(), use safer alternatives"
                 })
             
-            if 'innerHTML' in code and not 'sanitize' in code.lower():
+            if 'innerHTML' in code and 'sanitize' not in code.lower():
                 results["security_issues"].append({
                     "file": file_path,
                     "severity": "medium",

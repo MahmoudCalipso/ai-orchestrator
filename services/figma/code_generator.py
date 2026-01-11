@@ -2,7 +2,6 @@
 Figma to Code Generator
 """
 import logging
-from typing import Dict, Any, List
 from .analyzer import DesignComponent
 
 logger = logging.getLogger(__name__)

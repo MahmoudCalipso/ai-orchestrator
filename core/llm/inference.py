@@ -3,9 +3,15 @@ CORE LLM INFERENCE ENGINE
 Handles all LLM interactions for the Universal AI Agent
 """
 import logging
-from typing import Dict, Any, List, Optional
-import openai
+from typing import List
+from openai import OpenAI
 import os
+
+try:
+    from anthropic import Anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +57,7 @@ class LLMInference:
         if self.provider == "ollama":
             # Ollama uses OpenAI-compatible API
             self.client = OpenAI(
-                base_url=self.base_url,
+                base_url=f"{self.base_url}/v1",
                 api_key="ollama"  # Ollama doesn't need real API key
             )
             logger.info(f"✓ Ollama initialized - Model: {self.model} (Local, No API key needed)")
@@ -63,8 +69,8 @@ class LLMInference:
                 self.client = OpenAI(api_key=self.api_key)
                 logger.info(f"✓ OpenAI initialized - Model: {self.model}")
         elif self.provider == "anthropic":
-            if not self.api_key:
-                logger.warning("⚠ Anthropic API key not found, using mock mode")
+            if not self.api_key or not ANTHROPIC_AVAILABLE:
+                logger.warning("⚠ Anthropic API key not found or package not installed, using mock mode")
                 self.client = None
             else:
                 self.client = Anthropic(api_key=self.api_key)
@@ -111,7 +117,7 @@ class LLMInference:
                 "content": prompt
             })
             
-            if self.provider == "openai":
+            if self.provider in ["openai", "ollama"]:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
@@ -122,11 +128,14 @@ class LLMInference:
             
             elif self.provider == "anthropic":
                 # Anthropic API call
-                pass
-            
-            elif self.provider == "ollama":
-                # Ollama API call
-                pass
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system_prompt or "",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                return response.content[0].text
             
         except Exception as e:
             logger.error(f"LLM generation error: {e}")
@@ -180,7 +189,7 @@ This is a mock response. To use real LLM capabilities:
             
             messages.append({"role": "user", "content": prompt})
             
-            if self.provider == "openai":
+            if self.provider in ["openai", "ollama"]:
                 stream = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
@@ -190,8 +199,19 @@ This is a mock response. To use real LLM capabilities:
                 )
                 
                 for chunk in stream:
-                    if chunk.choices[0].delta.content:
+                    if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
                         yield chunk.choices[0].delta.content
+            
+            elif self.provider == "anthropic":
+                with self.client.messages.stream(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system_prompt or "",
+                    messages=[{"role": "user", "content": prompt}]
+                ) as stream:
+                    for text in stream.text_stream:
+                        yield text
         
         except Exception as e:
             logger.error(f"Streaming error: {e}")

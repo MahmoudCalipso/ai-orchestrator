@@ -3,7 +3,7 @@ Kubernetes Manifest Generator
 """
 import logging
 import yaml
-from typing import Dict, Any, List
+from typing import Dict
 from schemas.generation_spec import KubernetesConfig
 
 logger = logging.getLogger(__name__)

@@ -2,12 +2,9 @@
 Browser-Based IDE - Editor Service
 Provides file operations, LSP integration, and code intelligence
 """
-import os
-import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import aiofiles
-from fastapi import WebSocket
 
 
 class EditorService:

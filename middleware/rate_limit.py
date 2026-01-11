@@ -3,7 +3,6 @@ Advanced Rate Limiting
 """
 from fastapi import Request, HTTPException
 from time import time
-import asyncio
 
 class RateLimiter:
     def __init__(self):

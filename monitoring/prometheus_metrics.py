@@ -3,7 +3,6 @@ Prometheus Metrics Integration
 Advanced monitoring and observability
 """
 import time
-from typing import Dict, Any
 from prometheus_client import (
     Counter,
     Histogram,

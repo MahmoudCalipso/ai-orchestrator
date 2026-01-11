@@ -3,7 +3,7 @@ Base Agent Implementation
 Defines the core interface for all agents in the swarm
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)

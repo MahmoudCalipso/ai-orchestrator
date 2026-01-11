@@ -4,7 +4,7 @@ LlamaCpp Runtime - Integration with llama.cpp Python bindings
 import logging
 import yaml
 import json
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Dict, Any, AsyncGenerator
 from pathlib import Path
 from runtimes.base import BaseRuntime
 
@@ -165,7 +165,6 @@ class LlamaCppRuntime(BaseRuntime):
     async def health_check(self) -> bool:
         """Check runtime health"""
         try:
-            from llama_cpp import Llama
             return True
         except:
             return False

@@ -1,11 +1,10 @@
 """
 Git Repository Manager
 """
-import os
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
 
 from .credential_manager import GitCredentialManager
 

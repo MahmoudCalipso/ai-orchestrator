@@ -5,11 +5,9 @@ Handles communication with MCP Servers over stdio
 import asyncio
 import json
 import logging
-import subprocess
 from typing import Dict, Any, List, Optional, Union
 from core.mcp.protocol import (
     JSONRPCRequest, 
-    JSONRPCResponse, 
     InitializeParams, 
     Implementation,
     ToolDefinition,

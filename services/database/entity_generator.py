@@ -2,10 +2,9 @@
 Entity code generator
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
-from schemas.generation_spec import EntityDefinition, LanguageConfig
-from core.orchestrator import Orchestrator
+from schemas.generation_spec import EntityDefinition
 
 logger = logging.getLogger(__name__)
 

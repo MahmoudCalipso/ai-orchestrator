@@ -4,13 +4,23 @@ Provides PTY management and command execution in Docker containers
 """
 import asyncio
 import os
-import pty
-import struct
-import fcntl
-import termios
-from typing import Dict, Any, Optional
+import sys
+from typing import Dict, Any, List, Optional
 from fastapi import WebSocket
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
+
+# Platform-specific imports
+if sys.platform != 'win32':
+    import pty
+    import struct
+    import fcntl
+    import termios
+    PTY_AVAILABLE = True
+else:
+    PTY_AVAILABLE = False
 
 
 class TerminalSession:
@@ -26,6 +36,11 @@ class TerminalSession:
     
     async def start(self, shell: str = "/bin/bash", cwd: Optional[str] = None):
         """Start terminal session"""
+        if not PTY_AVAILABLE:
+            logger.warning("PTY is not available on this platform. Terminal will not function.")
+            self.running = False
+            return
+
         # Create PTY
         self.master_fd, slave_fd = pty.openpty()
         
@@ -33,17 +48,22 @@ class TerminalSession:
         self._set_terminal_size(80, 24)
         
         # Start shell process
-        self.process = await asyncio.create_subprocess_exec(
-            shell,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            cwd=cwd or f"./workspaces/{self.workspace_id}",
-            env=os.environ.copy()
-        )
-        
-        self.running = True
-        os.close(slave_fd)
+        try:
+            self.process = await asyncio.create_subprocess_exec(
+                shell,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                cwd=cwd or f"./workspaces/{self.workspace_id}",
+                env=os.environ.copy()
+            )
+            self.running = True
+        except Exception as e:
+            logger.error(f"Failed to start terminal process: {e}")
+            self.running = False
+        finally:
+            if slave_fd is not None:
+                os.close(slave_fd)
     
     def _set_terminal_size(self, cols: int, rows: int):
         """Set terminal window size"""

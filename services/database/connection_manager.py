@@ -2,8 +2,7 @@
 Database connection manager and utilities
 """
 import logging
-from typing import Dict, Any, Optional, Union
-from contextlib import asynccontextmanager
+from typing import Dict, Any
 
 from schemas.generation_spec import DatabaseConfig, DatabaseType
 

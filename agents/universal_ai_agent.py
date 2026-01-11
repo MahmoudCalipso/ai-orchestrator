@@ -4,7 +4,7 @@ Language-agnostic AI agent powered by LLM intelligence
 Works with ANY programming language, framework, or technology
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -207,7 +207,7 @@ Provide your response in this format:
             "requirements": requirements
         }
         
-        task = f"Generate production-ready code based on the requirements"
+        task = "Generate production-ready code based on the requirements"
         return await self.act(task, context)
     
     async def migrate_code(self, code: str, source_stack: str, target_stack: str) -> Dict[str, Any]:
@@ -250,7 +250,7 @@ Provide your response in this format:
             "framework": test_framework or "auto-select"
         }
         
-        task = f"Generate comprehensive unit tests for this code"
+        task = "Generate comprehensive unit tests for this code"
         return await self.act(task, context)
     
     async def optimize_code(self, code: str, language: str = None, optimization_goal: str = "performance") -> Dict[str, Any]:
@@ -280,7 +280,7 @@ Provide your response in this format:
             "language": language or "auto-detect"
         }
         
-        task = f"Perform a thorough code review and provide constructive feedback"
+        task = "Perform a thorough code review and provide constructive feedback"
         return await self.act(task, context)
     
     async def analyze_project(self, project_path: str) -> Dict[str, Any]:
@@ -289,7 +289,7 @@ Provide your response in this format:
             "project_path": project_path
         }
         
-        task = f"Analyze this entire project, detect tech stack, identify issues, and provide recommendations"
+        task = "Analyze this entire project, detect tech stack, identify issues, and provide recommendations"
         return await self.act(task, context)
     
     async def migrate_project(self, project_path: str, source_stack: str, target_stack: str) -> Dict[str, Any]:
@@ -331,5 +331,5 @@ Provide your response in this format:
             "language": language or "auto-detect"
         }
         
-        task = f"Explain this code in detail, including what it does and how it works"
+        task = "Explain this code in detail, including what it does and how it works"
         return await self.act(task, context)

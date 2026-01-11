@@ -2,9 +2,8 @@
 WebSocket Gateway for Live Console
 Bridges browser terminal to Docker containers
 """
-import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict
 from fastapi import WebSocket, WebSocketDisconnect
 import json
 

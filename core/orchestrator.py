@@ -1,7 +1,6 @@
 """
 Core Orchestrator - Main orchestration logic
 """
-import asyncio
 import time
 import uuid
 import logging
@@ -12,7 +11,7 @@ from pathlib import Path
 from core.router import Router
 from core.planner import Planner
 from core.registry import ModelRegistry
-from core.memory import MemoryManager
+from core.memory.neural_memory import NeuralMemoryManager
 from core.security import SecurityManager
 from core.mcp.client import MCPManager
 from core.state.blackboard import Blackboard
@@ -20,6 +19,10 @@ from core.workbench.manager import WorkbenchManager
 from core.console.websocket_gateway import WebSocketGateway
 from core.buildtools.universal_build import UniversalBuildSystem, PortForwardingManager
 from core.llm.inference import LLMInference
+from core.watcher.self_healing import SelfHealingService
+from core.storage.manager import StorageManager
+from core.lifecycle.project_lifecycle import ProjectLifecycleService
+from services.git.credential_manager import GitCredentialManager
 from agents.universal_ai_agent import UniversalAIAgent
 from agents.lead_architect import LeadArchitectAgent
 from runtimes.base import BaseRuntime
@@ -42,7 +45,7 @@ class Orchestrator:
         self.registry = ModelRegistry(config_path)
         self.router = Router(config_path)
         self.planner = Planner(config_path)
-        self.memory = MemoryManager()
+        self.memory = NeuralMemoryManager()
         self.security = SecurityManager()
         
         # LLM Engine
@@ -58,6 +61,9 @@ class Orchestrator:
         # MCP and Agent Swarm
         self.mcp_manager = MCPManager()
         self.blackboard = Blackboard()
+        self.storage = StorageManager()
+        self.git_credentials = GitCredentialManager()
+        self.lifecycle = ProjectLifecycleService(self)
         self.lead_architect = LeadArchitectAgent(self)
         
         # Universal Architecture
@@ -65,6 +71,9 @@ class Orchestrator:
         self.websocket_gateway = WebSocketGateway(self.workbench_manager)
         self.build_system = UniversalBuildSystem()
         self.port_manager = PortForwardingManager()
+        
+        # Vision 2026: Self-Healing
+        self.self_healing = SelfHealingService(self)
         
         # Runtime instances
         self.runtimes: Dict[str, BaseRuntime] = {}

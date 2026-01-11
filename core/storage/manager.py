@@ -5,7 +5,6 @@ import os
 import json
 import shutil
 import tarfile
-import gzip
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta

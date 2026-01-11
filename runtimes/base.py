@@ -2,7 +2,7 @@
 Base Runtime - Abstract base class for all runtimes
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, AsyncGenerator
+from typing import Dict, Any, List, AsyncGenerator
 import logging
 
 logger = logging.getLogger(__name__)

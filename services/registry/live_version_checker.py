@@ -6,7 +6,7 @@ import asyncio
 import aiohttp
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 import logging
 
 logging.basicConfig(level=logging.INFO)

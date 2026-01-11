@@ -4,7 +4,6 @@ Tracks framework versions, SDKs, JDKs, and best practices
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-import asyncio
 import aiohttp
 from pydantic import BaseModel
 

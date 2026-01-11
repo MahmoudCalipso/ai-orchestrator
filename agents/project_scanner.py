@@ -6,7 +6,6 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
-from pathlib import Path
 from agents.base import BaseAgent
 from core.workbench.blueprint import BlueprintRegistry
 

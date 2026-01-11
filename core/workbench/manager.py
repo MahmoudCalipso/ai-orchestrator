@@ -2,10 +2,9 @@
 Universal Workbench Manager
 Manages Docker-based isolated environments for any tech stack
 """
-import asyncio
 import logging
 import uuid
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 import docker
 from docker.models.containers import Container
 from core.workbench.blueprint import BlueprintRegistry, WorkbenchBlueprint

@@ -3,7 +3,7 @@ Augmented Reality Feature Generator
 Generates AR code for web, Android, iOS, and Unity platforms
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -312,14 +312,14 @@ class ARViewController: UIViewController, ARSCNViewDelegate {{
         files = {}
         
         # Generate ARController.cs
-        csharp_content = f"""
+        csharp_content = """
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using System.Collections.Generic;
 
 public class ARController : MonoBehaviour
-{{
+{
     [SerializeField]
     private ARRaycastManager raycastManager;
     
@@ -330,39 +330,39 @@ public class ARController : MonoBehaviour
     private GameObject spawnedObject;
     
     void Update()
-    {{
+    {
         if (Input.touchCount == 0)
             return;
         
         Touch touch = Input.GetTouch(0);
         
         if (touch.phase == TouchPhase.Began)
-        {{
+        {
             if (raycastManager.Raycast(touch.position, hits, TrackableType.PlaneWithinPolygon))
-            {{
+            {
                 Pose hitPose = hits[0].pose;
                 
                 if (spawnedObject == null)
-                {{
+                {
                     spawnedObject = Instantiate(modelPrefab, hitPose.position, hitPose.rotation);
-                }}
+                }
                 else
-                {{
+                {
                     spawnedObject.transform.position = hitPose.position;
-                }}
-            }}
-        }}
-    }}
+                }
+            }
+        }
+    }
     
     public void ResetModel()
-    {{
+    {
         if (spawnedObject != null)
-        {{
+        {
             Destroy(spawnedObject);
             spawnedObject = null;
-        }}
-    }}
-}}
+        }
+    }
+}
 """
         files["ARController.cs"] = csharp_content
         

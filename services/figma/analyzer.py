@@ -2,7 +2,7 @@
 Figma Design Analyzer
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)

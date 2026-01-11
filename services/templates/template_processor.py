@@ -3,10 +3,9 @@ Template Code Processor
 Handles downloading, analyzing, and customizing purchased code templates
 """
 import logging
-import os
 import zipfile
 import requests
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from pathlib import Path
 import shutil
 
@@ -131,7 +130,7 @@ class TemplateProcessor:
                         # Skip binary files or files we can't read
                         continue
             
-            logger.info(f"Template customization complete")
+            logger.info("Template customization complete")
             return True
             
         except Exception as e:
