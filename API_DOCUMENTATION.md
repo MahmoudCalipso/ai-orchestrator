@@ -52,7 +52,25 @@ X-API-Key: your-api-key-here
 
 ### POST `/api/generate`
 - **Description:** Generate code or full applications.
-- **Capabilities:** Database integration, Figma conversion, etc.
+- **Request Example:**
+```json
+{
+  "project_name": "MyApp",
+  "languages": {
+    "backend": {
+      "framework": "Spring Boot",
+      "version": "3.2.1",
+      "architecture": "Hexagonal",
+      "jdk": "17"
+    },
+    "frontend": {
+      "framework": "Angular",
+      "version": "17.1.0"
+    }
+  }
+}
+```
+- **Capabilities:** Database integration, Figma conversion, SDK/JDK version management, architecture-specific templates.
 
 ### POST `/api/migrate`
 - **Description:** Migrate applications between stacks (e.g., Java -> Go).

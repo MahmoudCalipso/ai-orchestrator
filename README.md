@@ -77,8 +77,15 @@ POST /api/generate
   "project_name": "ecommerce-platform",
   "description": "Full-stack e-commerce platform with payment integration",
   "languages": {
-    "backend": "python",
-    "frontend": "typescript"
+    "backend": {
+      "framework": "FastAPI",
+      "version": "0.109.0",
+      "architecture": "Clean Architecture"
+    },
+    "frontend": {
+      "framework": "React",
+      "version": "18.2.0"
+    }
   },
   "database": {
     "type": "postgresql",
