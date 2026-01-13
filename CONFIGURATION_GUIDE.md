@@ -547,6 +547,5 @@ python -m core.config.reset --config storage
 
 **For more information, see:**
 - [STORAGE_GUIDE.md](STORAGE_GUIDE.md) - Storage configuration
-- [LOCAL_AI_MODELS_GUIDE.md](LOCAL_AI_MODELS_GUIDE.md) - LLM configuration
+- [MODELS_2026_GUIDE.md](MODELS_2026_GUIDE.md) - LLM configuration
 - [GIT_CONFIGURATION_GUIDE.md](GIT_CONFIGURATION_GUIDE.md) - Git integration
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues

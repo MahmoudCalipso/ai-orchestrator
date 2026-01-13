@@ -277,13 +277,11 @@ Use local AI models for unlimited operations:
 
 ## 📚 Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide
 - **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** - Complete API reference
 - **[STORAGE_GUIDE.md](STORAGE_GUIDE.md)** - Local storage architecture
 - **[CONFIGURATION_GUIDE.md](CONFIGURATION_GUIDE.md)** - Configuration reference
 - **[GIT_CONFIGURATION_GUIDE.md](GIT_CONFIGURATION_GUIDE.md)** - Git integration setup
-- **[LOCAL_AI_MODELS_GUIDE.md](LOCAL_AI_MODELS_GUIDE.md)** - Local AI setup
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[MODELS_2026_GUIDE.md](MODELS_2026_GUIDE.md)** - Local AI setup
 
 ---
 
@@ -460,8 +458,7 @@ This is a proprietary project. For collaboration inquiries, please contact the p
 
 ## 🆘 Support
 
-- **Documentation**: See [docs](./docs) directory
-- **Issues**: Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Documentation**: See project root `.md` files
 - **API Reference**: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
 
 ---

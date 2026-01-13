@@ -16,194 +16,150 @@ X-API-Key: your-api-key-here
 ## 📋 Table of Contents
 
 1. [System Endpoints](#system-endpoints)
-2. [Universal AI Agent Endpoints](#universal-ai-agent-endpoints)
-3. [Application Generation](#application-generation)
-4. [Application Migration](#application-migration)
-5. [Database Management](#database-management)
-6. [Registry & Models](#registry--models)
-7. [Figma Integration](#figma-integration)
-8. [Security & Tools](#security--tools)
-9. [Workbench Management](#workbench-management)
+2. [AI Agent Endpoints](#ai-agent-endpoints)
+3. [Project Lifecycle](#project-lifecycle)
+4. [IDE Services](#ide-services)
+5. [Monitoring](#monitoring)
+6. [Collaboration](#collaboration)
+7. [Workspace Management](#workspace-management)
+8. [Storage Management](#storage-management)
+9. [Git Integration](#git-integration)
+10. [Database & Figma](#database--figma)
+11. [Infrastructure](#infrastructure)
 
 ---
 
 ## System Endpoints
 
 ### GET `/`
-- **Description:** Root endpoint
-- **Response:** `{"service": "AI Orchestrator", "status": "running"}`
+- **Description:** Root endpoint to verify service status.
+- **Response:** `{"service": "AI Orchestrator", "version": "1.0.0", "status": "running"}`
 
 ### GET `/health`
-- **Description:** Health check
+- **Description:** Comprehensive health check of the orchestrator and runtimes.
 - **Response:** `{"status": "healthy", ...}`
 
----
-
-## Universal AI Agent Endpoints
-
-### POST `/api/generate`
-**Description:** Generate code or full applications. Supports simple code snippets or complex full-stack projects.
-
-**Request Body (Complex Project):**
-```json
-{
-  "project_name": "MyECommerce",
-  "project_types": ["web", "mobile"],
-  "languages": {
-    "backend": "Rust",
-    "frontend": "Angular",
-    "mobile": "Flutter"
-  },
-  "database": {
-     "type": "postgresql",
-     "database_name": "mydb"
-  },
-  "template": {
-    "linkPath": "https://themeforest.net/...",
-    "figmaFile": "key123"
-  },
-  "entities": [
-    {
-      "name": "Product",
-      "fields": [{"name": "name", "type": "string"}, {"name": "price", "type": "decimal"}]
-    }
-  ],
-  "git": {
-    "create_repo": true,
-    "provider": "github"
-  },
-  "kubernetes": {
-     "enabled": true,
-     "environment": "production"
-  }
-}
-```
-
-**Request Body (Simple Snippet):**
-```json
-{
-  "requirements": "Create a function to reverse a string",
-  "language": "python"
-}
-```
-
----
-
-### POST `/api/migrate`
-**Description:** Migrate applications or code snippets between stacks.
-
-**Request Body:**
-```json
-{
-  "source_path": "/path/to/legacy-app",
-  "source_stack": "Java 8 Spring Boot",
-  "target_stack": "Go 1.22 Gin",
-  "target_architecture": "clean_architecture",
-  "git": {
-     "create_repo": true
-  }
-}
-```
-
----
-
-## Database Management
-
-### POST `/api/database/analyze`
-**Description:** Analyze an existing database to extract entity definitions.
-
-**Request Body:**
-```json
-{
-  "type": "postgresql",
-  "host": "localhost",
-  "port": 5432,
-  "database_name": "legacy_db",
-  "username": "user",
-  "password": "password"
-}
-```
-
-### POST `/api/entity/generate`
-**Description:** Generate code models and APIs from entity definitions.
-
-**Request Body:**
-```json
-{
-  "language": "python",
-  "framework": "fastapi",
-  "entities": [...]
-}
-```
-
----
-
-## Registry & Models
-
-### GET `/api/registry/languages`
-**Description:** List all supported languages, frameworks, and packages.
+### GET `/status`
+- **Description:** Detailed system metrics and resource usage.
+- **Security:** Requires API Key.
 
 ### GET `/models`
-**Description:** List available AI models for inference.
+- **Description:** List all available AI models.
 
 ---
 
-## Figma Integration
+## AI Agent Endpoints
 
-### POST `/api/figma/analyze`
-**Description:** Analyze a Figma design file.
+### POST `/api/generate`
+- **Description:** Generate code or full applications.
+- **Capabilities:** Database integration, Figma conversion, etc.
 
-**Request Body:**
-```json
-{
-  "file_key": "abc12345",
-  "token": "figd_..."
-}
-```
+### POST `/api/migrate`
+- **Description:** Migrate applications between stacks (e.g., Java -> Go).
+
+### POST `/api/fix`
+- **Description:** Automatically identify and resolve code issues.
+
+### POST `/api/analyze`
+- **Description:** Analyze code quality and security.
+
+### POST `/api/test`
+- **Description:** Generate unit and integration tests.
+
+### POST `/api/optimize`
+- **Description:** Optimize code for performance or readability.
+
+### POST `/api/refactor`
+- **Description:** Apply architectural or logic refactorings.
+
+### POST `/api/explain`
+- **Description:** Multi-language code explanation.
 
 ---
 
-## Security & Tools
+## IDE Services
 
-### POST `/api/security/scan`
-**Description:** Scan project for vulnerabilities.
+### POST `/api/ide/workspace`
+- **Description:** Create an isolated IDE workspace.
 
-**Request Body:**
-```json
-{
-  "project_path": "/path/to/project",
-  "type": "all"  // code, dependencies, or all
-}
-```
+### GET `/api/ide/files/{workspace_id}`
+- **Description:** List files in a workspace.
+
+### GET/POST/DELETE `/api/ide/files/{workspace_id}/{path}`
+- **Description:** File operations within a workspace.
+
+### WebSocket `/api/ide/terminal/{session_id}`
+- **Description:** Real-time terminal access.
+
+---
+
+## Monitoring
+
+### GET `/api/monitoring/metrics`
+- **Description:** History of system and project metrics.
+
+### WebSocket `/api/monitoring/stream`
+- **Description:** Live system metrics stream.
+
+### GET `/api/monitoring/builds`
+- **Description:** Track active and completed builds.
+
+---
+
+## Collaboration
+
+### POST `/api/collaboration/session`
+- **Description:** Create a multi-user collaboration session.
+
+### WebSocket `/api/collaboration/{session_id}`
+- **Description:** Real-time sync for code editing and cursors.
+
+---
+
+## Workspace Management
+
+### POST `/api/workspace`
+- **Description:** Create a team workspace for RBAC.
+
+### GET `/api/workspace/{workspace_id}`
+- **Description:** Retrieve workspace info and members.
+
+### POST `/api/workspace/{workspace_id}/members`
+- **Description:** Invite members with specific roles (Admin/Developer/Viewer).
+
+---
+
+## Storage Management
+
+### GET `/api/storage/stats`
+- **Description:** Total storage usage and capacity.
+
+### GET `/api/storage/projects`
+- **Description:** List all projects stored locally (>1GB support).
+
+### POST `/api/storage/archive/{project_id}`
+- **Description:** Move project to long-term compressed storage.
+
+### POST `/api/storage/cleanup`
+- **Description:** Run vacuum tasks and clear cache.
+
+---
+
+## Git Integration
+
+### GET `/git/providers`
+- **Description:** Status of GitHub, GitLab, and Bitbucket integrations.
+
+### POST/DELETE `/git/config/{provider}`
+- **Description:** Manage credentials and tokens securely.
+
+---
+
+## Infrastructure
 
 ### POST `/api/kubernetes/generate`
-**Description:** Generate Kubernetes manifests.
-
-**Request Body:**
-```json
-{
-  "app_name": "my-app",
-  "image": "my-registry/my-app:v1",
-  "config": {
-    "replicas": 3,
-    "namespace": "prod"
-  }
-}
-```
-
-### POST `/git/repositories/init`
-**Description:** Initialize a Git repository.
-
-**Request Body:**
-```json
-{
-  "path": "/path/to/project"
-}
-```
+- **Description:** Generate K8s Deployment, Service, and Ingress manifests.
 
 ---
 
-## Workbench Management
-
-### POST `/workbench/create`
-**Description:** Create an isolated Docker workbench for development.
+**Note:** For detailed request/response schemas, refer to the [Swagger UI](http://localhost:8080/docs).
