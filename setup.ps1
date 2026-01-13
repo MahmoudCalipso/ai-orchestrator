@@ -66,8 +66,12 @@ Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host "✅ Setup Complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Cyan
-Write-Host "1. Set your OpenAI API key:" -ForegroundColor White
-Write-Host "   `$env:OPENAI_API_KEY='your-api-key-here'" -ForegroundColor Gray
+Write-Host "1. Download free AI models (if not already done):" -ForegroundColor White
+Write-Host "   C:\Users\CALIPSO\AppData\Local\Programs\Ollama\ollama.exe pull qwen2.5-coder:7b" -ForegroundColor Gray
+Write-Host "   C:\Users\CALIPSO\AppData\Local\Programs\Ollama\ollama.exe pull deepseek-coder:6.7b" -ForegroundColor Gray
+Write-Host "   C:\Users\CALIPSO\AppData\Local\Programs\Ollama\ollama.exe pull codellama:7b" -ForegroundColor Gray
+Write-Host "   C:\Users\CALIPSO\AppData\Local\Programs\Ollama\ollama.exe pull mistral:7b" -ForegroundColor Gray
+Write-Host "   C:\Users\CALIPSO\AppData\Local\Programs\Ollama\ollama.exe pull phi3:3.8b" -ForegroundColor Gray
 Write-Host ""
 Write-Host "2. Start the AI Orchestrator:" -ForegroundColor White
 Write-Host "   python main.py" -ForegroundColor Gray
@@ -77,6 +81,6 @@ Write-Host "   http://localhost:8080/docs" -ForegroundColor Gray
 Write-Host ""
 Write-Host "📚 Documentation:" -ForegroundColor Cyan
 Write-Host "   - README.md - System overview" -ForegroundColor White
-Write-Host "   - QUICKSTART.md - Quick start guide" -ForegroundColor White
-Write-Host "   - SOLUTION_AUDIT.md - Complete audit" -ForegroundColor White
+Write-Host "   - OLLAMA_SETUP_GUIDE.md - Model setup guide" -ForegroundColor White
+Write-Host "   - CONFIGURATION_GUIDE.md - Configuration guide" -ForegroundColor White
 Write-Host ""

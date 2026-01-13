@@ -9,18 +9,30 @@ Write-Host "Checking Docker services..." -ForegroundColor Yellow
 $redisRunning = docker ps --filter "name=redis" --format "{{.Names}}" | Select-String "redis"
 $postgresRunning = docker ps --filter "name=postgres" --format "{{.Names}}" | Select-String "postgres"
 
-if (-not $redisRunning) {
-    Write-Host "⚠ Redis not running. Starting Docker services..." -ForegroundColor Yellow
+if (-not $redisRunning -or -not $postgresRunning) {
+    Write-Host "⚠ Docker services not running. Starting..."-ForegroundColor Yellow
     docker-compose up -d redis postgres
     Start-Sleep -Seconds 5
 }
 
-# Check for OpenAI API key
-if (-not $env:OPENAI_API_KEY) {
-    Write-Host "⚠ Warning: OPENAI_API_KEY not set" -ForegroundColor Yellow
-    Write-Host "The Universal AI Agent will run in mock mode" -ForegroundColor Yellow
-    Write-Host "To use real LLM capabilities, set:" -ForegroundColor Yellow
-    Write-Host "  `$env:OPENAI_API_KEY='your-api-key-here'" -ForegroundColor Gray
+# Check for Ollama
+$ollamaPath = "C:\Users\CALIPSO\AppData\Local\Programs\Ollama\ollama.exe"
+if (-not (Test-Path $ollamaPath)) {
+    Write-Host "⚠ Warning: Ollama not found at $ollamaPath" -ForegroundColor Yellow
+    Write-Host "Please install Ollama from https://ollama.ai" -ForegroundColor Yellow
+    Write-Host ""
+}
+else {
+    Write-Host "✓ Ollama found" -ForegroundColor Green
+    # Check if models are downloaded
+    $models = & $ollamaPath list 2>$null
+    if ($models -match "qwen2.5-coder") {
+        Write-Host "✓ AI models ready" -ForegroundColor Green
+    }
+    else {
+        Write-Host "⚠ No AI models found. Download with:" -ForegroundColor Yellow
+        Write-Host "  $ollamaPath pull qwen2.5-coder:7b" -ForegroundColor Gray
+    }
     Write-Host ""
 }
 

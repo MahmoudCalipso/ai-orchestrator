@@ -3,67 +3,67 @@ policies:
     # Task-based routing
     by_task_type:
       code_generation:
-        models: [deepseek-coder, codellama]
+        models: [qwen2.5-coder:7b, deepseek-coder:6.7b, codellama:7b]
         min_context: 8192
         temperature: 0.2
         top_p: 0.95
         
       code_review:
-        models: [qwen2.5, deepseek-coder]
+        models: [deepseek-coder:6.7b, qwen2.5-coder:7b]
         min_context: 16384
         temperature: 0.1
         top_p: 0.9
         
       reasoning:
-        models: [qwen2.5, llama3.1, wizardlm2]
+        models: [qwen2.5:14b, mistral:7b, phi3:3.8b]
         min_context: 8192
         temperature: 0.3
         top_p: 0.9
         
       quick_query:
-        models: [mistral, phi3]
+        models: [mistral:7b, phi3:3.8b]
         max_context: 4096
         temperature: 0.7
         top_p: 0.95
         timeout: 30
         
       creative_writing:
-        models: [llama3.1, mistral]
+        models: [mistral:7b, qwen2.5:14b]
         temperature: 0.8
         top_p: 0.95
         top_k: 50
         
       data_analysis:
-        models: [qwen2.5, llama3.1]
+        models: [qwen2.5:14b, mistral:7b]
         min_context: 16384
         temperature: 0.2
         
       documentation:
-        models: [llama3.1, qwen2.5]
+        models: [mistral:7b, qwen2.5-coder:7b]
         temperature: 0.3
         top_p: 0.9
         
       chat:
-        models: [mistral, phi3, llama3.1]
+        models: [mistral:7b, phi3:3.8b, codellama:7b]
         temperature: 0.7
         max_tokens: 1024
         
     # Complexity-based routing
     by_complexity:
       simple:
-        models: [phi3, mistral]
+        models: [phi3:3.8b, mistral:7b]
         max_processing_time: 30
         
       moderate:
-        models: [mistral, llama3.1]
+        models: [mistral:7b, codellama:7b]
         max_processing_time: 120
         
       complex:
-        models: [qwen2.5, llama3.1, wizardlm2]
+        models: [qwen2.5-coder:7b, deepseek-coder:6.7b, qwen2.5:14b]
         max_processing_time: 300
         
       expert:
-        models: [wizardlm2, qwen2.5]
+        models: [qwen2.5:14b, deepseek-coder:6.7b]
         max_processing_time: 600
         allow_chain_of_thought: true
 
@@ -218,17 +218,17 @@ policies:
     
     cost_tiers:
       free:
-        models: [phi3, mistral]
+        models: [phi3:3.8b, mistral:7b]
         max_tokens: 2048
         rate_limit: 10
         
       standard:
-        models: [llama3.1, qwen2.5, deepseek-coder]
+        models: [codellama:7b, qwen2.5-coder:7b, deepseek-coder:6.7b]
         max_tokens: 8192
         rate_limit: 50
         
       premium:
-        models: [wizardlm2, qwen2.5]
+        models: [qwen2.5:14b, deepseek-coder:6.7b]
         max_tokens: 32768
         rate_limit: 100
         

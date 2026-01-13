@@ -158,10 +158,10 @@ models:
 
 # Model Aliases for Easy Reference
 aliases:
-  coder: "deepseek-v3.2"      # Primary code generation model (Ultimate precision)
-  specialist: "qwen2.5-coder-32b" # Expert code repair and review
-  smart: "llama-4-maverick"   # Architectural reasoning and complex planning
-  fast: "llama-4-scout"      # Quick iterations and simple fixes
-  general: llama3.1
-  expert: wizardlm2
-  embedder: nomic-embed
+  coder: "qwen2.5-coder:7b"      # Primary code generation model (free, local)
+  specialist: "deepseek-coder:6.7b" # Expert code repair and review (free, local)
+  smart: "qwen2.5:14b"           # Architectural reasoning (optional, larger)
+  fast: "codellama:7b"           # Quick iterations and simple fixes (free, local)
+  general: mistral:7b            # General purpose (free, local)
+  expert: qwen2.5:14b            # Complex reasoning (optional, larger)
+  embedder: nomic-embed          # Embeddings (free, local)

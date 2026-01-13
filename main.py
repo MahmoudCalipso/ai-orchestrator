@@ -114,8 +114,10 @@ app = FastAPI(
     description="""
 # Advanced AI Model Orchestration System
 
-This API provides a unified interface for interacting with multiple LLMs (OpenAI, Anthropic, Ollama), 
+This API provides a unified interface for interacting with multiple LLMs (Ollama, Anthropic, OpenAI), 
 automated code generation, task migration, and workbench management.
+
+**Primary Provider**: Ollama (free, local, unlimited inference)
 
 ## WebSocket Protocols
 

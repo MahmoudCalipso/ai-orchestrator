@@ -48,10 +48,10 @@ class Orchestrator:
         self.memory = NeuralMemoryManager()
         self.security = SecurityManager()
         
-        # LLM Engine
+        # LLM Engine (Default to free local Ollama)
         self.llm = LLMInference(
-            provider=os.getenv("LLM_PROVIDER", "openai"),
-            model=os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
+            provider=os.getenv("LLM_PROVIDER", "ollama"),
+            model=os.getenv("LLM_MODEL", "qwen2.5-coder:7b")
         )
         
         # UNIVERSAL AI AGENT (Main Agent)

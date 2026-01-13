@@ -19,10 +19,10 @@ class LLMInference:
     """
     LLM Inference Engine
     Supports multiple LLM providers:
-    - OpenAI (GPT-4, GPT-3.5)
+    - Ollama (Local, Free, Recommended)
     - Anthropic (Claude)
-    - Local models (Ollama, vLLM)
-    - Azure OpenAI
+    - OpenAI (GPT-4, GPT-3.5) - Paid
+    - Azure OpenAI - Paid
     """
     
     def __init__(self, provider: str = None, model: str = None, api_key: str = None):
@@ -30,28 +30,28 @@ class LLMInference:
         Initialize LLM Inference Engine
         
         Args:
-            provider: LLM provider (openai, anthropic, ollama, azure)
+            provider: LLM provider (ollama, anthropic, openai, azure)
             model: Model name
             api_key: API key (not needed for ollama)
         """
-        # Default to Ollama (local, no API key needed)
+        # Default to Ollama (local, free, no API key needed)
         self.provider = provider or os.getenv("LLM_PROVIDER", "ollama")
         
         # Set default models based on provider
         if self.provider == "ollama":
-            self.model = model or os.getenv("OLLAMA_MODEL", "codellama:13b")
+            self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
             self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         elif self.provider == "openai":
-            self.model = model or os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
+            self.model = model or os.getenv("LLM_MODEL", "gpt-4o-mini")
             self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         elif self.provider == "anthropic":
             self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-3-opus-20240229")
             self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         elif self.provider == "azure":
-            self.model = model or os.getenv("AZURE_OPENAI_MODEL", "gpt-4")
+            self.model = model or os.getenv("AZURE_OPENAI_MODEL", "gpt-4o-mini")
             self.api_key = api_key or os.getenv("AZURE_OPENAI_KEY")
         else:
-            self.model = model or "codellama:13b"
+            self.model = model or "qwen2.5-coder:7b"
         
         # Initialize client based on provider
         if self.provider == "ollama":
@@ -84,7 +84,8 @@ class LLMInference:
         prompt: str,
         max_tokens: int = 4000,
         temperature: float = 0.7,
-        system_prompt: str = None
+        system_prompt: str = None,
+        model: str = None
     ) -> str:
         """
         Generate response from LLM
@@ -94,10 +95,14 @@ class LLMInference:
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0.0 - 1.0)
             system_prompt: System prompt for context
+            model: Optional model override (uses self.model if not provided)
         
         Returns:
             Generated text response
         """
+        
+        # Use provided model or fall back to instance model
+        target_model = model or self.model
         
         if self.client is None:
             # Mock mode for testing
@@ -119,7 +124,7 @@ class LLMInference:
             
             if self.provider in ["openai", "ollama"]:
                 response = self.client.chat.completions.create(
-                    model=self.model,
+                    model=target_model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature
@@ -129,7 +134,7 @@ class LLMInference:
             elif self.provider == "anthropic":
                 # Anthropic API call
                 response = self.client.messages.create(
-                    model=self.model,
+                    model=target_model,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     system=system_prompt or "",
@@ -173,9 +178,13 @@ This is a mock response. To use real LLM capabilities:
         prompt: str,
         max_tokens: int = 4000,
         temperature: float = 0.7,
-        system_prompt: str = None
+        system_prompt: str = None,
+        model: str = None
     ):
         """Generate response with streaming (for real-time output)"""
+        
+        # Use provided model or fall back to instance model
+        target_model = model or self.model
         
         if self.client is None:
             yield self._mock_generate(prompt)
@@ -191,7 +200,7 @@ This is a mock response. To use real LLM capabilities:
             
             if self.provider in ["openai", "ollama"]:
                 stream = self.client.chat.completions.create(
-                    model=self.model,
+                    model=target_model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -204,7 +213,7 @@ This is a mock response. To use real LLM capabilities:
             
             elif self.provider == "anthropic":
                 with self.client.messages.stream(
-                    model=self.model,
+                    model=target_model,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     system=system_prompt or "",
@@ -227,8 +236,9 @@ This is a mock response. To use real LLM capabilities:
         """Get list of available models for current provider"""
         models = {
             "openai": [
-                "gpt-4-turbo-preview",
-                "gpt-4",
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-4-turbo",
                 "gpt-3.5-turbo"
             ],
             "anthropic": [
@@ -236,9 +246,15 @@ This is a mock response. To use real LLM capabilities:
                 "claude-3-sonnet-20240229"
             ],
             "ollama": [
+                "qwen2.5-coder:7b",
+                "qwen2.5-coder:32b",
+                "deepseek-coder:6.7b",
+                "deepseek-coder:33b",
+                "codellama:7b",
                 "codellama:34b",
-                "codellama:13b",
-                "llama2:70b"
+                "mistral:7b",
+                "phi3:3.8b",
+                "qwen2.5:14b"
             ]
         }
         return models.get(self.provider, [])
