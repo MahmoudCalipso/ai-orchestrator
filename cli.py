@@ -45,10 +45,13 @@ class OrchestratorCLI:
 
 @click.group()
 @click.option('--url', default='http://localhost:8080', help='Orchestrator URL')
-@click.option('--api-key', default='dev-key-12345', help='API key')
+@click.option('--api-key', default=None, envvar='ORCHESTRATOR_API_KEY', help='API key (or set ORCHESTRATOR_API_KEY env var)')
 @click.pass_context
 def cli(ctx, url, api_key):
     """AI Orchestrator CLI Tool"""
+    if not api_key:
+        click.echo("Error: API key required. Use --api-key or set ORCHESTRATOR_API_KEY environment variable.", err=True)
+        sys.exit(1)
     ctx.obj = OrchestratorCLI(url, api_key)
 
 

@@ -1097,7 +1097,7 @@ async def execute_lifecycle(
     stack: str,
     git_sync: bool = False,
     repo_name: Optional[str] = None,
-    orchestrator: Orchestrator = Depends(get_orchestrator)
+    api_key: str = Depends(verify_api_key)
 ):
     """
     Powerful 2026 E2E Lifecycle Endpoint:

@@ -93,10 +93,19 @@ class EntityGenerator:
             )
             
             # Use the universal agent to generate the code
+            # Pass full context for enhanced prompt building
+            full_context = {
+                "project_name": context.get("project_name", ""),
+                "description": context.get("description", ""),
+                "security": context.get("security", {}),
+                "database": context.get("database", {}),
+                "kubernetes": context.get("kubernetes", {})
+            }
             result = await self.orchestrator.universal_agent.generate_code(
                 requirements=prompt,
                 language=language,
-                framework=framework
+                framework=framework,
+                context_data=full_context
             )
             
             # Extract code from result
@@ -154,7 +163,14 @@ class EntityGenerator:
             result = await self.orchestrator.universal_agent.generate_code(
                 requirements=prompt,
                 language=language,
-                framework=framework
+                framework=framework,
+                context_data={
+                    "project_name": context.get("project_name", ""),
+                    "description": context.get("description", ""),
+                    "security": context.get("security", {}),
+                    "database": context.get("database", {}),
+                    "kubernetes": context.get("kubernetes", {})
+                }
             )
             
             results[f"{entity.name}Controller"] = result.get("solution", "")
@@ -205,7 +221,14 @@ class EntityGenerator:
             
             result = await self.orchestrator.universal_agent.generate_code(
                 requirements=prompt,
-                language=language
+                language=language,
+                context_data={
+                    "project_name": context.get("project_name", ""),
+                    "description": context.get("description", ""),
+                    "security": context.get("security", {}),
+                    "database": context.get("database", {}),
+                    "kubernetes": context.get("kubernetes", {})
+                }
             )
             
             results[f"{entity.name}DTOs"] = result.get("solution", "")
@@ -263,7 +286,14 @@ class EntityGenerator:
             result = await self.orchestrator.universal_agent.generate_code(
                 requirements=prompt,
                 language=language,
-                framework=framework
+                framework=framework,
+                context_data={
+                    "project_name": context.get("project_name", ""),
+                    "description": context.get("description", ""),
+                    "security": context.get("security", {}),
+                    "database": context.get("database", {}),
+                    "kubernetes": context.get("kubernetes", {})
+                }
             )
             
             results[f"{entity.name}Repository"] = result.get("solution", "")

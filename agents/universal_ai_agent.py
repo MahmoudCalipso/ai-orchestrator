@@ -276,7 +276,7 @@ Provide your response in this format:
         
         return "".join(prompt_parts)
     
-    async def generate_code(self, requirements: str, language: str = None, framework: str = None) -> Dict[str, Any]:
+    async def generate_code(self, requirements: str, language: str = None, framework: str = None, context_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generate code in ANY language"""
         context = {
             "language": language or "auto-detect",
@@ -284,6 +284,10 @@ Provide your response in this format:
             "requirements": requirements
         }
         
+        # Merge additional context if provided
+        if context_data:
+            context.update(context_data)
+
         task = "Generate production-ready code based on the requirements"
         return await self.act(task, context)
     

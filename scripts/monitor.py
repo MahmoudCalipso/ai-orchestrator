@@ -5,6 +5,7 @@ Monitoring script for AI Orchestrator
 import requests
 import time
 import sys
+import os
 from datetime import datetime
 from typing import Dict, Any
 
@@ -12,8 +13,13 @@ from typing import Dict, Any
 class OrchestratorMonitor:
     """Monitor for AI Orchestrator"""
     
-    def __init__(self, base_url: str = "http://localhost:8080", api_key: str = "dev-key-12345"):
+    def __init__(self, base_url: str = "http://localhost:8080", api_key: str = None):
         self.base_url = base_url
+        # Require API key from parameter or environment
+        if not api_key:
+            api_key = os.getenv("ORCHESTRATOR_API_KEY")
+        if not api_key:
+            raise ValueError("API key required. Set ORCHESTRATOR_API_KEY environment variable or pass --api-key")
         self.headers = {"X-API-Key": api_key}
         
     def check_health(self) -> Dict[str, Any]:
@@ -157,8 +163,8 @@ def main():
     )
     parser.add_argument(
         "--api-key",
-        default="dev-key-12345",
-        help="API key"
+        default=None,
+        help="API key (or set ORCHESTRATOR_API_KEY environment variable)"
     )
     parser.add_argument(
         "--interval",
@@ -174,8 +180,12 @@ def main():
     
     args = parser.parse_args()
     
-    monitor = OrchestratorMonitor(args.url, args.api_key)
-    
+    try:
+        monitor = OrchestratorMonitor(args.url, args.api_key)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     if args.once:
         monitor.run_once()
     else:

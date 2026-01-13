@@ -142,7 +142,7 @@ class KubernetesConfig(BaseModel):
 
 class GenerationRequest(BaseModel):
     """Enhanced application generation request"""
-    project_name: str = Field(..., description="Name of the project to generate", example="MyAwesomeApp")
+    project_name: str = Field(..., description="Name of the project to generate", json_schema_extra={"example": "MyAwesomeApp"})
     description: Optional[str] = Field(None, description="Detailed description of the application")
     project_types: List[ProjectType] = Field(
         default_factory=lambda: [ProjectType.WEB],
@@ -169,8 +169,8 @@ class MigrationRequest(BaseModel):
     """Enhanced application migration request"""
     source_path: Optional[str] = Field(None, description="Local path to the source project")
     source_repo: Optional[str] = Field(None, description="Git repository URL of the source project")
-    source_stack: str = Field(..., description="Source technology stack", example="Java 8 Spring Boot")
-    target_stack: str = Field(..., description="Target technology stack", example="Go 1.22 Gin")
+    source_stack: str = Field(..., description="Source technology stack", json_schema_extra={"example": "Java 8 Spring Boot"})
+    target_stack: str = Field(..., description="Target technology stack", json_schema_extra={"example": "Go 1.22 Gin"})
     target_architecture: ArchitecturePattern = Field(
         ArchitecturePattern.REPOSITORY_PATTERN,
         description="Target architecture pattern"
