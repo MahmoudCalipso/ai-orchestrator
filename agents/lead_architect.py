@@ -1,6 +1,5 @@
 """
-Lead Architect Agent
-Orchestrates the swarm of specialized workers
+Lead Architect Agent - Swarm Orchestrator (Ultimate 2026 Edition)
 """
 import logging
 import json
@@ -11,119 +10,98 @@ from agents.base import BaseAgent
 logger = logging.getLogger(__name__)
 
 class LeadArchitectAgent(BaseAgent):
-    """The central intelligence that decomposes tasks and manages workers"""
+    """The central intelligence that decomposes tasks and manages workers with multi-pass refinement"""
     
     def __init__(self, orchestrator):
         super().__init__(
             name="LeadArchitect",
             role="System Architect",
-            system_prompt="""You are the Lead Architect of an AI Migration Factory.
-            Your job is to receive high-level migration requests, decompose them into technical subtasks,
-            delegate those tasks to specialized workers, and aggregate the results.
-            
-            When decomposing tasks, return a JSON list of subtasks. Each subtask MUST have:
-            - "domain": The technical domain (e.g., 'java', 'frontend', 'database', 'devops').
-            - "instruction": Specific, actionable instruction for a worker agent.
-            
-            Example output format:
-            [
-              {"domain": "java", "instruction": "Analyze legacy controllers in /src/main/java..."},
-              {"domain": "frontend", "instruction": "Map CSS variables to the new design system..."}
-            ]"""
+            system_prompt="Expert in decomposing complex tasks into a swarm of specialized AI agents."
         )
         self.orchestrator = orchestrator
 
     async def act(self, task: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        logger.info(f"Lead Architect acting on task: {task[:100]}")
+        """Orchestrate the swarm to solve any task with ultimate quality control"""
+        logger.info(f"Lead Architect orchestrating task: {task[:50]}...")
         context = context or {}
+        task_type = context.get("type", "general")
         
-        # 1. Check for SPECIAL DIRECTIVES (like Self-Healing / Auto-Repair)
-        if context.get("type") == "self_healing":
-            logger.info("Lead Architect in SELF-HEALING mode. Analyzing repair task...")
-            # For self-healing, we often want a direct fix rather than standard decomposition
-            # We use the universal_agent directly to generate a patch
-            repair_result = await self.orchestrator.universal_agent.act(
-                task, 
-                {"context": "Runtime Error Repair", "priority": "critical"}
-            )
-            return {
-                "status": "repaired",
-                "fix_details": repair_result,
-                "agent": "LeadArchitect[SelfHealing]"
-            }
-            
-        # 2. Check for Lifecycle Finalization (E2E Push/Test)
-        if context.get("type") == "finalization":
-            logger.info("Lead Architect in FINALIZATION mode. Syncing to Git/Provisioning...")
-            project_id = context.get("project_id")
-            stack = context.get("stack", "general")
-            
-            # Auto-provision test
-            test_info = await self.orchestrator.lifecycle.provision_and_test(project_id, stack)
-            
-            # Auto-sync to Git (if requested)
-            git_info = {}
-            if context.get("git_sync"):
-                git_info = await self.orchestrator.lifecycle.sync_to_git(
-                    project_id, 
-                    context.get("git_provider", "github"),
-                    context.get("repo_name", "generated-app")
-                )
-                
-            return {
-                "status": "finalized",
-                "test_env": test_info,
-                "git_sync": git_info,
-                "agent": "LeadArchitect[Lifecycle]"
-            }
-
-        # 3. Standard flow: Dynamically decompose task using LLM
-        subtasks = await self._decompose(task)
+        # 1. Decompose the task into specialized domains
+        subtasks = await self._decompose(task, task_type)
         results = {}
         
-        # 2. Delegate to Universal AI Agent for each domain
-        # In a more advanced swarm, we'd create specialized WorkerAgents here
+        # 2. Iterate through subtasks with Build -> Review Pass
         for subtask in subtasks:
             domain = subtask.get("domain", "general")
             instruction = subtask.get("instruction")
+            recommended_model = subtask.get("model", "coder")
             
-            if instruction:
-                logger.info(f"Delegating technical task to universal worker for domain: {domain}...")
-                # We use the universal_agent as the base worker for all domains now
-                # Pass domain context to help the universal agent focus
-                worker_context = context.copy() if context else {}
-                worker_context["domain"] = domain
-                
-                results[domain] = await self.orchestrator.universal_agent.act(instruction, worker_context)
-            else:
-                logger.warning(f"Empty instruction for domain: {domain}")
-        
-        # 3. Aggregate results
+            if not instruction: continue
+            
+            # PHASE 1: GENERATE / MIGRATE / FIX
+            logger.info(f"Swarm Phase 1 [{domain}]: Executing with {recommended_model}")
+            worker_context = context.copy()
+            worker_context.update({
+                "domain": domain,
+                "model": recommended_model,
+                "generate_docker": True if domain == "infrastructure" else False
+            })
+            
+            initial_result = await self.orchestrator.universal_agent.act(instruction, worker_context)
+            
+            # PHASE 2: REVIEW & REFINE (Ultimate Quality Pass)
+            logger.info(f"Swarm Phase 2 [{domain}]: Peer review refinement...")
+            review_instruction = f"Review and REFINE this {domain} solution for 2026 standards. Ensure security, efficiency, and zero placeholders. Code: {initial_result.get('solution')}"
+            
+            review_context = worker_context.copy()
+            review_context.update({
+                "model": "specialist",
+                "is_review": True
+            })
+            
+            final_result = await self.orchestrator.universal_agent.act(review_instruction, review_context)
+            
+            # Merge results
+            final_result["infrastructure"] = initial_result.get("infrastructure", {})
+            results[domain] = final_result
+            
         return {
             "status": "success",
+            "type": task_type,
             "decomposition": subtasks,
-            "worker_results": results
+            "worker_results": results,
+            "agent": "LeadArchitect[SwarmMode]"
         }
 
-    async def _decompose(self, task: str) -> List[Dict[str, str]]:
-        """Use LLM to decompose task into specialized subtasks"""
-        prompt = f"Decompose the following migration request into a list of specialized subtasks: {task}"
+    async def _decompose(self, task: str, task_type: str = "general") -> List[Dict[str, Any]]:
+        """Determine the swarm structure based on the task type"""
         
-        try:
-            response = await self.orchestrator.llm.generate(
-                prompt=prompt,
-                system_prompt=self.system_prompt
-            )
+        # Deterministic decomposition for core platform features
+        if task_type == "full_project_generation":
+            return [
+                {"domain": "backend", "instruction": f"Generate backend for: {task}", "model": "coder"},
+                {"domain": "frontend", "instruction": f"Generate frontend for: {task}", "model": "coder"},
+                {"domain": "database", "instruction": f"Generate DB schema for: {task}", "model": "specialist"},
+                {"domain": "infrastructure", "instruction": f"Generate Docker orchestration for: {task}", "model": "smart"}
+            ]
+        elif task_type in ["migration", "project_migration"]:
+            return [
+                {"domain": "analysis", "instruction": f"Deep analysis of legacy source: {task}", "model": "smart"},
+                {"domain": "migration", "instruction": f"Modernize and migrate core logic: {task}", "model": "coder"},
+                {"domain": "infrastructure", "instruction": f"Containerize target environment: {task}", "model": "smart"}
+            ]
+        elif task_type in ["self_healing", "fix"]:
+            return [
+                {"domain": "audit", "instruction": f"Locate root cause for: {task}", "model": "smart"},
+                {"domain": "fix", "instruction": f"Implement secure fix for: {task}", "model": "coder"}
+            ]
             
-            # Extract JSON from response (handling potential markdown blocks)
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
-            if json_match:
-                subtasks = json.loads(json_match.group(0))
-                return subtasks
-            else:
-                logger.warning("LLM response did not contain a valid JSON list of subtasks.")
-                return [{"domain": "general", "instruction": task}]
-                
-        except Exception as e:
-            logger.error(f"Failed to decompose task via LLM: {e}")
-            return [{"domain": "error", "instruction": f"Fallback: {task}"}]
+        # Dynamic decomposition fallback
+        prompt = f"Return a JSON list of subtasks (keys: domain, instruction, model) to solve: {task}"
+        response = await self.orchestrator.run_inference(prompt, model="smart")
+        try:
+            res_str = response.get("solution", "[]")
+            match = re.search(r'\[.*\]', res_str, re.DOTALL)
+            return json.loads(match.group(0)) if match else [{"domain": "general", "instruction": task, "model": "coder"}]
+        except:
+            return [{"domain": "general", "instruction": task, "model": "coder"}]

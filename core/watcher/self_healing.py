@@ -32,18 +32,24 @@ class SelfHealingService:
     async def _trigger_repair(self, context_name: str, error_line: str):
         """Invoke the Lead Architect to fix the detected error"""
         repair_task = f"""
-        URGENT: A runtime error was detected in {context_name}.
-        Error details: {error_line}
+        URGENT: CRITICAL SYSTEM ERROR detected in {context_name}.
+        Error Line: {error_line}
         
-        Please analyze the logs, identify the root cause, and propose a fix.
+        SWARM CHALLENGE:
+        1. AUDIT: Analyze the logs and project context.
+        2. FIX: Generate a permanent fix that adheres to 2026 security standards.
+        3. VERIFY: Ensure NO side effects.
         """
         
-        logger.info("Self-Healing: Triggering Lead Architect for autonomous repair...")
+        logger.info("Self-Healing: Orchestrating swarm for elite autonomous repair...")
         
-        # We run this as a background task to not block the main stream
         import asyncio
         asyncio.create_task(
-            self.orchestrator.lead_architect.act(repair_task, {"type": "self_healing", "priority": "high"})
+            self.orchestrator.run_inference(
+                prompt=repair_task, 
+                task_type="self_healing",
+                context={"type": "self_healing", "priority": "critical", "source": context_name}
+            )
         )
 
     def register_pattern(self, pattern: str):

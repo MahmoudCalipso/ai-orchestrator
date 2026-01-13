@@ -118,19 +118,32 @@ You have deep knowledge of:
         # Build comprehensive prompt
         prompt = self._build_universal_prompt(task, context)
         
-        # Use LLM to solve the task
+        # Use LLM to solve the task - respect recommended model
+        target_model = context.get("model", self.model)
+        
         response = await self.llm.generate(
             prompt=prompt,
+            model=target_model,
             max_tokens=8000,
-            temperature=0.3  # Lower temperature for code generation
+            temperature=0.3
         )
         
+        # Special logic for infrastructure/Docker
+        infrastructure_details = {}
+        if context.get("generate_docker"):
+            from services.devops.docker_orchestrator import docker_orchestrator
+            stack = context.get("stack", "general")
+            dockerfile = docker_orchestrator.generate_dockerfile(stack)
+            infrastructure_details["dockerfile"] = dockerfile
+            
         return {
             "status": "success",
             "task": task,
             "context": context,
             "solution": response,
-            "agent": self.name
+            "infrastructure": infrastructure_details,
+            "agent": self.name,
+            "model_used": target_model
         }
     
     def _build_universal_prompt(self, task: str, context: Dict[str, Any]) -> str:
@@ -144,6 +157,13 @@ You have deep knowledge of:
         project_path = context.get("project_path", "")
         requirements = context.get("requirements", "")
         error_message = context.get("error", "")
+        
+        # New: Project-level details for "Strong" generation
+        project_name = context.get("project_name", "")
+        description = context.get("description", "")
+        security = context.get("security", {})
+        database = context.get("database", {})
+        kubernetes = context.get("kubernetes", {})
         
         # Build dynamic prompt
         prompt_parts = [f"Task: {task}\n"]
@@ -165,6 +185,63 @@ You have deep knowledge of:
         
         if project_path:
             prompt_parts.append(f"\nProject Path: {project_path}\n")
+            
+        domain = context.get("domain")
+        source_stack = context.get("source_stack")
+        target_stack = context.get("target_stack")
+        error_message = context.get("error_message")
+
+        if context.get("is_review"):
+            prompt_parts.append("\n### ROLE: SENIOR SECURITY & QUALITY ARCHITECT ###\n")
+            prompt_parts.append("Your goal is to peer-review and REFINE the existing code. Focus on:\n")
+            prompt_parts.append("- Security vulnerabilities (OWASP Top 10)\n")
+            prompt_parts.append("- Design patterns (SOLID, Repository Pattern)\n")
+            prompt_parts.append("- Performance bottlenecks\n")
+            prompt_parts.append("- Adherence to the original user description\n")
+            prompt_parts.append("Return the IMPROVED and FINAL version of the code.\n")
+            prompt_parts.append("##############################################\n")
+        elif domain == "migration" or source_stack:
+            prompt_parts.append("\n### ROLE: LEGACY MODERNIZATION & MIGRATION EXPERT ###\n")
+            prompt_parts.append(f"Your goal is to migrate code from {source_stack} to {target_stack}.\n")
+            prompt_parts.append("- Preserve all business logic and edge case handling.\n")
+            prompt_parts.append("- Adopt modern idioms and patterns of the target stack.\n")
+            prompt_parts.append("- Ensure type safety and optimal performance in the new environment.\n")
+            prompt_parts.append("#######################################################\n")
+        elif domain == "self_healing" or context.get("type") == "self_healing" or error_message:
+            prompt_parts.append("\n### ROLE: SR. RELIABILITY ENGINEER & DEBUGGING SPECIALIST ###\n")
+            prompt_parts.append("Your goal is to analyze the error, find the root cause, and implement a permanent fix.\n")
+            prompt_parts.append("- Analyze logs and project context deeply.\n")
+            prompt_parts.append("- Provide a fix that prevents the error from recurring.\n")
+            prompt_parts.append("- Verify the fix doesn't introduce side effects.\n")
+            prompt_parts.append("############################################################\n")
+        else:
+            prompt_parts.append("\n### ROLE: EXPERT SOFTWARE ENGINEER (2026 STANDARDS) ###\n")
+            prompt_parts.append("Generate TOP QUALITY, PRODUCTION-READY code. No placeholders. Full implementation.\n")
+            prompt_parts.append("#######################################################\n")
+
+        # Add high-level project context for overall strength
+        if project_name or description:
+            prompt_parts.append("\n### GLOBAL PROJECT CONTEXT ###\n")
+            if project_name:
+                prompt_parts.append(f"Project Name: {project_name}\n")
+            if description:
+                prompt_parts.append(f"Description: {description}\n")
+            prompt_parts.append("##############################\n")
+
+        if security:
+            prompt_parts.append("\n### SECURITY REQUIREMENTS ###\n")
+            for key, val in security.items():
+                if val is True or (isinstance(val, str) and val):
+                    prompt_parts.append(f"- {key}: {val}\n")
+            prompt_parts.append("##############################\n")
+
+        if database:
+            prompt_parts.append("\n### DATABASE CONFIGURATION ###\n")
+            db_type = database.get("type", "standard")
+            prompt_parts.append(f"- Database Type: {db_type}\n")
+            if database.get("generate_from_schema"):
+                prompt_parts.append("- Mode: Reverse engineering from existing schema\n")
+            prompt_parts.append("##############################\n")
         
         # Add instructions
         prompt_parts.append("""

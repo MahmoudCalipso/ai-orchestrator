@@ -1,5 +1,47 @@
 models:
   # Code Generation Models
+  deepseek-v3:
+    family: deepseek
+    size: 671b
+    context_length: 128000
+    capabilities: [code, reasoning, bilingual]
+    specialization: full_project_generation
+    memory_requirement: 160gb
+    recommended_runtime: [vllm]
+    
+  # 2026 State-of-the-Art Models
+  deepseek-v3.2:
+    family: deepseek
+    size: "671B (MoE)"
+    capabilities: [coding, reasoning, multihop, precision]
+    context_window: 128000
+    memory_requirement: "40GB+ (8-bit quantization)"
+    recommended_runtime: vllm
+  
+  llama-4-scout:
+    family: llama
+    size: "109B (MoE)"
+    capabilities: [coding, tool-use, vision, fast-inference]
+    context_window: 64000
+    memory_requirement: "24GB"
+    recommended_runtime: ollama
+    
+  llama-4-maverick:
+    family: llama
+    size: "400B (MoE)"
+    capabilities: [reasoning, coding, high-fidelity]
+    context_window: 128000
+    memory_requirement: "80GB+"
+    recommended_runtime: vllm
+
+  qwen2.5-coder-32b:
+    family: qwen
+    size: "32B"
+    capabilities: [coding, repair, optimization]
+    context_window: 32000
+    memory_requirement: "16GB"
+    recommended_runtime: ollama
+    
   deepseek-coder:
     family: deepseek
     size: 33b
@@ -10,6 +52,15 @@ models:
     memory_requirement: 24gb
     recommended_runtime: [vllm, ollama]
     
+  qwen2.5-coder:
+    family: qwen
+    size: 32b
+    context_length: 32768
+    capabilities: [code, instruct, multi_lang]
+    specialization: library_specific_code
+    memory_requirement: 20gb
+    recommended_runtime: [vllm, ollama]
+
   codellama:
     family: llama
     size: 34b
@@ -107,10 +158,10 @@ models:
 
 # Model Aliases for Easy Reference
 aliases:
-  fast: mistral
-  smart: qwen2.5
-  coder: deepseek-coder
-  efficient: phi3
+  coder: "deepseek-v3.2"      # Primary code generation model (Ultimate precision)
+  specialist: "qwen2.5-coder-32b" # Expert code repair and review
+  smart: "llama-4-maverick"   # Architectural reasoning and complex planning
+  fast: "llama-4-scout"      # Quick iterations and simple fixes
   general: llama3.1
   expert: wizardlm2
   embedder: nomic-embed

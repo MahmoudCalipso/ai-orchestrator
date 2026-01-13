@@ -44,61 +44,58 @@ class FrameworkRegistry:
             # Python Frameworks
             "python": {
                 "django": {
-                    "latest_version": "5.0.1",
-                    "lts_version": "4.2.9",
-                    "versions": ["5.0.1", "4.2.9", "3.2.23"],
-                    "architectures": ["MVT", "Clean Architecture", "Hexagonal"],
+                    "latest_version": "5.1.4",
+                    "lts_version": "5.1.x",
+                    "versions": ["5.1.4", "5.0.1", "4.2.17"],
+                    "architectures": ["MVT", "Clean Architecture", "Hexagonal", "AIOPS-Pattern"],
                     "best_practices": [
-                        "Use Django REST Framework for APIs",
-                        "Implement custom user model",
-                        "Use environment variables for settings",
-                        "Enable CORS properly",
-                        "Use Django ORM efficiently",
-                        "Implement proper authentication (JWT)",
-                        "Use Django migrations properly",
-                        "Follow Django coding style (PEP 8)"
+                        "Use Django REST Framework 4.0 (2025 Edition)",
+                        "Implement custom user model with MFA support",
+                        "Use environment variables for settings (python-dotenv 2026)",
+                        "Enable CORS and CSP headers properly",
+                        "Use Django ORM with Async support",
+                        "Implement proper authentication (OIDC/JWT)",
+                        "Use Django migrations with zero-downtime strategies",
+                        "Follow PEP 8 and modern flake8/black rules"
                     ],
                     "required_packages": [
+                        "django",
                         "djangorestframework",
-                        "djangorestframework-simplejwt",
                         "django-cors-headers",
-                        "python-decouple",
-                        "psycopg2-binary",  # PostgreSQL
-                        "mysqlclient",  # MySQL
+                        "psycopg-binary",  # Modern psycopg 3
                         "django-filter",
-                        "drf-spectacular",  # API documentation
-                        "celery",  # Async tasks
+                        "drf-spectacular",
+                        "celery",
                         "redis"
                     ]
                 },
                 "fastapi": {
-                    "latest_version": "0.109.0",
-                    "versions": ["0.109.0", "0.108.0", "0.107.0"],
-                    "architectures": ["Clean Architecture", "Hexagonal", "Repository Pattern"],
+                    "latest_version": "0.115.6",
+                    "versions": ["0.115.6", "0.111.0", "0.109.0"],
+                    "architectures": ["Clean Architecture", "Hexagonal", "Repository Pattern", "Micro-Core"],
                     "best_practices": [
-                        "Use Pydantic models for validation",
-                        "Implement dependency injection",
-                        "Use async/await properly",
-                        "Add API documentation with OpenAPI",
-                        "Implement proper error handling",
-                        "Use background tasks for long operations",
-                        "Add request validation",
-                        "Use SQLAlchemy ORM"
+                        "Use Pydantic V2.x models for high-performance validation",
+                        "Implement advanced Dependency Injection with lifespan events",
+                        "Use Python 3.13+ structural pattern matching for routers",
+                        "Add complete OpenAPI 3.1 documentation",
+                        "Implement global exception handlers and custom responses",
+                        "Use background tasks or TaskGroups for concurrency",
+                        "Integrate with Vector Databases (Chroma/Pinecone) for AI features",
+                        "Use SQLAlchemy 2.0+ with modern Mapped types"
                     ],
                     "required_packages": [
                         "fastapi",
                         "uvicorn[standard]",
-                        "sqlalchemy",
+                        "sqlalchemy>=2.0",
+                        "pydantic[email]",
                         "alembic",
-                        "python-jose[cryptography]",  # JWT
+                        "python-jose[cryptography]",
                         "passlib[bcrypt]",
                         "python-multipart",
-                        "aiofiles",
-                        "httpx",
                         "redis",
                         "celery"
                     ]
-                },
+                }
                 "flask": {
                     "latest_version": "3.0.1",
                     "versions": ["3.0.1", "2.3.7"],

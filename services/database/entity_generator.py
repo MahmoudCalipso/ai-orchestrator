@@ -2,7 +2,7 @@
 Entity code generator
 """
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 from schemas.generation_spec import EntityDefinition
 
@@ -14,13 +14,22 @@ class EntityGenerator:
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator # Type: Orchestrator
         
-    async def generate_models(self, entities: List[EntityDefinition], language: str, framework: Optional[str] = None) -> Dict[str, str]:
+    async def generate_models(self, entities: List[EntityDefinition], language: str, framework: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """Generate model code for entities with validations and relationships"""
         results = {}
+        
+        context = context or {}
+        project_description = context.get("description", "Not provided")
+        project_requirements = context.get("requirements", "Not provided")
         
         prompt_template = """
         Generate a {language} data model for the following entity definition.
         Framework: {framework}
+        
+        --- PROJECT CONTEXT ---
+        Description: {project_description}
+        Requirements: {project_requirements}
+        -----------------------
         
         Entity Name: {name}
         Table Name: {table_name}
@@ -74,6 +83,8 @@ class EntityGenerator:
             prompt = prompt_template.format(
                 language=language,
                 framework=framework or "Standard",
+                project_description=project_description,
+                project_requirements=project_requirements,
                 name=entity.name,
                 table_name=entity.table_name,
                 fields=fields_desc,
@@ -94,14 +105,23 @@ class EntityGenerator:
             
         return results
 
-    async def generate_api(self, entities: List[EntityDefinition], language: str, framework: str) -> Dict[str, str]:
+    async def generate_api(self, entities: List[EntityDefinition], language: str, framework: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """Generate API endpoints for entities"""
         results = {}
+        
+        context = context or {}
+        project_description = context.get("description", "Not provided")
+        project_requirements = context.get("requirements", "Not provided")
         
         prompt_template = """
         Generate a REST API controller/handler for the {name} entity.
         Language: {language}
         Framework: {framework}
+        
+        --- PROJECT CONTEXT ---
+        Description: {project_description}
+        Requirements: {project_requirements}
+        -----------------------
         
         Operations:
         - Create (POST)
@@ -126,6 +146,8 @@ class EntityGenerator:
                 name=entity.name,
                 language=language,
                 framework=framework,
+                project_description=project_description,
+                project_requirements=project_requirements,
                 fields=fields_desc
             )
             
@@ -139,13 +161,22 @@ class EntityGenerator:
             
         return results
     
-    async def generate_dtos(self, entities: List[EntityDefinition], language: str) -> Dict[str, str]:
+    async def generate_dtos(self, entities: List[EntityDefinition], language: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """Generate DTO (Data Transfer Object) classes"""
         results = {}
+        
+        context = context or {}
+        project_description = context.get("description", "Not provided")
+        project_requirements = context.get("requirements", "Not provided")
         
         prompt_template = """
         Generate DTO (Data Transfer Object) classes for the {name} entity.
         Language: {language}
+        
+        --- PROJECT CONTEXT ---
+        Description: {project_description}
+        Requirements: {project_requirements}
+        -----------------------
         
         Create the following DTOs:
         1. Create{name}DTO - For creating new records (exclude ID, audit fields)
@@ -167,6 +198,8 @@ class EntityGenerator:
             prompt = prompt_template.format(
                 name=entity.name,
                 language=language,
+                project_description=project_description,
+                project_requirements=project_requirements,
                 fields=fields_desc
             )
             
@@ -179,14 +212,23 @@ class EntityGenerator:
         
         return results
     
-    async def generate_repository(self, entities: List[EntityDefinition], language: str, framework: str) -> Dict[str, str]:
+    async def generate_repository(self, entities: List[EntityDefinition], language: str, framework: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """Generate repository/data access layer"""
         results = {}
+        
+        context = context or {}
+        project_description = context.get("description", "Not provided")
+        project_requirements = context.get("requirements", "Not provided")
         
         prompt_template = """
         Generate a Repository class for the {name} entity.
         Language: {language}
         Framework: {framework}
+        
+        --- PROJECT CONTEXT ---
+        Description: {project_description}
+        Requirements: {project_requirements}
+        -----------------------
         
         Operations:
         - FindById(id)
@@ -213,6 +255,8 @@ class EntityGenerator:
                 name=entity.name,
                 language=language,
                 framework=framework,
+                project_description=project_description,
+                project_requirements=project_requirements,
                 unique_fields=", ".join(unique_fields) if unique_fields else "None"
             )
             
