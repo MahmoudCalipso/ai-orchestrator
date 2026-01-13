@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 class RegistryUpdater:
     """Automatically updates language registries with latest versions"""
     
-    def __init__(self, registry_path: str = "platform/registry/registries"):
+    def __init__(self, registry_path: str = "services/registry/registries"):
         self.registry_path = Path(registry_path)
-        self.update_log_path = Path("platform/registry/update_log.json")
+        self.update_log_path = Path("storage/registry_update_log.json")
         
     async def check_npm_package(self, package_name: str) -> Optional[str]:
         """Check latest version of npm package"""

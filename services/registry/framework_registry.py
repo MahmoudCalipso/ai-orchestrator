@@ -2,10 +2,13 @@
 Enhanced Language and Framework Registry with Version Management
 Tracks framework versions, SDKs, JDKs, and best practices
 """
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import aiohttp
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class FrameworkVersion(BaseModel):

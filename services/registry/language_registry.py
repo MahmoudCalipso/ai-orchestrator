@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class LanguageRegistry:
     """Manages language and framework configurations"""
     
-    def __init__(self, registry_path: str = "platform/registry/registries"):
+    def __init__(self, registry_path: str = "services/registry/registries"):
         self.registry_path = Path(registry_path)
         self.registries: Dict[str, Any] = {}
         
