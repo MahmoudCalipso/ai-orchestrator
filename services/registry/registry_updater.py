@@ -166,20 +166,30 @@ class RegistryUpdater:
         return updates
     
     async def update_all_registries(self) -> Dict[str, Dict[str, Any]]:
-        """Update all language registries"""
-        logger.info("Starting registry auto-update...")
+        """Update all registries (Language and Framework)"""
+        logger.info("Starting global registry auto-update...")
         
         all_updates = {}
         
-        # Update JavaScript/TypeScript
+        # Update JavaScript/TypeScript Language Registry
         js_updates = await self.update_javascript_registry()
         if js_updates:
             all_updates["javascript"] = js_updates
         
-        # Update Python
+        # Update Python Language Registry
         py_updates = await self.update_python_registry()
         if py_updates:
             all_updates["python"] = py_updates
+            
+        # Update Framework Registry (DB Persisted)
+        from services.registry.framework_registry import framework_registry
+        try:
+            framework_results = await framework_registry.check_for_updates(apply=True)
+            if framework_results["updates_found"]:
+                all_updates["frameworks"] = framework_results["updates_found"]
+                logger.info(f"Framework Registry updated with {len(framework_results['updates_found'])} changes")
+        except Exception as e:
+            logger.error(f"Framework registry update failed: {e}")
         
         # Log updates
         if all_updates:
@@ -191,15 +201,18 @@ class RegistryUpdater:
             # Append to log file
             log_data = []
             if self.update_log_path.exists():
-                with open(self.update_log_path, 'r') as f:
-                    log_data = json.load(f)
+                try:
+                    with open(self.update_log_path, 'r') as f:
+                        log_data = json.load(f)
+                except Exception:
+                    log_data = []
             
             log_data.append(log_entry)
             
             with open(self.update_log_path, 'w') as f:
-                json.dump(log_data, f, indent=2)
+                json.dump(log_data[-100:], f, indent=2)  # Keep last 100 entries
             
-            logger.info(f"Registry update complete. {len(all_updates)} registries updated.")
+            logger.info(f"Registry update complete. {len(all_updates)} categories updated.")
         else:
             logger.info("All registries are up to date.")
         

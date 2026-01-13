@@ -2,6 +2,7 @@
 AI Orchestrator - Main Entry Point
 """
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Union, Optional
 
@@ -90,6 +91,12 @@ async def lifespan(app: FastAPI):
     terminal_service = TerminalService()
     debugger_service = DebuggerService()
     logger.info("IDE services initialized")
+    
+    # Start Registry Auto-Update background task
+    from services.registry.registry_updater import RegistryUpdater
+    updater = RegistryUpdater()
+    asyncio.create_task(updater.schedule_periodic_updates(interval_hours=24))
+    logger.info("Registry auto-update scheduled (24h interval)")
     
     logger.info("AI Orchestrator initialized successfully")
     

@@ -30,16 +30,50 @@ class LanguageSpec(BaseModel):
     required_packages: List[str] = []
 
 
+from services.database.base import SessionLocal
+from services.registry.persistence import FrameworkMetadata
+from sqlalchemy import select, update, insert
+
 class FrameworkRegistry:
-    """Registry for framework versions and metadata"""
+    """Registry for framework versions and metadata with DB persistence"""
     
     def __init__(self):
         self.frameworks: Dict[str, Dict[str, Any]] = {}
         self.last_updated: Optional[datetime] = None
-        self._initialize_registry()
+        self._initialize_from_db()
     
-    def _initialize_registry(self):
-        """Initialize framework registry with current versions"""
+    def _initialize_from_db(self):
+        """Load framework data from database or initialize with defaults"""
+        with SessionLocal() as db:
+            # Check if we have any data
+            results = db.execute(select(FrameworkMetadata)).scalars().all()
+            
+            if not results:
+                logger.info("Initializing Framework Registry with default 2026 metadata...")
+                self._load_defaults()
+                self._save_to_db()
+            else:
+                logger.info(f"Loading {len(results)} frameworks from database")
+                for item in results:
+                    lang = item.language
+                    fw = item.framework
+                    
+                    if lang not in self.frameworks:
+                        self.frameworks[lang] = {}
+                        
+                    self.frameworks[lang][fw] = {
+                        "latest_version": item.latest_version,
+                        "lts_version": item.lts_version,
+                        "versions": item.versions,
+                        "architectures": item.architectures,
+                        "best_practices": item.best_practices,
+                        "required_packages": item.required_packages
+                    }
+                    if not self.last_updated or (item.last_updated and item.last_updated > self.last_updated):
+                        self.last_updated = item.last_updated
+
+    def _load_defaults(self):
+        """Set default framework metadata"""
         self.frameworks = {
             # Python Frameworks
             "python": {
@@ -55,14 +89,13 @@ class FrameworkRegistry:
                         "Enable CORS and CSP headers properly",
                         "Use Django ORM with Async support",
                         "Implement proper authentication (OIDC/JWT)",
-                        "Use Django migrations with zero-downtime strategies",
-                        "Follow PEP 8 and modern flake8/black rules"
+                        "Use Django migrations with zero-downtime strategies"
                     ],
                     "required_packages": [
                         "django",
                         "djangorestframework",
                         "django-cors-headers",
-                        "psycopg-binary",  # Modern psycopg 3
+                        "psycopg-binary",
                         "django-filter",
                         "drf-spectacular",
                         "celery",
@@ -78,7 +111,6 @@ class FrameworkRegistry:
                         "Implement advanced Dependency Injection with lifespan events",
                         "Use Python 3.13+ structural pattern matching for routers",
                         "Add complete OpenAPI 3.1 documentation",
-                        "Implement global exception handlers and custom responses",
                         "Use background tasks or TaskGroups for concurrency",
                         "Integrate with Vector Databases (Chroma/Pinecone) for AI features",
                         "Use SQLAlchemy 2.0+ with modern Mapped types"
@@ -91,23 +123,21 @@ class FrameworkRegistry:
                         "alembic",
                         "python-jose[cryptography]",
                         "passlib[bcrypt]",
-                        "python-multipart",
                         "redis",
                         "celery"
                     ]
-                }
+                },
                 "flask": {
-                    "latest_version": "3.0.1",
-                    "versions": ["3.0.1", "2.3.7"],
+                    "latest_version": "3.1.0",
+                    "versions": ["3.1.0", "3.0.1", "2.3.x"],
                     "architectures": ["MVC", "Blueprint Pattern", "Application Factory"],
                     "best_practices": [
-                        "Use application factory pattern",
-                        "Organize with blueprints",
-                        "Use Flask-SQLAlchemy",
-                        "Implement Flask-JWT-Extended",
-                        "Add Flask-CORS",
-                        "Use Flask-Migrate for migrations",
-                        "Implement proper error handlers"
+                        "Use application factory pattern for scalability",
+                        "Organize with blueprints and modern CLI commands",
+                        "Use Flask-SQLAlchemy 3.1+",
+                        "Implement Flask-JWT-Extended for secure auth",
+                        "Use Flask-Migrate for robust schema management",
+                        "Implement proper error handlers and custom response classes"
                     ],
                     "required_packages": [
                         "flask",
@@ -115,9 +145,8 @@ class FrameworkRegistry:
                         "flask-migrate",
                         "flask-jwt-extended",
                         "flask-cors",
-                        "flask-restful",
                         "python-dotenv",
-                        "psycopg2-binary",
+                        "psycopg-binary",
                         "redis"
                     ]
                 }
@@ -126,59 +155,49 @@ class FrameworkRegistry:
             # JavaScript/TypeScript Frameworks
             "javascript": {
                 "express": {
-                    "latest_version": "4.18.2",
-                    "versions": ["4.18.2", "4.18.1"],
-                    "architectures": ["MVC", "Clean Architecture", "Layered"],
+                    "latest_version": "5.0.0",
+                    "versions": ["5.0.0", "4.19.2", "4.18.x"],
+                    "architectures": ["MVC", "Clean Architecture", "Layered", "Micro-services"],
                     "best_practices": [
-                        "Use middleware properly",
-                        "Implement error handling middleware",
-                        "Use async/await",
-                        "Add request validation (joi/express-validator)",
-                        "Implement JWT authentication",
-                        "Use environment variables",
-                        "Add security headers (helmet)",
-                        "Implement rate limiting"
+                        "Use Express 5.0 native Promise support",
+                        "Implement Node.js 23.x native test runners",
+                        "Use TypeScript 5.7+ for strict type safety",
+                        "Implement Zod for runtime schema validation",
+                        "Add security headers with Helmet 8.0",
+                        "Use Pino for high-performance structured logging"
                     ],
                     "required_packages": [
                         "express",
                         "cors",
                         "helmet",
-                        "express-rate-limit",
                         "jsonwebtoken",
                         "bcryptjs",
+                        "zod",
+                        "pino",
                         "dotenv",
-                        "joi",
-                        "mongoose",  # MongoDB
-                        "pg",  # PostgreSQL
-                        "mysql2"
+                        "prisma"
                     ]
                 },
                 "nestjs": {
-                    "latest_version": "10.3.0",
-                    "versions": ["10.3.0", "10.2.10"],
-                    "architectures": ["Clean Architecture", "CQRS", "Microservices"],
+                    "latest_version": "11.0.0",
+                    "versions": ["11.0.0", "10.4.0", "10.3.x"],
+                    "architectures": ["Clean Architecture", "CQRS", "Microservices", "Event-Driven"],
                     "best_practices": [
-                        "Use dependency injection",
-                        "Implement guards and interceptors",
-                        "Use DTOs for validation",
-                        "Follow module structure",
-                        "Use TypeORM or Prisma",
-                        "Implement proper exception filters",
-                        "Use configuration module"
+                        "Use NestJS 11 modern dependency injection",
+                        "Implement guards and interceptors for cross-cutting concerns",
+                        "Use DTOs with Class-Validator 2026 edition",
+                        "Follow strictly decoupled module structure",
+                        "Use Prisma 6.x or Drizzle for type-safe DB access",
+                        "Implement Observability with OpenTelemetry"
                     ],
                     "required_packages": [
                         "@nestjs/core",
                         "@nestjs/common",
-                        "@nestjs/platform-express",
                         "@nestjs/jwt",
                         "@nestjs/passport",
-                        "@nestjs/typeorm",
-                        "@nestjs/config",
-                        "typeorm",
+                        "prisma",
                         "class-validator",
-                        "class-transformer",
-                        "bcrypt",
-                        "passport-jwt"
+                        "class-transformer"
                     ]
                 }
             },
@@ -186,34 +205,28 @@ class FrameworkRegistry:
             # Java Frameworks
             "java": {
                 "spring_boot": {
-                    "latest_version": "3.2.1",
-                    "lts_version": "3.1.7",
-                    "versions": ["3.2.1", "3.1.7", "2.7.18"],
-                    "jdk_versions": ["21", "17", "11"],
-                    "recommended_jdk": "17",
-                    "architectures": ["Clean Architecture", "Hexagonal", "Layered", "Microservices"],
+                    "latest_version": "3.4.1",
+                    "lts_version": "3.4.x",
+                    "versions": ["3.4.1", "3.3.0", "3.2.5"],
+                    "jdk_versions": ["21", "23", "17"],
+                    "recommended_jdk": "21",
+                    "architectures": ["Clean Architecture", "Hexagonal", "Stateless", "Reactive"],
                     "best_practices": [
-                        "Use Spring Data JPA",
-                        "Implement Spring Security with JWT",
-                        "Use @RestController for APIs",
-                        "Add validation with @Valid",
-                        "Use application.properties/yml",
-                        "Implement proper exception handling",
-                        "Use Lombok to reduce boilerplate",
-                        "Follow SOLID principles"
+                        "Use Java 21+ Virtual Threads (Project Loom) for high concurrency",
+                        "Integrate Spring AI for LLM orchestration",
+                        "Implement Spring Security 6.4+ with OIDC/OAuth2",
+                        "Use GraalVM native images for instant startup",
+                        "Adopt Micrometer 2.0 for advanced metrics",
+                        "Use Spring Data JPA 3.x with modern QueryDSL"
                     ],
                     "required_packages": [
                         "spring-boot-starter-web",
                         "spring-boot-starter-data-jpa",
                         "spring-boot-starter-security",
-                        "spring-boot-starter-validation",
-                        "jjwt-api",
-                        "jjwt-impl",
-                        "jjwt-jackson",
-                        "lombok",
+                        "spring-ai-openai-spring-boot-starter",
                         "postgresql",
-                        "mysql-connector-java",
-                        "springdoc-openapi-starter-webmvc-ui"
+                        "lombok",
+                        "mapstruct"
                     ]
                 }
             },
@@ -221,32 +234,26 @@ class FrameworkRegistry:
             # .NET Frameworks
             "csharp": {
                 "aspnet_core": {
-                    "latest_version": "8.0",
-                    "lts_version": "6.0",
-                    "versions": ["8.0", "7.0", "6.0"],
-                    "sdk_versions": ["8.0.101", "7.0.405", "6.0.418"],
-                    "recommended_sdk": "8.0.101",
-                    "architectures": ["Clean Architecture", "Onion Architecture", "CQRS", "Vertical Slice"],
+                    "latest_version": "9.0.0",
+                    "lts_version": "8.0",
+                    "versions": ["9.0.0", "8.0.0", "7.0.x"],
+                    "sdk_versions": ["9.0.100", "8.0.400"],
+                    "recommended_sdk": "9.0.100",
+                    "architectures": ["Clean Architecture", "Vertical Slices", "CQRS", "DAPR"],
                     "best_practices": [
-                        "Use Entity Framework Core",
-                        "Implement JWT authentication",
-                        "Use dependency injection",
-                        "Add FluentValidation",
-                        "Use AutoMapper for DTOs",
-                        "Implement MediatR for CQRS",
-                        "Add Swagger/OpenAPI",
-                        "Use async/await properly"
+                        "Use C# 13 structural improvements and params collections",
+                        "Implement Minimal APIs for ultra-fast performance",
+                        "Use EF Core 9.0 with JSON column mapping and interceptors",
+                        "Apply Resilience patterns with Microsoft.Extensions.Http.Resilience",
+                        "Use Scalar or OpenAPI 3.1 for modern documentation",
+                        "Implement Native AOT for serverless deployments"
                     ],
                     "required_packages": [
-                        "Microsoft.AspNetCore.Authentication.JwtBearer",
-                        "Microsoft.EntityFrameworkCore",
+                        "Microsoft.AspNetCore.OpenApi",
                         "Microsoft.EntityFrameworkCore.SqlServer",
-                        "Npgsql.EntityFrameworkCore.PostgreSQL",
-                        "AutoMapper.Extensions.Microsoft.DependencyInjection",
-                        "FluentValidation.AspNetCore",
-                        "MediatR",
-                        "Swashbuckle.AspNetCore",
-                        "Serilog.AspNetCore"
+                        "Microsoft.Extensions.Http.Resilience",
+                        "Scalar.AspNetCore",
+                        "MediatR"
                     ]
                 }
             },
@@ -254,26 +261,22 @@ class FrameworkRegistry:
             # Go Frameworks
             "go": {
                 "gin": {
-                    "latest_version": "1.9.1",
-                    "versions": ["1.9.1", "1.9.0"],
-                    "architectures": ["Clean Architecture", "Hexagonal", "Layered"],
+                    "latest_version": "1.10.x",
+                    "versions": ["1.10.0", "1.9.1"],
+                    "architectures": ["Clean Architecture", "Hexagonal", "Domain-Driven"],
                     "best_practices": [
-                        "Use middleware for common tasks",
-                        "Implement JWT authentication",
-                        "Use GORM for database",
-                        "Add request validation",
-                        "Use environment variables",
-                        "Implement proper error handling",
-                        "Use goroutines wisely"
+                        "Use Go 1.25+ iterators and modern generics",
+                        "Implement structured logging with slog",
+                        "Use GORM 2.5+ with automated migrations",
+                        "Add request validation with playground/validator v11",
+                        "Implement graceful shutdown and context propagation",
+                        "Use OIDC for modern authentication"
                     ],
                     "required_packages": [
                         "github.com/gin-gonic/gin",
                         "github.com/golang-jwt/jwt/v5",
                         "gorm.io/gorm",
-                        "gorm.io/driver/postgres",
-                        "gorm.io/driver/mysql",
-                        "github.com/joho/godotenv",
-                        "golang.org/x/crypto/bcrypt"
+                        "github.com/joho/godotenv"
                     ]
                 }
             },
@@ -281,19 +284,17 @@ class FrameworkRegistry:
             # Frontend Frameworks
             "frontend": {
                 "angular": {
-                    "latest_version": "17.1.0",
-                    "lts_version": "16.2.12",
-                    "versions": ["17.1.0", "16.2.12", "15.2.10"],
-                    "architectures": ["Component-based", "Module-based", "Standalone Components"],
+                    "latest_version": "19.1.0",
+                    "lts_version": "18.x",
+                    "versions": ["19.1.0", "18.2.0", "17.x"],
+                    "architectures": ["Component-based", "Signal-based", "Standalone"],
                     "best_practices": [
-                        "Use standalone components (Angular 14+)",
-                        "Implement lazy loading",
-                        "Use RxJS properly",
-                        "Add Angular Material",
-                        "Use services for business logic",
-                        "Implement route guards",
-                        "Use reactive forms",
-                        "Add interceptors for HTTP"
+                        "Use Angular Signals for reactive state management",
+                        "Implement Standalone Components and functional routers",
+                        "Use Hydration for improved SSR performance",
+                        "Adopt modern Control Flow syntax (@if, @for)",
+                        "Implement route guards with functional approach",
+                        "Use modern deferrable views for lazy loading"
                     ],
                     "required_packages": [
                         "@angular/core",
@@ -301,60 +302,97 @@ class FrameworkRegistry:
                         "@angular/router",
                         "@angular/forms",
                         "@angular/material",
-                        "rxjs",
-                        "@ngrx/store",  # State management
-                        "@ngrx/effects",
-                        "ngx-toastr"
+                        "rxjs"
                     ]
                 },
                 "react": {
-                    "latest_version": "18.2.0",
-                    "versions": ["18.2.0", "18.1.0"],
-                    "architectures": ["Component-based", "Atomic Design", "Feature-based"],
+                    "latest_version": "19.0.0",
+                    "versions": ["19.0.0", "18.3.x"],
+                    "architectures": ["Component-based", "Server Components", "Atomic Design"],
                     "best_practices": [
-                        "Use functional components and hooks",
-                        "Implement React Router",
-                        "Use Redux or Zustand for state",
-                        "Add React Query for data fetching",
-                        "Use TypeScript",
-                        "Implement code splitting",
-                        "Add error boundaries"
+                        "Use React Server Components (RSC) where applicable",
+                        "Implement simplified Actions and the 'use' hook",
+                        "Use TanStack Query V6 for stateful data fetching",
+                        "Adopt Zustand 5.x for lightweight global state",
+                        "Implement strict TypeScript 5.x patterns",
+                        "Use shadcn/ui for consistent design system"
                     ],
                     "required_packages": [
                         "react",
                         "react-dom",
                         "react-router-dom",
-                        "@reduxjs/toolkit",
-                        "react-redux",
                         "@tanstack/react-query",
-                        "axios",
-                        "react-hook-form",
+                        "zustand",
                         "zod"
                     ]
                 },
                 "vue": {
-                    "latest_version": "3.4.15",
-                    "versions": ["3.4.15", "3.3.13"],
-                    "architectures": ["Component-based", "Composition API", "Options API"],
+                    "latest_version": "3.5.x",
+                    "versions": ["3.5.0", "3.4.15"],
+                    "architectures": ["Composition API", "SFC", "Script Setup"],
                     "best_practices": [
-                        "Use Composition API",
-                        "Implement Vue Router",
-                        "Use Pinia for state management",
-                        "Add Vite for build tool",
-                        "Use TypeScript",
-                        "Implement lazy loading"
+                        "Use Composition API with <script setup>",
+                        "Implement Pinia for modern state management",
+                        "Use Vite 6.x for lightning-fast HMR",
+                        "Adopt Vue Router 4.x functional navigation",
+                        "Use Volar for enhanced TS support",
+                        "Implement specialized composables for logic reuse"
                     ],
                     "required_packages": [
                         "vue",
                         "vue-router",
                         "pinia",
                         "axios",
-                        "vee-validate",
-                        "vue-toastification"
+                        "vee-validate"
                     ]
                 }
             }
         }
+
+    def _save_to_db(self):
+        """Save current framework metadata to database"""
+        with SessionLocal() as db:
+            for lang, frameworks in self.frameworks.items():
+                for fw_name, info in frameworks.items():
+                    # Check if exists
+                    existing = db.execute(
+                        select(FrameworkMetadata).where(
+                            FrameworkMetadata.language == lang,
+                            FrameworkMetadata.framework == fw_name
+                        )
+                    ).scalar_one_or_none()
+                    
+                    if existing:
+                        db.execute(
+                            update(FrameworkMetadata).where(
+                                FrameworkMetadata.language == lang,
+                                FrameworkMetadata.framework == fw_name
+                            ).values(
+                                latest_version=info.get("latest_version"),
+                                lts_version=info.get("lts_version"),
+                                versions=info.get("versions"),
+                                architectures=info.get("architectures"),
+                                best_practices=info.get("best_practices"),
+                                required_packages=info.get("required_packages"),
+                                last_updated=datetime.utcnow()
+                            )
+                        )
+                    else:
+                        db.execute(
+                            insert(FrameworkMetadata).values(
+                                language=lang,
+                                framework=fw_name,
+                                latest_version=info.get("latest_version"),
+                                lts_version=info.get("lts_version"),
+                                versions=info.get("versions"),
+                                architectures=info.get("architectures"),
+                                best_practices=info.get("best_practices"),
+                                required_packages=info.get("required_packages"),
+                                last_updated=datetime.utcnow()
+                            )
+                        )
+            db.commit()
+            logger.info("Saved framework metadata to database")
     
     def get_framework_info(
         self,
@@ -460,7 +498,7 @@ class FrameworkRegistry:
         
         return info.get("architectures", [])
     
-    async def check_for_updates(self) -> Dict[str, Any]:
+    async def check_for_updates(self, apply: bool = True) -> Dict[str, Any]:
         """Check for framework updates from official sources"""
         updates = {
             "checked_at": datetime.utcnow().isoformat(),
@@ -483,9 +521,41 @@ class FrameworkRegistry:
         nuget_updates = await self._check_nuget_updates()
         updates["updates_found"].extend(nuget_updates)
         
+        if apply and updates["updates_found"]:
+            self._apply_updates(updates["updates_found"])
+            self._save_to_db()
+            logger.info(f"Applied and saved {len(updates['updates_found'])} updates to database")
+            
         self.last_updated = datetime.utcnow()
-        
         return updates
+
+    def _apply_updates(self, updates_found: List[Dict[str, Any]]):
+        """Apply found updates to in-memory registry"""
+        for update_item in updates_found:
+            lang = update_item["language"]
+            fw = update_item["package"].replace("@nestjs/", "nestjs")
+            if fw == "@angular/core": fw = "angular"
+            
+            new_version = update_item["latest_version"]
+            
+            if lang in self.frameworks and fw in self.frameworks[lang]:
+                info = self.frameworks[lang][fw]
+                if new_version not in info["versions"]:
+                    info["versions"].insert(0, new_version)
+                info["latest_version"] = new_version
+                logger.info(f"Updated {lang}/{fw} to version {new_version}")
+
+    async def run_auto_update(self):
+        """Background task for auto-updating the registry"""
+        logger.info("Running automatic framework registry update check...")
+        try:
+            results = await self.check_for_updates(apply=True)
+            if results["updates_found"]:
+                logger.info(f"Auto-update found and applied {len(results['updates_found'])} updates")
+            else:
+                logger.info("No updates found during auto-update check")
+        except Exception as e:
+            logger.error(f"Auto-update failed: {e}")
     
     async def _check_pypi_updates(self) -> List[Dict[str, Any]]:
         """Check PyPI for Python package updates"""
