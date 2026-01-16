@@ -1,109 +1,54 @@
 """
 Browser-Based IDE - Editor Service
 Provides file operations, LSP integration, and code intelligence
+Unified interface for the browser IDE
 """
+
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-import aiofiles
+import logging
+
+from services.ide.filesystem_service import FileSystemService
+from services.ide.intelligence_service import IntelligenceService
+
+logger = logging.getLogger(__name__)
 
 
 class EditorService:
-    """Browser-based code editor service"""
+    """
+    Browser-based code editor service
+    Coordinates file system and AI intelligence operations
+    """
     
-    def __init__(self, workspace_root: str = "./workspaces"):
+    def __init__(self, orchestrator=None, workspace_root: str = "storage/workspaces"):
+        self.fs = FileSystemService(base_path=workspace_root)
+        self.intelligence = IntelligenceService(orchestrator) if orchestrator else None
         self.workspace_root = Path(workspace_root)
-        self.workspace_root.mkdir(parents=True, exist_ok=True)
-        self.lsp_servers: Dict[str, Any] = {}
+    
+    # --- File Operations (Delegated to FileSystemService) ---
     
     async def read_file(self, workspace_id: str, file_path: str) -> Dict[str, Any]:
         """Read file contents"""
-        full_path = self.workspace_root / workspace_id / file_path
-        
-        if not full_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-        
-        # Security check: ensure path is within workspace
-        if not str(full_path.resolve()).startswith(str((self.workspace_root / workspace_id).resolve())):
-            raise PermissionError("Access denied: path outside workspace")
-        
-        async with aiofiles.open(full_path, 'r', encoding='utf-8') as f:
-            content = await f.read()
-        
-        return {
-            "path": file_path,
-            "content": content,
-            "size": full_path.stat().st_size,
-            "modified": full_path.stat().st_mtime
-        }
+        return await self.fs.read_file(workspace_id, file_path)
     
     async def write_file(self, workspace_id: str, file_path: str, content: str) -> Dict[str, Any]:
         """Write file contents"""
-        full_path = self.workspace_root / workspace_id / file_path
-        
-        # Security check
-        if not str(full_path.resolve()).startswith(str((self.workspace_root / workspace_id).resolve())):
-            raise PermissionError("Access denied: path outside workspace")
-        
-        # Create parent directories
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        async with aiofiles.open(full_path, 'w', encoding='utf-8') as f:
-            await f.write(content)
-        
-        return {
-            "path": file_path,
-            "size": full_path.stat().st_size,
-            "modified": full_path.stat().st_mtime,
-            "status": "saved"
-        }
+        return await self.fs.write_file(workspace_id, file_path, content)
     
     async def delete_file(self, workspace_id: str, file_path: str) -> Dict[str, Any]:
-        """Delete file"""
-        full_path = self.workspace_root / workspace_id / file_path
-        
-        if not full_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-        
-        # Security check
-        if not str(full_path.resolve()).startswith(str((self.workspace_root / workspace_id).resolve())):
-            raise PermissionError("Access denied: path outside workspace")
-        
-        if full_path.is_dir():
-            import shutil
-            shutil.rmtree(full_path)
-        else:
-            full_path.unlink()
-        
-        return {
-            "path": file_path,
-            "status": "deleted"
-        }
+        """Delete file or directory"""
+        return await self.fs.delete_file(workspace_id, file_path)
     
     async def list_files(self, workspace_id: str, directory: str = ".") -> List[Dict[str, Any]]:
         """List files in directory"""
-        full_path = self.workspace_root / workspace_id / directory
-        
-        if not full_path.exists():
-            raise FileNotFoundError(f"Directory not found: {directory}")
-        
-        # Security check
-        if not str(full_path.resolve()).startswith(str((self.workspace_root / workspace_id).resolve())):
-            raise PermissionError("Access denied: path outside workspace")
-        
-        files = []
-        for item in full_path.iterdir():
-            files.append({
-                "name": item.name,
-                "path": str(item.relative_to(self.workspace_root / workspace_id)),
-                "type": "directory" if item.is_dir() else "file",
-                "size": item.stat().st_size if item.is_file() else 0,
-                "modified": item.stat().st_mtime
-            })
-        
-        return sorted(files, key=lambda x: (x["type"] != "directory", x["name"]))
+        return await self.fs.list_directory(workspace_id, directory)
+    
+    async def get_file_tree(self, workspace_id: str) -> Dict[str, Any]:
+        """Get complete file tree"""
+        return await self.fs.get_file_tree(workspace_id)
     
     async def create_workspace(self, workspace_id: str) -> Dict[str, Any]:
-        """Create a new workspace"""
+        """Create a new workspace with default structure"""
         workspace_path = self.workspace_root / workspace_id
         workspace_path.mkdir(parents=True, exist_ok=True)
         
@@ -112,95 +57,119 @@ class EditorService:
         (workspace_path / "tests").mkdir(exist_ok=True)
         
         # Create README
-        readme_path = workspace_path / "README.md"
-        async with aiofiles.open(readme_path, 'w') as f:
-            await f.write(f"# Workspace: {workspace_id}\n\nCreated by AI Orchestrator IDE\n")
+        readme_path = "README.md"
+        content = f"# Workspace: {workspace_id}\n\nCreated by AI Orchestrator IDE\n"
+        await self.fs.write_file(workspace_id, readme_path, content)
         
         return {
             "workspace_id": workspace_id,
-            "path": str(workspace_path),
             "status": "created"
         }
+    
+    # --- Intelligence Operations (Delegated to IntelligenceService) ---
     
     async def get_completions(
         self,
         workspace_id: str,
         file_path: str,
-        line: int,
-        column: int,
+        cursor_offset: int,
         language: str
     ) -> List[Dict[str, Any]]:
-        """Get code completions (LSP integration)"""
-        # This would integrate with Language Server Protocol
-        # For now, return basic completions
-        
-        # TODO: Implement LSP client integration
-        # - Start LSP server for language
-        # - Send textDocument/completion request
-        # - Parse and return completions
-        
-        return [
-            {
-                "label": "example_function",
-                "kind": "function",
-                "detail": "Example function",
-                "documentation": "This is an example completion"
-            }
-        ]
+        """Get AI-powered code completions"""
+        if not self.intelligence:
+            return []
+            
+        file_data = await self.fs.read_file(workspace_id, file_path)
+        return await self.intelligence.get_completions(
+            code=file_data["content"],
+            language=language or file_data["language"],
+            cursor_offset=cursor_offset,
+            file_path=file_path
+        )
+    
+    async def get_hover_info(
+        self,
+        workspace_id: str,
+        file_path: str,
+        symbol: str,
+        language: str = None
+    ) -> Dict[str, Any]:
+        """Get information about a symbol on hover"""
+        if not self.intelligence:
+            return {"error": "Intelligence service not available"}
+            
+        file_data = await self.fs.read_file(workspace_id, file_path)
+        return await self.intelligence.get_hover_info(
+            code=file_data["content"],
+            language=language or file_data["language"],
+            symbol=symbol,
+            file_path=file_path
+        )
+    
+    async def get_diagnostics(
+        self,
+        workspace_id: str,
+        file_path: str,
+        language: str = None
+    ) -> List[Dict[str, Any]]:
+        """Get code diagnostics"""
+        if not self.intelligence:
+            return []
+            
+        file_data = await self.fs.read_file(workspace_id, file_path)
+        return await self.intelligence.get_diagnostics(
+            code=file_data["content"],
+            language=language or file_data["language"],
+            file_path=file_path
+        )
+    
+    async def ai_refactor(
+        self,
+        workspace_id: str,
+        file_path: str,
+        instruction: str,
+        language: str = None
+    ) -> Dict[str, Any]:
+        """Perform AI-powered refactoring"""
+        if not self.intelligence:
+            return {"error": "Intelligence service not available"}
+            
+        file_data = await self.fs.read_file(workspace_id, file_path)
+        return await self.intelligence.ai_refactor(
+            code=file_data["content"],
+            instruction=instruction,
+            language=language or file_data["language"]
+        )
+    
+    # --- Code Formatting ---
     
     async def format_code(
         self,
         workspace_id: str,
         file_path: str,
-        language: str
+        language: str = None
     ) -> Dict[str, Any]:
         """Format code using language-specific formatter"""
-        content = await self.read_file(workspace_id, file_path)
+        file_data = await self.fs.read_file(workspace_id, file_path)
+        code = file_data["content"]
+        lang = language or file_data["language"]
         
         # Format based on language
-        formatters = {
-            "python": self._format_python,
-            "javascript": self._format_javascript,
-            "typescript": self._format_typescript,
-            "go": self._format_go,
-            "rust": self._format_rust
-        }
-        
-        formatter = formatters.get(language)
-        if formatter:
-            formatted_content = await formatter(content["content"])
-            await self.write_file(workspace_id, file_path, formatted_content)
-            return {"status": "formatted", "path": file_path}
-        
-        return {"status": "no_formatter", "path": file_path}
-    
-    async def _format_python(self, code: str) -> str:
-        """Format Python code using black"""
+        formatted_code = code
         try:
-            import black
-            return black.format_str(code, mode=black.Mode())
-        except Exception:
-            return code
-    
-    async def _format_javascript(self, code: str) -> str:
-        """Format JavaScript code"""
-        # Would use prettier or similar
-        return code
-    
-    async def _format_typescript(self, code: str) -> str:
-        """Format TypeScript code"""
-        # Would use prettier or similar
-        return code
-    
-    async def _format_go(self, code: str) -> str:
-        """Format Go code"""
-        # Would use gofmt
-        return code
-    
-    async def _format_rust(self, code: str) -> str:
-        """Format Rust code"""
-        # Would use rustfmt
-        return code
+            if lang == "python":
+                import black
+                formatted_code = black.format_str(code, mode=black.Mode())
+            # Add other formatters here as needed
+        except Exception as e:
+            logger.warning(f"Formatting failed for {lang}: {e}")
+            return {"status": "formatting_failed", "error": str(e)}
+            
+        if formatted_code != code:
+            await self.fs.write_file(workspace_id, file_path, formatted_code)
+            return {"status": "formatted", "path": file_path}
+            
+        return {"status": "unchanged", "path": file_path}
     
     async def search_in_files(
         self,
@@ -209,67 +178,4 @@ class EditorService:
         file_pattern: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Search for text in workspace files"""
-        workspace_path = self.workspace_root / workspace_id
-        results = []
-        
-        for file_path in workspace_path.rglob(file_pattern or "*"):
-            if file_path.is_file():
-                try:
-                    async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
-                        content = await f.read()
-                    
-                    lines = content.split('\n')
-                    for line_num, line in enumerate(lines, 1):
-                        if query.lower() in line.lower():
-                            results.append({
-                                "file": str(file_path.relative_to(workspace_path)),
-                                "line": line_num,
-                                "content": line.strip(),
-                                "column": line.lower().index(query.lower())
-                            })
-                except Exception:
-                    continue
-        
-        return results
-
-
-class LSPManager:
-    """Language Server Protocol Manager"""
-    
-    def __init__(self):
-        self.servers: Dict[str, Any] = {}
-    
-    async def start_server(self, language: str, workspace_path: str) -> bool:
-        """Start LSP server for language"""
-        # Map language to LSP server command
-        server_commands = {
-            "python": ["pylsp"],
-            "javascript": ["typescript-language-server", "--stdio"],
-            "typescript": ["typescript-language-server", "--stdio"],
-            "go": ["gopls"],
-            "rust": ["rust-analyzer"],
-            "java": ["jdtls"],
-            "csharp": ["omnisharp"]
-        }
-        
-        command = server_commands.get(language)
-        if not command:
-            return False
-        
-        # TODO: Start LSP server process
-        # - Use asyncio.create_subprocess_exec
-        # - Handle stdin/stdout communication
-        # - Implement LSP protocol
-        
-        return True
-    
-    async def stop_server(self, language: str) -> bool:
-        """Stop LSP server"""
-        if language in self.servers:
-            # TODO: Send shutdown request to LSP server
-            # - Send shutdown request
-            # - Wait for response
-            # - Terminate process
-            del self.servers[language]
-            return True
-        return False
+        return await self.fs.search_files(workspace_id, query, file_pattern)

@@ -56,9 +56,10 @@ entity_generator: EntityGenerator = None
 language_registry: LanguageRegistry = None
 
 # IDE Services
-editor_service = None
-terminal_service = None
-debugger_service = None
+editor_service: "EditorService" = None
+terminal_service: "TerminalService" = None
+debugger_service: "DebuggerService" = None
+auth_router = None
 
 
 @asynccontextmanager
@@ -87,10 +88,15 @@ async def lifespan(app: FastAPI):
     # Initialize IDE Services
     from services.ide import EditorService, TerminalService, DebuggerService
     global editor_service, terminal_service, debugger_service
-    editor_service = EditorService()
+    editor_service = EditorService(orchestrator=orchestrator)
     terminal_service = TerminalService()
     debugger_service = DebuggerService()
-    logger.info("IDE services initialized")
+    logger.info("IDE services initialized with orchestrator")
+
+    # Initialize Auth Router
+    from platform.auth.routes import router as auth_router_instance
+    app.include_router(auth_router_instance, prefix="/api/v1/auth", tags=["Authentication"])
+    logger.info("Authentication router initialized")
     
     # Start Registry Auto-Update background task
     from services.registry.registry_updater import RegistryUpdater
@@ -1444,6 +1450,96 @@ async def handle_dap_message(
         return result
     except Exception as e:
         logger.error(f"DAP message failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- New Code Intelligence Endpoints ---
+
+@app.get("/api/ide/tree/{workspace_id}")
+async def get_file_tree(
+    workspace_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get complete file tree for a workspace"""
+    try:
+        return await editor_service.get_file_tree(workspace_id)
+    except Exception as e:
+        logger.error(f"Failed to get file tree: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ide/intelligence/completions/{workspace_id}/{path:path}")
+async def get_completions(
+    workspace_id: str,
+    path: str,
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Get AI-powered code completions"""
+    try:
+        return await editor_service.get_completions(
+            workspace_id,
+            path,
+            request.get("offset", 0),
+            request.get("language")
+        )
+    except Exception as e:
+        logger.error(f"Failed to get completions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ide/intelligence/hover/{workspace_id}/{path:path}")
+async def get_hover_info(
+    workspace_id: str,
+    path: str,
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Get information about a symbol on hover"""
+    try:
+        return await editor_service.get_hover_info(
+            workspace_id,
+            path,
+            request.get("symbol"),
+            request.get("language")
+        )
+    except Exception as e:
+        logger.error(f"Failed to get hover info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ide/intelligence/diagnostics/{workspace_id}/{path:path}")
+async def get_diagnostics(
+    workspace_id: str,
+    path: str,
+    language: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get code diagnostics"""
+    try:
+        return await editor_service.get_diagnostics(workspace_id, path, language)
+    except Exception as e:
+        logger.error(f"Failed to get diagnostics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ide/intelligence/refactor/{workspace_id}/{path:path}")
+async def ai_refactor(
+    workspace_id: str,
+    path: str,
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """Perform AI-powered refactoring"""
+    try:
+        return await editor_service.ai_refactor(
+            workspace_id,
+            path,
+            request.get("instruction"),
+            request.get("language")
+        )
+    except Exception as e:
+        logger.error(f"Failed to perform AI refactor: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
