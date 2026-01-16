@@ -108,13 +108,26 @@ You have deep knowledge of:
 - ALL best practices and standards
 """
     
+    
     async def act(self, task: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Universal entry point for ANY coding task
         Uses LLM intelligence to understand and execute
+        VISION 2026: Includes self-correction loop with auto-verification
         """
         context = context or {}
         
+        # Check if self-correction is enabled (default: True)
+        enable_self_correction = context.get("enable_self_correction", True)
+        max_attempts = context.get("max_correction_attempts", 3)
+        
+        if enable_self_correction:
+            return await self._act_with_self_correction(task, context, max_attempts)
+        else:
+            return await self._act_once(task, context)
+    
+    async def _act_once(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute task once without self-correction (legacy mode)"""
         # Build comprehensive prompt
         prompt = self._build_universal_prompt(task, context)
         
@@ -145,6 +158,120 @@ You have deep knowledge of:
             "agent": self.name,
             "model_used": target_model
         }
+    
+    async def _act_with_self_correction(self, task: str, context: Dict[str, Any], max_attempts: int = 3) -> Dict[str, Any]:
+        """
+        VISION 2026: Execute task with self-correction loop
+        Validates output and auto-corrects errors before returning
+        """
+        logger.info(f"🔄 Self-Correction enabled: max {max_attempts} attempts")
+        
+        errors_found = []
+        best_result = None
+        
+        for attempt in range(max_attempts):
+            logger.info(f"Attempt {attempt + 1}/{max_attempts}")
+            
+            # Execute the task
+            result = await self._act_once(task, context)
+            best_result = result  # Keep track of best attempt
+            
+            # SELF-VERIFICATION: Validate the solution
+            validation_errors = self._validate_solution(result.get("solution", ""), context)
+            
+            if not validation_errors:
+                logger.info(f"✅ Self-verification passed on attempt {attempt + 1}")
+                result["self_correction"] = {
+                    "attempts": attempt + 1,
+                    "errors_fixed": errors_found,
+                    "status": "validated"
+                }
+                return result
+            
+            # Log errors found
+            logger.warning(f"⚠️ Self-verification found {len(validation_errors)} issues: {validation_errors}")
+            errors_found.extend(validation_errors)
+            
+            # If not the last attempt, try to fix the issues
+            if attempt < max_attempts - 1:
+                # Update task to fix the errors
+                task = f"Fix these issues in the previous solution:\n{chr(10).join(f'- {err}' for err in validation_errors)}\n\nOriginal task: {task}\n\nPrevious solution:\n{result.get('solution', '')}"
+        
+        # Return best attempt with warning
+        logger.warning(f"⚠️ Self-correction completed with {len(errors_found)} unresolved issues after {max_attempts} attempts")
+        best_result["self_correction"] = {
+            "attempts": max_attempts,
+            "errors_found": errors_found,
+            "status": "partial_correction"
+        }
+        return best_result
+    
+    def _validate_solution(self, solution: str, context: Dict[str, Any]) -> list:
+        """
+        VISION 2026: Validate generated solution for common issues
+        Returns list of errors found (empty if valid)
+        """
+        errors = []
+        language = context.get("language", "").lower()
+        
+        # 1. Check for placeholder comments
+        placeholder_patterns = [
+            r'#\s*TODO',
+            r'#\s*FIXME',
+            r'#\s*placeholder',
+            r'//\s*TODO',
+            r'//\s*FIXME',
+            r'/\*\s*TODO',
+            r'\.\.\..*#.*implement',
+        ]
+        
+        for pattern in placeholder_patterns:
+            if re.search(pattern, solution, re.IGNORECASE):
+                errors.append(f"Contains placeholder/TODO comment: {pattern}")
+                break
+        
+        # 2. Python-specific validation
+        if language == "python" or "def " in solution or "import " in solution:
+            try:
+                import ast
+                # Extract code blocks
+                code_blocks = re.findall(r'```(?:python)?\n(.*?)\n```', solution, re.DOTALL)
+                for block in code_blocks:
+                    try:
+                        ast.parse(block)
+                    except SyntaxError as e:
+                        errors.append(f"Python syntax error: {e}")
+            except Exception:
+                pass  # AST validation is best-effort
+        
+        # 3. Check for incomplete code blocks
+        if solution.count("```") % 2 != 0:
+            errors.append("Incomplete code block (unmatched ```)")
+        
+        # 4. Check for common logic errors
+        if "pass  # implement" in solution.lower():
+            errors.append("Contains unimplemented 'pass' statement")
+        
+        # 5. Check for missing imports (basic heuristic)
+        if language == "python":
+            # Check if using common libraries without imports
+            common_libs = {
+                "requests": r'\brequests\.',
+                "json": r'\bjson\.',
+                "os": r'\bos\.',
+                "sys": r'\bsys\.',
+            }
+            
+            for lib, pattern in common_libs.items():
+                if re.search(pattern, solution) and f"import {lib}" not in solution:
+                    errors.append(f"Uses '{lib}' without importing it")
+        
+        # 6. Check for empty or very short solutions (likely incomplete)
+        if len(solution.strip()) < 50:
+            errors.append("Solution is too short (likely incomplete)")
+        
+        return errors
+    
     
     def _build_universal_prompt(self, task: str, context: Dict[str, Any]) -> str:
         """Build intelligent prompt based on task and context"""

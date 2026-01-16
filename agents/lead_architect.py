@@ -4,6 +4,7 @@ Lead Architect Agent - Swarm Orchestrator (Ultimate 2026 Edition)
 import logging
 import json
 import re
+import asyncio
 from typing import List, Dict, Any
 from agents.base import BaseAgent
 
@@ -28,50 +29,73 @@ class LeadArchitectAgent(BaseAgent):
         
         # 1. Decompose the task into specialized domains
         subtasks = await self._decompose(task, task_type)
-        results = {}
         
-        # 2. Iterate through subtasks with Build -> Review Pass
+        # 2. VISION 2026: Execute all subtasks in PARALLEL using asyncio.gather
+        logger.info(f"🚀 Swarm Parallelization: Executing {len(subtasks)} subtasks simultaneously")
+        
+        # Create parallel tasks
+        parallel_tasks = []
         for subtask in subtasks:
-            domain = subtask.get("domain", "general")
-            instruction = subtask.get("instruction")
-            recommended_model = subtask.get("model", "coder")
+            if subtask.get("instruction"):
+                parallel_tasks.append(self._execute_subtask_with_review(subtask, context))
+        
+        # Execute all subtasks in parallel
+        results_list = await asyncio.gather(*parallel_tasks, return_exceptions=True)
+        
+        # Aggregate results
+        results = {}
+        for i, result in enumerate(results_list):
+            if isinstance(result, Exception):
+                logger.error(f"Subtask {i} failed: {result}")
+                continue
             
-            if not instruction: continue
-            
-            # PHASE 1: GENERATE / MIGRATE / FIX
-            logger.info(f"Swarm Phase 1 [{domain}]: Executing with {recommended_model}")
-            worker_context = context.copy()
-            worker_context.update({
-                "domain": domain,
-                "model": recommended_model,
-                "generate_docker": True if domain == "infrastructure" else False
-            })
-            
-            initial_result = await self.orchestrator.universal_agent.act(instruction, worker_context)
-            
-            # PHASE 2: REVIEW & REFINE (Ultimate Quality Pass)
-            logger.info(f"Swarm Phase 2 [{domain}]: Peer review refinement...")
-            review_instruction = f"Review and REFINE this {domain} solution for 2026 standards. Ensure security, efficiency, and zero placeholders. Code: {initial_result.get('solution')}"
-            
-            review_context = worker_context.copy()
-            review_context.update({
-                "model": "specialist",
-                "is_review": True
-            })
-            
-            final_result = await self.orchestrator.universal_agent.act(review_instruction, review_context)
-            
-            # Merge results
-            final_result["infrastructure"] = initial_result.get("infrastructure", {})
-            results[domain] = final_result
-            
+            domain = result.get("domain", f"task_{i}")
+            results[domain] = result
+        
+        logger.info(f"✅ Parallel execution complete: {len(results)} domains processed")
+        
         return {
             "status": "success",
             "type": task_type,
             "decomposition": subtasks,
             "worker_results": results,
-            "agent": "LeadArchitect[SwarmMode]"
+            "agent": "LeadArchitect[SwarmMode-Parallel]"
         }
+    
+    async def _execute_subtask_with_review(self, subtask: Dict[str, Any], base_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a single subtask with build + review pass (helper for parallel execution)"""
+        domain = subtask.get("domain", "general")
+        instruction = subtask.get("instruction")
+        recommended_model = subtask.get("model", "coder")
+        
+        # PHASE 1: GENERATE / MIGRATE / FIX
+        logger.info(f"Swarm Phase 1 [{domain}]: Executing with {recommended_model}")
+        worker_context = base_context.copy()
+        worker_context.update({
+            "domain": domain,
+            "model": recommended_model,
+            "generate_docker": True if domain == "infrastructure" else False
+        })
+        
+        initial_result = await self.orchestrator.universal_agent.act(instruction, worker_context)
+        
+        # PHASE 2: REVIEW & REFINE (Ultimate Quality Pass)
+        logger.info(f"Swarm Phase 2 [{domain}]: Peer review refinement...")
+        review_instruction = f"Review and REFINE this {domain} solution for 2026 standards. Ensure security, efficiency, and zero placeholders. Code: {initial_result.get('solution')}"
+        
+        review_context = worker_context.copy()
+        review_context.update({
+            "model": "specialist",
+            "is_review": True
+        })
+        
+        final_result = await self.orchestrator.universal_agent.act(review_instruction, review_context)
+        
+        # Merge results
+        final_result["infrastructure"] = initial_result.get("infrastructure", {})
+        final_result["domain"] = domain
+        
+        return final_result
 
     async def _decompose(self, task: str, task_type: str = "general") -> List[Dict[str, Any]]:
         """Determine the swarm structure based on the task type"""

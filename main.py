@@ -136,7 +136,7 @@ automated code generation, task migration, and workbench management.
 - **Endpoint**: `/preview/{workbench_id}`
 - **Usage**: Real-time project preview and screen sharing.
 """,
-    version="1.0.0",
+    version="2026.1.0-POWERFUL",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
