@@ -270,69 +270,217 @@ POST /api/generate
 
 ---
 
-## 🔌 API Reference
+## 🔌 Complete API Reference
 
-### Vision 2026 Endpoints
+### Core Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/analyze-description` | POST | **NEW** Analyze description and get auto-config |
+| `/` | GET | Root endpoint with service info |
+| `/health` | GET | Health check with runtime status |
+| `/status` | GET | Detailed system status |
+| `/metrics` | GET | **NEW** Prometheus metrics (uptime, tokens, success rate) |
+
+### Vision 2026 - Generation & Analysis
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/analyze-description` | POST | **NEW** Analyze description → get auto-config |
 | `/api/generate` | POST | Generate complete projects (enhanced schema) |
-| `/api/migrate` | POST | Migrate code between stacks |
+| `/api/entity/generate` | POST | Generate from entity definitions |
+
+### AI Agent Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/api/fix` | POST | Fix code issues with self-correction |
-| `/api/analyze` | POST | Analyze code quality |
-| `/api/test` | POST | Generate test suites |
+| `/api/analyze` | POST | Analyze code quality and patterns |
+| `/api/test` | POST | Generate comprehensive test suites |
 | `/api/optimize` | POST | Optimize code performance |
-| `/metrics` | GET | **NEW** Prometheus metrics with uptime/tokens |
+| `/api/document` | POST | Generate documentation |
+| `/api/review` | POST | Code review with suggestions |
+| `/api/explain` | POST | Explain code functionality |
+| `/api/refactor` | POST | Refactor code with best practices |
+| `/api/project/analyze` | POST | Analyze entire project structure |
+| `/api/project/migrate` | POST | Migrate entire project |
+| `/api/project/add-feature` | POST | Add feature to existing project |
+| `/api/figma/analyze` | POST | Analyze Figma designs |
 
-### Enhanced Generation Schema
+### Migration Endpoints
 
-The `/api/generate` endpoint now supports 20+ configuration fields:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/migrate` | POST | Migrate code between tech stacks |
+| `/migrate` | POST | Legacy migration endpoint |
+| `/migration/start` | POST | Start migration workflow |
 
-```typescript
-{
-  // Basic
-  project_name: string;
-  description?: string;
-  project_type?: string;
-  
-  // Languages (auto-configured)
-  languages?: Array<LanguageFrameworkSpec>;
-  frontend?: FrontendConfig;
-  
-  // Architecture (auto-detected)
-  architecture?: {
-    patterns: string[];
-    microservices: boolean;
-    api_first: boolean;
-    event_driven: boolean;
-  };
-  
-  // Scalability (auto-configured)
-  scalability?: {
-    enable_caching: boolean;
-    enable_load_balancing: boolean;
-    enable_cdn: boolean;
-    enable_auto_scaling: boolean;
-  };
-  
-  // Integrations (auto-detected)
-  integrations?: {
-    payment_gateway: boolean;
-    erp: boolean;
-    crm: boolean;
-    logistics: boolean;
-  };
-  
-  // Deployment (auto-configured)
-  deployment?: {
-    strategy: string;
-    generate_kubernetes: boolean;
-    generate_ci_cd: boolean;
-  };
-  
-  // And more...
-}
+### LLM Inference Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/inference` | POST | Run LLM inference |
+| `/inference/stream` | POST | Streaming LLM inference |
+| `/models` | GET | List available models |
+| `/models/{model_name}` | GET | Get model information |
+| `/models/{model_name}/load` | POST | Load specific model |
+| `/models/{model_name}/unload` | POST | Unload model from memory |
+| `/models/discover` | POST | Discover new models |
+
+### Storage Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/storage/stats` | GET | Storage statistics |
+| `/api/storage/projects` | GET | List stored projects |
+| `/api/storage/projects/{project_id}` | GET | Get project details |
+| `/api/storage/projects/{project_id}` | DELETE | Delete project |
+| `/api/storage/archive/{project_id}` | POST | Archive project |
+| `/api/storage/cleanup` | POST | Cleanup old projects |
+| `/api/storage/backup/{project_id}` | POST | Backup project |
+
+### Workbench & Docker Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/workbench/create` | POST | Create Docker workbench |
+| `/workbench/list` | GET | List active workbenches |
+
+### IDE Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/ide/workspace` | POST | Create IDE workspace |
+| `/api/ide/files/{workspace_id}` | GET | List workspace files |
+| `/api/ide/files/{workspace_id}/{path}` | GET | Read file content |
+| `/api/ide/files/{workspace_id}/{path}` | POST | Write file content |
+| `/api/ide/tree/{workspace_id}` | GET | Get file tree |
+| `/api/ide/terminal` | POST | Create terminal session |
+| `/api/ide/debug` | POST | Start debug session |
+| `/api/ide/debug/{session_id}/dap` | POST | Debug Adapter Protocol |
+
+### IDE Intelligence (AI-Powered)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/ide/intelligence/completions/{workspace_id}/{path}` | POST | AI code completions |
+| `/api/ide/intelligence/hover/{workspace_id}/{path}` | POST | Hover information |
+| `/api/ide/intelligence/diagnostics/{workspace_id}/{path}` | GET | Code diagnostics |
+| `/api/ide/intelligence/refactor/{workspace_id}/{path}` | POST | AI-powered refactoring |
+
+### Git Integration Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/git/providers` | GET | List Git providers |
+| `/git/config` | GET | Get general Git config |
+| `/git/config/{provider}` | GET | Get provider-specific config |
+| `/git/config/{provider}` | POST | Set provider config |
+| `/git/config/{provider}` | DELETE | Delete provider config |
+| `/git/validate/{provider}` | POST | Validate credentials |
+| `/git/repositories/init` | POST | Initialize repository |
+
+### Database Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/database/analyze` | POST | Analyze database schema |
+| `/api/registry/languages` | GET | List supported languages |
+
+### Security Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/security/scan` | POST | Security vulnerability scan |
+
+### Lifecycle & Automation
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/lifecycle/execute` | POST | Execute E2E project lifecycle |
+
+### Monitoring Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/monitoring/metrics` | GET | Historical metrics |
+| `/api/monitoring/metrics/current` | GET | Current metrics snapshot |
+| `/api/monitoring/builds` | GET | List build history |
+| `/api/monitoring/builds/{build_id}` | GET | Get build details |
+
+### Collaboration Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/collaboration/session` | POST | Create collaboration session |
+
+### Workspace Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/workspace` | POST | Create workspace |
+| `/api/workspace/{workspace_id}` | GET | Get workspace details |
+| `/api/workspace/user/{user_id}` | GET | Get user workspaces |
+| `/api/workspace/{workspace_id}/members` | POST | Invite members |
+
+### Infrastructure Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/kubernetes/generate` | POST | Generate Kubernetes manifests |
+
+### Authentication Endpoints (v1)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/auth/register` | POST | Register new user |
+| `/api/v1/auth/login` | POST | User login |
+| `/api/v1/auth/refresh` | POST | Refresh access token |
+| `/api/v1/auth/logout` | POST | User logout |
+| `/api/v1/auth/me` | GET | Get current user |
+
+---
+
+## 🔌 WebSocket Endpoints
+
+### Real-Time Communication
+
+| Endpoint | Protocol | Description |
+|----------|----------|-------------|
+| `/console/{workbench_id}` | WebSocket | Real-time terminal access to workbench |
+| `/api/ide/terminal/{session_id}` | WebSocket | IDE terminal session |
+| `/api/monitoring/stream` | WebSocket | Real-time metrics streaming |
+| `/api/collaboration/{session_id}` | WebSocket | Real-time collaboration |
+
+---
+
+## 📊 API Usage Examples
+
+### Example 1: Complete Workflow
+
+```bash
+# 1. Analyze description
+curl -X POST http://localhost:8080/api/analyze-description \
+  -H "X-API-Key: your-key" \
+  -d '{"description": "E-commerce platform..."}'
+
+# 2. Generate project
+curl -X POST http://localhost:8080/api/generate \
+  -H "X-API-Key: your-key" \
+  -d @generated_config.json
+
+# 3. Check metrics
+curl http://localhost:8080/metrics \
+  -H "X-API-Key: your-key"
+```
+
+### Example 2: WebSocket Terminal
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080/console/workbench-123');
+ws.onmessage = (event) => {
+  console.log('Terminal output:', event.data);
+};
+ws.send('ls -la\n');
 ```
 
 ---
