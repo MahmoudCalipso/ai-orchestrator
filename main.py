@@ -61,6 +61,14 @@ terminal_service: "TerminalService" = None
 debugger_service: "DebuggerService" = None
 auth_router = None
 
+# Project Management Services (Vision 2026)
+project_manager = None
+git_sync_service = None
+ai_update_service = None
+build_service = None
+runtime_service = None
+workflow_engine = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,6 +105,30 @@ async def lifespan(app: FastAPI):
     from platform.auth.routes import router as auth_router_instance
     app.include_router(auth_router_instance, prefix="/api/v1/auth", tags=["Authentication"])
     logger.info("Authentication router initialized")
+
+    # Initialize Project Management Services (Vision 2026)
+    from services.project_manager import ProjectManager
+    from services.git_sync import GitSyncService
+    from services.ai_update_service import AIUpdateService
+    from services.build_service import BuildService
+    from services.runtime_service import RuntimeService
+    from services.workflow_engine import WorkflowEngine
+    
+    global project_manager, git_sync_service, ai_update_service, build_service, runtime_service, workflow_engine
+    
+    project_manager = ProjectManager()
+    git_sync_service = GitSyncService()
+    ai_update_service = AIUpdateService(orchestrator)
+    build_service = BuildService()
+    runtime_service = RuntimeService()
+    workflow_engine = WorkflowEngine({
+        "project_manager": project_manager,
+        "git_sync": git_sync_service,
+        "ai_update": ai_update_service,
+        "build": build_service,
+        "runtime": runtime_service
+    })
+    logger.info("Vision 2026 Project Management services initialized")
     
     # Start Registry Auto-Update background task
     from services.registry.registry_updater import RegistryUpdater
@@ -1431,25 +1463,181 @@ async def cleanup_storage(api_key: str = Depends(verify_api_key)):
 
 
 @app.post("/api/storage/backup/{project_id}")
-async def backup_project(
-    project_id: str,
-    api_key: str = Depends(verify_api_key)
-):
-    """Backup a specific project"""
+async def backup_stored_project(project_id: str, api_key: str = Depends(verify_api_key)):
+    """
+    Back up a stored project manually.
+    """
     try:
-        from core.storage import BackupManager
-        
-        backup_mgr = BackupManager()
-        backup_id = await backup_mgr.backup_project(project_id)
-        
-        return {
-            "status": "success",
-            "backup_id": backup_id,
-            "project_id": project_id
-        }
+        from core.storage.backup import BackupManager
+        backup_manager = BackupManager()
+        result = await backup_manager.create_backup(project_id)
+        if result:
+            return {"status": "success", "message": f"Backup created: {result}"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create backup")
     except Exception as e:
         logger.error(f"Backup failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Vision 2026 - User Project Management Endpoints
+
+@app.get("/api/user/{user_id}/projects", tags=["Project Management"])
+async def list_user_projects(
+    user_id: str,
+    status: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    api_key: str = Depends(verify_api_key)
+):
+    """List all projects belonging to a user"""
+    return project_manager.get_user_projects(user_id, status, page, page_size)
+
+
+@app.get("/api/user/{user_id}/projects/{project_id}", tags=["Project Management"])
+async def get_user_project(project_id: str, user_id: str, api_key: str = Depends(verify_api_key)):
+    """Get project details"""
+    project = project_manager.get_project(project_id)
+    if not project or project["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@app.post("/api/user/{user_id}/projects", tags=["Project Management"])
+async def create_user_project(user_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
+    """Create a new user project"""
+    return project_manager.create_project(
+        user_id=user_id,
+        project_name=request.get("project_name", "New Project"),
+        description=request.get("description", ""),
+        git_repo_url=request.get("git_repo_url", ""),
+        language=request.get("language", ""),
+        framework=request.get("framework", "")
+    )
+
+
+@app.delete("/api/user/{user_id}/projects/{project_id}", tags=["Project Management"])
+async def delete_user_project(project_id: str, user_id: str, api_key: str = Depends(verify_api_key)):
+    """Delete a user project"""
+    success = project_manager.delete_project(project_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found or unauthorized")
+    return {"status": "success", "message": "Project deleted"}
+
+
+@app.post("/api/projects/{project_id}/open", tags=["Project Management"])
+async def open_user_project(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
+    """Open a project: Clone from Git and load in IDE"""
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Clone if not already cloned
+    local_path = project["local_path"]
+    if not os.path.exists(os.path.join(local_path, ".git")):
+        res = await git_sync_service.clone_repository(
+            repo_url=project["git_repo_url"],
+            local_path=local_path,
+            branch=project.get("git_branch", "main"),
+            credentials=request.get("git_credentials")
+        )
+        if not res["success"]:
+            raise HTTPException(status_code=500, detail=res["message"])
+    
+    project_manager.update_last_opened(project_id)
+    
+    # Create IDE workspace
+    workspace = await editor_service.create_workspace(project["project_name"], local_path)
+    
+    return {
+        "status": "success",
+        "workspace_id": workspace.id,
+        "project": project
+    }
+
+
+@app.post("/api/projects/{project_id}/sync", tags=["Project Management"])
+async def sync_user_project(project_id: str, api_key: str = Depends(verify_api_key)):
+    """Sync project with Git remote (pull)"""
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    res = await git_sync_service.pull_latest(project["local_path"])
+    if not res["success"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+        
+    return {"status": "success", "commit": res["commit_hash"]}
+
+
+@app.post("/api/projects/{project_id}/ai-update", tags=["Project Management"])
+async def ai_update_project(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
+    """Apply AI updates via chat prompt"""
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    res = await ai_update_service.apply_chat_update(
+        project_id=project_id,
+        local_path=project["local_path"],
+        prompt=request.get("prompt"),
+        context=request.get("context")
+    )
+    
+    if not res["success"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+        
+    return res
+
+
+@app.post("/api/projects/{project_id}/files/{file_path:path}/ai-update", tags=["Project Management"])
+async def ai_inline_update(project_id: str, file_path: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
+    """Apply AI inline updates to a specific file"""
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    res = await ai_update_service.apply_inline_update(
+        local_path=project["local_path"],
+        file_path=file_path,
+        prompt=request.get("prompt"),
+        selection=request.get("selection")
+    )
+    
+    if not res["success"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+        
+    return res
+
+
+@app.post("/api/projects/{project_id}/workflow", tags=["Project Management"])
+async def execute_project_workflow(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
+    """Execute a complete project workflow (e.g., sync -> update -> push -> build -> run)"""
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    workflow_id = await workflow_engine.execute_workflow(
+        project_id=project_id,
+        user_id=project["user_id"],
+        steps=request.get("steps", ["sync", "update", "push", "build", "run"]),
+        config=request
+    )
+    
+    return {
+        "status": "started",
+        "workflow_id": workflow_id,
+        "message": f"Workflow {workflow_id} started in background"
+    }
+
+
+@app.get("/api/projects/{project_id}/workflow/{workflow_id}", tags=["Project Management"])
+async def get_workflow_status(project_id: str, workflow_id: str, api_key: str = Depends(verify_api_key)):
+    """Get status of a running workflow"""
+    status = workflow_engine.get_workflow_status(workflow_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return status
 
 
 # Phase 2: Browser IDE Endpoints
