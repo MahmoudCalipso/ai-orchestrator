@@ -431,6 +431,94 @@ async def console_websocket(websocket: WebSocket, workbench_id: str):
 
 # Universal AI Agent Endpoints
 
+@app.post("/api/analyze-description", response_model=Dict[str, Any], tags=["Generation"])
+async def analyze_description(
+    request: Dict[str, Any],
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Analyze a project description and return the full auto-generated configuration.
+    
+    This endpoint provides a **real-time preview** of what configuration will be generated
+    from a description, without actually executing the generation.
+    
+    **Use Case**: Get the complete JSON config to review before sending to /api/generate
+    
+    **Example Request**:
+    ```json
+    {
+        "description": "A scalable e-commerce platform with payment processing...",
+        "project_name": "My E-Commerce Platform"
+    }
+    ```
+    
+    **Returns**: Complete auto-generated configuration with:
+    - Detected project type
+    - Recommended tech stack with latest versions
+    - Architecture patterns
+    - Security requirements
+    - Scalability configuration
+    - Integration points
+    - Deployment strategy
+    """
+    try:
+        description = request.get("description")
+        project_name = request.get("project_name", "Generated Project")
+        
+        if not description:
+            raise HTTPException(status_code=400, detail="Description is required")
+        
+        if len(description) < 50:
+            raise HTTPException(
+                status_code=400, 
+                detail="Description too short. Please provide at least 50 characters for meaningful analysis."
+            )
+        
+        logger.info(f"🔍 Analyzing description for config preview: {project_name}")
+        
+        # Initialize description analyzer
+        from services.analysis import DescriptionAnalyzer
+        analyzer = DescriptionAnalyzer(llm_inference=orchestrator.llm)
+        
+        # Analyze the description
+        analysis = await analyzer.analyze(description, {})
+        
+        # Build complete generation config
+        generated_config = await analyzer.build_generation_config(
+            analysis=analysis,
+            project_name=project_name,
+            description=description,
+            language_registry=language_registry
+        )
+        
+        # Create human-readable summary
+        summary = f"""
+**Project Type**: {analysis.project_type}
+**Complexity**: {analysis.estimated_complexity}
+**Features Detected**: {len(analysis.core_features)} ({', '.join(analysis.core_features[:5])}{'...' if len(analysis.core_features) > 5 else ''})
+**Tech Stack**: {generated_config['languages'][0]['framework']} {generated_config['languages'][0]['version']}
+**Architecture**: {', '.join(analysis.architecture_patterns)}
+**Database**: {analysis.database_type}
+**Integrations**: {len(analysis.integration_points)} detected
+        """.strip()
+        
+        logger.info(f"✅ Analysis complete: {analysis.project_type} project, {analysis.estimated_complexity} complexity")
+        
+        return {
+            "status": "success",
+            "analysis": analysis.to_dict(),
+            "generated_config": generated_config,
+            "summary": summary,
+            "message": "Configuration generated successfully. You can now use 'generated_config' in /api/generate"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Description analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
 @app.post("/api/generate", tags=["Generation"])
 async def generate_code(
     request: Union[GenerationRequest, Dict[str, Any]],
@@ -441,6 +529,8 @@ async def generate_code(
     
     Supports both single-file snippets and complex, multi-language project structures 
     with database, security, and infrastructure (Kubernetes/Docker) logic.
+    
+    **NEW**: Intelligent description analyzer automatically extracts requirements from natural language.
     """
     try:
         # Check if it's a full generation request
@@ -450,6 +540,37 @@ async def generate_code(
             # Complex Project Generation Logic (Swarm-Powered)
             req_data = request.model_dump() if hasattr(request, "model_dump") else request
             
+            # VISION 2026: INTELLIGENT DESCRIPTION ANALYSIS + AUTO-CONFIG
+            description = req_data.get('description', '')
+            
+            if description and len(description) > 100:
+                logger.info(f"🔍 Analyzing complex description ({len(description)} chars)")
+                
+                # Initialize description analyzer
+                from services.analysis import DescriptionAnalyzer
+                analyzer = DescriptionAnalyzer(llm_inference=orchestrator.llm)
+                
+                # Analyze the description
+                analysis = await analyzer.analyze(description, req_data)
+                
+                logger.info(f"📊 Analysis complete: {analysis.project_type} project, {len(analysis.core_features)} features, {analysis.estimated_complexity} complexity")
+                
+                # BUILD COMPLETE GENERATION CONFIG WITH LATEST VERSIONS FROM REGISTRY
+                auto_config = await analyzer.build_generation_config(
+                    analysis=analysis,
+                    project_name=req_data.get('project_name', 'Generated Project'),
+                    description=description,
+                    language_registry=language_registry
+                )
+                
+                # Merge auto-config with user-provided config (user config takes precedence)
+                for key, value in auto_config.items():
+                    if key not in req_data or req_data[key] is None:
+                        req_data[key] = value
+                
+                logger.info(f"✅ Auto-configured: {auto_config.get('languages', [])} with versions from registry")
+            
+            
             # Start Swarm-based Project Generation
             # We use the Orchestrator's run_inference which delegates to LeadArchitect swarm
             project_description = f"""
@@ -457,6 +578,20 @@ async def generate_code(
             Description: {req_data.get('description')}
             Requirements: {req_data.get('requirements')}
             Stacks: {req_data.get('languages')}
+            """
+            
+            # Add analysis insights to prompt if available
+            if "analysis" in req_data:
+                project_description += f"""
+            
+            INTELLIGENT ANALYSIS:
+            - Project Type: {req_data['project_type']}
+            - Core Features: {', '.join(req_data['core_features'])}
+            - Architecture: {', '.join(req_data['architecture_patterns'])}
+            - Scalability: {', '.join(req_data['scalability_requirements'])}
+            - Integrations: {', '.join(req_data['integration_points'])}
+            - Security: {', '.join(req_data['security_requirements'])}
+            - Complexity: {req_data['analysis']['estimated_complexity']}
             """
             
             swarm_result = await orchestrator.run_inference(

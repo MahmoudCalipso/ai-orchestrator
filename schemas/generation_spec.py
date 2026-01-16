@@ -140,22 +140,139 @@ class KubernetesConfig(BaseModel):
     ingress_domain: Optional[str] = None
     monitoring_enabled: bool = False
 
+class ArchitectureConfig(BaseModel):
+    """Architecture configuration"""
+    patterns: List[str] = Field(default_factory=list, description="Architecture patterns (microservices, api-first, event-driven)")
+    microservices: bool = False
+    api_first: bool = False
+    event_driven: bool = False
+    serverless: bool = False
+
+class ScalabilityConfig(BaseModel):
+    """Scalability configuration"""
+    requirements: List[str] = Field(default_factory=list, description="Scalability requirements")
+    enable_caching: bool = False
+    enable_load_balancing: bool = False
+    enable_cdn: bool = False
+    enable_auto_scaling: bool = False
+    enable_horizontal_scaling: bool = False
+
+class IntegrationConfig(BaseModel):
+    """Integration configuration"""
+    required: List[str] = Field(default_factory=list, description="Required integrations")
+    payment_gateway: bool = False
+    email_service: bool = False
+    sms_service: bool = False
+    analytics: bool = False
+    erp: bool = False
+    crm: bool = False
+    logistics: bool = False
+    social_media: bool = False
+
+class DeploymentConfig(BaseModel):
+    """Deployment configuration"""
+    strategy: str = "docker-compose"  # docker-compose, kubernetes, serverless, cloud-native
+    generate_dockerfile: bool = True
+    generate_docker_compose: bool = True
+    generate_kubernetes: bool = False
+    generate_ci_cd: bool = False
+
+class StackComponents(BaseModel):
+    """Additional stack components"""
+    cache: Optional[str] = None  # redis, memcached
+    message_queue: Optional[str] = None  # rabbitmq, kafka, redis
+    search_engine: Optional[str] = None  # elasticsearch, algolia
+
+class LanguageFrameworkSpec(BaseModel):
+    """Language and framework specification with version"""
+    name: str = Field(..., description="Language name (python, javascript, java, etc.)")
+    framework: str = Field(..., description="Framework name (FastAPI, React, Spring Boot, etc.)")
+    version: str = Field(..., description="Framework version (0.128.0, 19.0.0, etc.)")
+
+class FrontendConfig(BaseModel):
+    """Frontend configuration"""
+    framework: str = Field(..., description="Frontend framework (React, Next.js, Vue.js, Angular)")
+    version: str = Field(..., description="Framework version")
+    ssr: bool = False  # Server-side rendering
+    typescript: bool = True
+
 class GenerationRequest(BaseModel):
-    """Enhanced application generation request"""
+    """Enhanced application generation request with full auto-configuration support"""
+    
+    # Basic project info
     project_name: str = Field(..., description="Name of the project to generate", json_schema_extra={"example": "MyAwesomeApp"})
-    description: Optional[str] = Field(None, description="Detailed description of the application")
-    project_types: List[ProjectType] = Field(
-        default_factory=lambda: [ProjectType.WEB],
-        description="Types of projects to generate (Web, Mobile, etc.)"
+    description: Optional[str] = Field(None, description="Detailed description of the application (used for auto-analysis)")
+    project_type: Optional[str] = Field(None, description="Project type (e-commerce, saas, cms, api, mobile, etc.)")
+    
+    # Languages and frameworks (auto-configured from description if not provided)
+    languages: Optional[Union[List[str], List[LanguageFrameworkSpec], LanguageConfig]] = Field(
+        None, 
+        description="Languages/frameworks to use. Can be simple list ['python', 'react'] or detailed specs with versions"
     )
-    languages: LanguageConfig = Field(..., description="Configuration for backend/frontend stacks")
+    frontend: Optional[FrontendConfig] = Field(None, description="Frontend configuration with framework and version")
+    
+    # Template and design
     template: Optional[TemplateSource] = Field(None, description="Optional template source (Git, local, Figma)")
+    
+    # Database (auto-configured if not provided)
     database: Optional[DatabaseConfig] = Field(None, description="Database configuration and connection details")
+    
+    # Entities and data model
     entities: List[EntityDefinition] = Field(default_factory=list, description="List of entity definitions for the project")
+    
+    # Security (auto-configured from description)
+    security: Optional[SecurityConfig] = Field(None, description="Security and auth configuration")
+    
+    # Architecture (auto-detected from description)
+    architecture: Optional[ArchitectureConfig] = Field(None, description="Architecture patterns and configuration")
+    
+    # Scalability (auto-detected from description)
+    scalability: Optional[ScalabilityConfig] = Field(None, description="Scalability requirements and configuration")
+    
+    # Integrations (auto-detected from description)
+    integrations: Optional[IntegrationConfig] = Field(None, description="External service integrations")
+    
+    # Deployment (auto-configured)
+    deployment: Optional[DeploymentConfig] = Field(None, description="Deployment strategy and configuration")
+    
+    # Stack components (auto-configured)
+    stack_components: Optional[StackComponents] = Field(None, description="Additional stack components (cache, queue, search)")
+    
+    # Features (auto-detected from description)
+    features: List[str] = Field(default_factory=list, description="Core features (authentication, payment, analytics, etc.)")
+    
+    # Technical requirements (auto-detected)
+    technical_requirements: List[str] = Field(
+        default_factory=list, 
+        description="Technical requirements (high-traffic-support, real-time-capabilities, etc.)"
+    )
+    
+    # Complexity estimation (auto-calculated)
+    estimated_complexity: Optional[str] = Field(None, description="Estimated complexity (low, medium, high, enterprise)")
+    
+    # Git integration
     git: Optional[GitActionConfig] = Field(None, description="Git repository creation and commit settings")
-    security: Optional[SecurityConfig] = Field(default_factory=SecurityConfig, description="Security and auth configuration")
-    kubernetes: Optional[KubernetesConfig] = Field(default_factory=KubernetesConfig, description="K8s deployment settings")
+    
+    # Kubernetes (legacy, use deployment instead)
+    kubernetes: Optional[KubernetesConfig] = Field(None, description="K8s deployment settings (deprecated, use deployment)")
+    
+    # Natural language requirements
     requirements: Optional[str] = Field(None, description="Natural language requirements for the generation")
+    
+    # Analysis metadata (populated by analyzer)
+    analysis: Optional[Dict[str, Any]] = Field(None, description="Analysis metadata from description analyzer")
+
+class DescriptionAnalysisRequest(BaseModel):
+    """Request for description analysis and config preview"""
+    description: str = Field(..., description="Project description to analyze")
+    project_name: Optional[str] = Field("Generated Project", description="Optional project name")
+    
+class DescriptionAnalysisResponse(BaseModel):
+    """Response with full auto-generated configuration"""
+    analysis: Dict[str, Any] = Field(..., description="Detailed analysis of the description")
+    generated_config: Dict[str, Any] = Field(..., description="Complete auto-generated configuration ready for /api/generate")
+    summary: str = Field(..., description="Human-readable summary of the analysis")
+
 
 class FeatureAddRequest(BaseModel):
     """Request to add a feature to an existing project"""
