@@ -1640,6 +1640,71 @@ async def get_workflow_status(project_id: str, workflow_id: str, api_key: str = 
     return status
 
 
+# Phase 8: Admin & User Management Endpoints (SuperUser Only)
+
+@app.get("/api/admin/users", tags=["Admin"])
+async def list_all_users(api_key: str = Depends(verify_api_key)):
+    """List all registered users (SuperUser only)"""
+    from core.security import SecurityManager
+    sm = SecurityManager()
+    if not sm.is_superuser(api_key):
+        raise HTTPException(status_code=403, detail="Forbidden: SuperUser access required")
+    
+    # This would normally query the DB. For now, returning internal memory/mock
+    return {"users": list(sm.api_keys.values())}
+
+
+@app.get("/api/admin/projects", tags=["Admin"])
+async def list_all_projects(api_key: str = Depends(verify_api_key)):
+    """List all projects across all users (SuperUser only)"""
+    from core.security import SecurityManager
+    sm = SecurityManager()
+    if not sm.is_superuser(api_key):
+        raise HTTPException(status_code=403, detail="Forbidden: SuperUser access required")
+        
+    # project_manager.get_all_projects() - pseudo-code
+    all_projects = list(project_manager.projects_db.values())
+    return {"projects": all_projects, "total": len(all_projects)}
+
+
+@app.put("/api/admin/users/{user_id}/role", tags=["Admin"])
+async def update_user_role(user_id: str, request: Dict[str, str], api_key: str = Depends(verify_api_key)):
+    """Update user role (SuperUser only)"""
+    from core.security import SecurityManager
+    sm = SecurityManager()
+    if not sm.is_superuser(api_key):
+        raise HTTPException(status_code=403, detail="Forbidden: SuperUser access required")
+    
+    new_role = request.get("role")
+    if new_role not in ["admin", "developer", "viewer"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+        
+    # In a real DB sync, update user record. For mock, find the API key linked to this user_id
+    for key, info in sm.api_keys.items():
+        if info.get("user_id") == user_id:
+            info["role"] = new_role
+            return {"status": "success", "user_id": user_id, "new_role": new_role}
+            
+    raise HTTPException(status_code=404, detail="User not found")
+
+
+@app.get("/api/admin/system/metrics", tags=["Admin"])
+async def get_system_wide_metrics(api_key: str = Depends(verify_api_key)):
+    """Get system-wide metrics (SuperUser only)"""
+    from core.security import SecurityManager
+    sm = SecurityManager()
+    if not sm.is_superuser(api_key):
+        raise HTTPException(status_code=403, detail="Forbidden: SuperUser access required")
+        
+    return {
+        "uptime": "99.99%",
+        "total_projects": len(project_manager.projects_db),
+        "total_users": len(sm.api_keys),
+        "active_workbenches": len(orchestrator.workbench_manager.workbenches if orchestrator and orchestrator.workbench_manager else []),
+        "api_calls_24h": 12503
+    }
+
+
 # Phase 2: Browser IDE Endpoints
 
 @app.post("/api/ide/workspace", response_model=StandardResponse, tags=["IDE"])

@@ -1,6 +1,6 @@
 """
 Models package
 """
-from models.user_project import UserProject, ProjectSession, ProjectUpdate, WorkflowExecution
+from models.user_project import User, UserProject, ProjectSession, ProjectUpdate, WorkflowExecution
 
-__all__ = ['UserProject', 'ProjectSession', 'ProjectUpdate', 'WorkflowExecution']
+__all__ = ['User', 'UserProject', 'ProjectSession', 'ProjectUpdate', 'WorkflowExecution']

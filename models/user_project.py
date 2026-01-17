@@ -11,6 +11,38 @@ import uuid
 Base = declarative_base()
 
 
+class User(Base):
+    """User model for managing platform accounts and roles"""
+    __tablename__ = "users"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255))
+    role = Column(String(50), default="developer")  # admin (superuser), developer, viewer
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime)
+    metadata = Column(JSONB)
+    
+    def to_dict(self):
+        """Convert to dictionary (excluding sensitive fields)"""
+        return {
+            "id": str(self.id),
+            "username": self.username,
+            "email": self.email,
+            "full_name": self.full_name,
+            "role": self.role,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+            "metadata": self.metadata
+        }
+
+
 class UserProject(Base):
     """User project model for tracking user-owned projects"""
     __tablename__ = "user_projects"

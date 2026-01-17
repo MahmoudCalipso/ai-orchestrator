@@ -26,14 +26,49 @@ class SecurityManager:
         default_key = os.getenv("DEFAULT_API_KEY", "")
         if default_key:
             self.api_keys[default_key] = {
-                "user": "admin",
-                "role": "admin",
+                "user_id": "admin-001",
+                "username": "admin",
+                "role": "admin", # SuperUser
                 "created_at": datetime.now(),
-                "rate_limit": 1000
+                "rate_limit": 10000
             }
-            logger.info("Default API key loaded from environment")
+            logger.info("Default Admin API key loaded from environment")
         else:
             logger.warning("No DEFAULT_API_KEY environment variable set. API key required for all requests.")
+
+    def get_user_info(self, api_key: str) -> Optional[dict]:
+        """Get user info associated with an API key"""
+        return self.api_keys.get(api_key)
+
+    def is_superuser(self, api_key: str) -> bool:
+        """Check if the user is a SuperUser"""
+        user_info = self.get_user_info(api_key)
+        return user_info and user_info.get("role") == "admin"
+
+    def check_permission(self, api_key: str, action: str, resource_owner_id: Optional[str] = None) -> bool:
+        """
+        Check if user has permission for an action.
+        SuperUser always gets access.
+        """
+        user_info = self.get_user_info(api_key)
+        if not user_info:
+            return False
+            
+        # SuperUser Override
+        if user_info.get("role") == "admin":
+            return True
+            
+        # Developer/Viewer logic
+        user_id = user_info.get("user_id")
+        role = user_info.get("role")
+        
+        if action in ["list_own", "read_own", "update_own", "delete_own"]:
+            return user_id == resource_owner_id
+            
+        if action == "create_project":
+            return role in ["admin", "developer"]
+            
+        return False
 
     # ...existing code...
 
