@@ -7,9 +7,10 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Integer
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from platform_core.database import Base, SessionLocal
 
-Base = declarative_base()
+
+
 
 
 class User(Base):

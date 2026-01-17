@@ -25,7 +25,7 @@ from .models import User, APIKey
 from .jwt_manager import JWTManager
 from .dependencies import get_db, get_current_active_user, get_current_tenant
 from .rbac import Role, RBACManager
-from platform.tenancy.models import Tenant
+from platform_core.tenancy.models import Tenant
 
 
 router = APIRouter(prefix="/api/v2/auth", tags=["Authentication"])

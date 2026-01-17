@@ -12,7 +12,7 @@ from jose import JWTError
 from .jwt_manager import JWTManager
 from .models import User, APIKey
 from .rbac import Role, Permission, RBACManager
-from platform.tenancy.models import Tenant
+from platform_core.tenancy.models import Tenant
 
 
 # Security scheme
@@ -22,13 +22,17 @@ security = HTTPBearer()
 jwt_manager = JWTManager()
 
 
+from platform_core.database import SessionLocal
+
 def get_db():
     """
     Get database session
-    TODO: Replace with actual database session factory
     """
-    # This is a placeholder - implement actual DB session management
-    pass
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 async def get_current_user(

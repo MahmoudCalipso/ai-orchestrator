@@ -5,9 +5,7 @@ Tenant Database Model
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Boolean, Integer, Float
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from platform_core.database import Base
 
 
 class Tenant(Base):

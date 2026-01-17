@@ -86,6 +86,12 @@ async def lifespan(app: FastAPI):
     logger.info("Git credential manager initialized")
     
     # Initialize Platform Components
+    from platform_core.database import engine, Base
+    import platform_core.auth.models
+    import platform_core.tenancy.models
+    Base.metadata.create_all(bind=engine)
+    logger.info("Platform database tables initialized/verified")
+
     db_manager = DatabaseConnectionManager()
     schema_analyzer = SchemaAnalyzer(db_manager)
     entity_generator = EntityGenerator(orchestrator)
@@ -102,9 +108,9 @@ async def lifespan(app: FastAPI):
     logger.info("IDE services initialized with orchestrator")
 
     # Initialize Auth Router
-    from platform.auth.routes import router as auth_router_instance
-    app.include_router(auth_router_instance, prefix="/api/v1/auth", tags=["Authentication"])
-    logger.info("Authentication router initialized")
+    from platform_core.auth.routes import router as auth_router_instance
+    app.include_router(auth_router_instance, prefix="/api/v2", tags=["Authentication"])
+    logger.info("Authentication router initialized (v2)")
 
     # Initialize Project Management Services (Vision 2026)
     from services.project_manager import ProjectManager

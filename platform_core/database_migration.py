@@ -8,8 +8,8 @@ from sqlalchemy.orm import sessionmaker
 import os
 
 # Import all models
-from platform.auth.models import Base as AuthBase, User, APIKey, RefreshToken
-from platform.tenancy.models import Base as TenantBase, Tenant
+from platform_core.auth.models import Base as AuthBase, User, APIKey, RefreshToken
+from platform_core.tenancy.models import Base as TenantBase, Tenant
 
 
 def create_tables():
