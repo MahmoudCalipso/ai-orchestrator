@@ -114,4 +114,50 @@ CMD ["echo", "Running {stack}"]
         import yaml
         return yaml.dump(compose, sort_keys=False)
 
+    def generate_github_actions(self, stack: str) -> str:
+        """Generate a GitHub Actions CI/CD workflow for the stack"""
+        return f"""name: CI/CD Pipeline ({stack})
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+      if: "{stack}" == "react" || "{stack}" == "nestjs"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+      if: "{stack}" == "fastapi"
+
+    - name: Install dependencies
+      run: |
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f package.json ]; then npm install; fi
+
+    - name: Run Tests
+      run: |
+        if [ -f requirements.txt ]; then pytest; fi
+        if [ -f package.json ]; then npm test; fi
+
+    - name: Build and Push Docker Image
+      run: |
+        # echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        # docker build -t my-app:{stack} .
+        # docker push my-app:{stack}
+        echo "Docker build/push placeholder for {stack}"
+"""
+
 docker_orchestrator = DockerOrchestrator()

@@ -111,8 +111,10 @@ async def lifespan(app: FastAPI):
 
     # Initialize Auth Router
     from platform_core.auth.routes import router as auth_router_instance
+    from platform_core.database_explorer_routes import router as db_explorer_router
     app.include_router(auth_router_instance, prefix="/api/v2", tags=["Authentication"])
-    logger.info("Authentication router initialized (v2)")
+    app.include_router(db_explorer_router, prefix="/api/v2", tags=["Database Explorer"])
+    logger.info("Authentication and Database Explorer routers initialized (v2)")
 
     # Initialize Project Management Services (Vision 2026)
     from services.project_manager import ProjectManager
@@ -467,6 +469,54 @@ async def console_websocket(websocket: WebSocket, workbench_id: str):
         session_id,
         workbench_id
     )
+
+
+@app.websocket("/api/v2/runtime/logs/{project_id}")
+async def runtime_logs_websocket(websocket: WebSocket, project_id: str):
+    """
+    WebSocket endpoint for real-time application logs from sandbox.
+    """
+    await websocket.accept()
+    try:
+        from services.runtime_service import runtime_service
+        # Note: runtime_service needs to be the global instance
+        # For simplicity in this edit, assuming it's available or we use the global variable
+        global runtime_service
+        
+        if not runtime_service:
+            await websocket.send_json({"error": "Runtime service not initialized"})
+            await websocket.close()
+            return
+
+        # Get the log stream from the sandbox
+        # stream = runtime_service.sandbox_service.get_logs_stream(project_id)
+        # Using a safer approach with a direct call to the sandbox service
+        from services.workspace.docker_sandbox import DockerSandboxService
+        sandbox = DockerSandboxService()
+        stream = sandbox.get_logs_stream(project_id)
+        
+        if not stream:
+            await websocket.send_json({"error": "Log stream not available. Is the project running?"})
+            await websocket.close()
+            return
+
+            
+        for log_line in stream:
+            if isinstance(log_line, bytes):
+                log_line = log_line.decode('utf-8', errors='replace')
+            await websocket.send_text(log_line)
+            
+            # Non-blocking check for client disconnect
+            # (In a production app we'd use a background task or more complex loop)
+            # await asyncio.sleep(0.01)
+            
+    except Exception as e:
+        logger.error(f"Runtime log WS error: {e}")
+    finally:
+        try:
+            await websocket.close()
+        except:
+            pass
 
 
 # Universal AI Agent Endpoints

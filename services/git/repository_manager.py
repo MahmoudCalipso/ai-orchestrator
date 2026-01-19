@@ -1,8 +1,7 @@
-"""
-Git Repository Manager
-"""
 import logging
 import subprocess
+import httpx
+import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -41,22 +40,65 @@ class RepositoryManager:
             logger.error(f"Failed to init repository: {e}")
             return False
 
-    def create_remote_repository(self, provider: str, name: str, description: str = "", private: bool = True) -> Optional[str]:
-        """Create a remote repository on the provider"""
-        # This would use provider-specific APIs (Github API, Gitlab API)
-        # For this prototype, we'll assume it's implemented via API calls
-        # Returns the clone URL
-        
+    async def create_remote_repository(self, provider: str, name: str, description: str = "", private: bool = True) -> Optional[str]:
+        """Create a remote repository on the provider via API"""
         creds = self.credential_manager.get_credentials(provider)
         if not creds:
              logger.error(f"No credentials for {provider}")
              return None
              
-        # Placeholder logic
-        logger.info(f"Mock: Creating remote repo {name} on {provider}")
-        base_url = "https://github.com" if provider == "github" else "https://gitlab.com"
-        owner = "ai-orchestrator-user" # Should come from creds/user info
-        return f"{base_url}/{owner}/{name}.git"
+        token = creds.get("token")
+        if provider == "github":
+            return await self._create_github_repo(name, description, private, token)
+        elif provider == "gitlab":
+            return await self._create_gitlab_repo(name, description, private, token)
+            
+        return None
+
+    async def _create_github_repo(self, name: str, description: str, private: bool, token: str) -> Optional[str]:
+        """Create repository via GitHub API"""
+        url = "https://api.github.com/user/repos"
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        data = {
+            "name": name,
+            "description": description,
+            "private": private,
+            "auto_init": False
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=data)
+            if response.status_code == 201:
+                repo_info = response.json()
+                logger.info(f"GitHub repository created: {repo_info['html_url']}")
+                return repo_info["clone_url"]
+            else:
+                logger.error(f"GitHub repo creation failed: {response.text}")
+                return None
+
+    async def _create_gitlab_repo(self, name: str, description: str, private: bool, token: str) -> Optional[str]:
+        """Create repository via GitLab API"""
+        url = "https://gitlab.com/api/v4/projects"
+        headers = {"PRIVATE-TOKEN": token}
+        data = {
+            "name": name,
+            "description": description,
+            "visibility": "private" if private else "public",
+            "initialize_with_readme": "false"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=data)
+            if response.status_code == 201:
+                repo_info = response.json()
+                logger.info(f"GitLab repository created: {repo_info['web_url']}")
+                return repo_info["http_url_to_repo"]
+            else:
+                logger.error(f"GitLab repo creation failed: {response.text}")
+                return None
 
     def push_to_remote(self, path: str, remote_url: str, branch: str = "main") -> bool:
          """Push local repo to remote"""
