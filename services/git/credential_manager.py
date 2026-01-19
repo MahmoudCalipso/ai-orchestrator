@@ -69,16 +69,42 @@ class GitCredentialManager:
         
         return None
     
-    def get_credentials(self, provider: str) -> Dict[str, Any]:
+    def get_credentials(self, provider: str, user_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get credentials for a Git provider
         
         Args:
             provider: github, gitlab, bitbucket, azure_devops
+            user_id: Optional user ID to check database for connected account
         
         Returns:
             Dictionary with credentials
         """
+        # 1. Try to get from database if user_id is provided
+        if user_id:
+            try:
+                from platform_core.auth.models import ExternalAccount
+                from platform_core.auth.encryption import encryption_service
+                from platform_core.database import SessionLocal
+                
+                with SessionLocal() as db:
+                    account = db.query(ExternalAccount).filter(
+                        ExternalAccount.user_id == user_id,
+                        ExternalAccount.provider == provider
+                    ).first()
+                    
+                    if account:
+                        decrypted_token = encryption_service.decrypt(account.access_token)
+                        return {
+                            "type": "token",
+                            "token": decrypted_token,
+                            "username": account.username,
+                            "api_url": self._get_default_api_url(provider)
+                        }
+            except Exception as e:
+                logger.error(f"Failed to fetch credentials from DB for user {user_id}: {e}")
+
+        # 2. Fallback to config and environment variables
         provider_config = self.config.get(provider, {})
         
         if not provider_config.get("enabled", False):
@@ -233,8 +259,6 @@ class GitCredentialManager:
                 "configured": self.validate_credentials(provider)
             }
         
-        return providers
-    
     def get_git_config(self) -> Dict[str, Any]:
         """Get general Git configuration"""
         return self.config.get("git", {
@@ -244,3 +268,13 @@ class GitCredentialManager:
                 "email": "ai-orchestrator@example.com"
             }
         })
+
+    def _get_default_api_url(self, provider: str) -> str:
+        """Helper to get default API URL for provider"""
+        urls = {
+            "github": "https://api.github.com",
+            "gitlab": "https://gitlab.com/api/v4",
+            "bitbucket": "https://api.bitbucket.org/2.0",
+            "azure_devops": "https://dev.azure.com"
+        }
+        return urls.get(provider, "")

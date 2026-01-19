@@ -234,6 +234,74 @@ class RealtimeMonitoringService:
             "data": build.to_dict()
         }))
     
+    async def stream_sandbox_logs(self, project_id: str, websocket: WebSocket):
+        """Stream logs from a running sandbox container via WebSocket"""
+        from services.workspace.docker_sandbox import DockerSandboxService
+        sandbox = DockerSandboxService()
+        
+        logger.info(f"Starting real-time log stream for sandbox: {project_id}")
+        log_stream = sandbox.get_logs_stream(project_id)
+        
+        if not log_stream:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": f"Sandbox logs not available for {project_id}"
+            }))
+            return
+            
+        try:
+            # Send initial "streaming started" event
+            await websocket.send_text(json.dumps({
+                "type": "status",
+                "message": f"Attached to sandbox logs: {project_id}"
+            }))
+            
+            for log_line in log_stream:
+                if isinstance(log_line, bytes):
+                    log_line = log_line.decode('utf-8', errors='ignore')
+                
+                await websocket.send_text(json.dumps({
+                    "type": "sandbox_log",
+                    "project_id": project_id,
+                    "message": log_line.strip(),
+                    "timestamp": datetime.utcnow().isoformat()
+                }))
+                
+                # Check for disconnection
+                if not websocket.client_state.CONNECTED:
+                    break
+        except Exception as e:
+            logger.error(f"Error streaming sandbox logs for {project_id}: {e}")
+        finally:
+            if hasattr(log_stream, 'close'):
+                log_stream.close()
+
+    async def push_security_alert(self, project_id: str, alert_type: str, severity: str, details: str):
+        """Push a real-time security alert to all active WebSocket clients"""
+        alert = {
+            "type": "security_alert",
+            "project_id": project_id,
+            "alert_type": alert_type,
+            "severity": severity,
+            "details": details,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        message = json.dumps(alert)
+        logger.warning(f"SECURITY ALERT: {alert_type} ({severity}) for project {project_id}")
+        
+        # Broadcast to all connected clients
+        disconnected = []
+        for ws in self.websocket_connections:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                disconnected.append(ws)
+        
+        for ws in disconnected:
+            if ws in self.websocket_connections:
+                self.websocket_connections.remove(ws)
+
     def get_metrics(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get recent metrics"""
         return [m.to_dict() for m in self.metrics_history[-limit:]]

@@ -28,7 +28,7 @@ class LeadArchitectAgent(BaseAgent):
         task_type = context.get("type", "general")
         
         # 1. Decompose the task into specialized domains
-        subtasks = await self._decompose(task, task_type)
+        subtasks = await self._decompose(task, task_type, context)
         
         # 2. VISION 2026: Execute all subtasks in PARALLEL using asyncio.gather
         logger.info(f"🚀 Swarm Parallelization: Executing {len(subtasks)} subtasks simultaneously")
@@ -68,6 +68,22 @@ class LeadArchitectAgent(BaseAgent):
         instruction = subtask.get("instruction")
         recommended_model = subtask.get("model", "coder")
         
+        # Injected context from previous steps (like audit findings and best practices)
+        injected_context = ""
+        if domain == "migration" and base_context.get("type") == "migration":
+            # Fetch best practices for target stack
+            target_stack = base_context.get("target_stack", "python")
+            target_arch = base_context.get("target_architecture", "Clean Architecture")
+            
+            from services.registry.framework_registry import framework_registry
+            # Simplified lookup
+            best_practices = framework_registry.get_best_practices("python", "fastapi") # Mocked for now
+            
+            if best_practices:
+                injected_context += "\nSTRICT BEST PRACTICES TO FOLLOW:\n- " + "\n- ".join(best_practices)
+            
+            injected_context += f"\nTARGET ARCHITECTURE: {target_arch}"
+            
         # PHASE 1: GENERATE / MIGRATE / FIX
         logger.info(f"Swarm Phase 1 [{domain}]: Executing with {recommended_model}")
         worker_context = base_context.copy()
@@ -77,7 +93,8 @@ class LeadArchitectAgent(BaseAgent):
             "generate_docker": True if domain == "infrastructure" else False
         })
         
-        initial_result = await self.orchestrator.universal_agent.act(instruction, worker_context)
+        full_instruction = f"{instruction}\n{injected_context}"
+        initial_result = await self.orchestrator.universal_agent.act(full_instruction, worker_context)
         
         # PHASE 2: REVIEW & REFINE (Ultimate Quality Pass)
         logger.info(f"Swarm Phase 2 [{domain}]: Peer review refinement...")
@@ -97,8 +114,9 @@ class LeadArchitectAgent(BaseAgent):
         
         return final_result
 
-    async def _decompose(self, task: str, task_type: str = "general") -> List[Dict[str, Any]]:
+    async def _decompose(self, task: str, task_type: str = "general", context: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """Determine the swarm structure based on the task type"""
+        context = context or {}
         
         # Deterministic decomposition for core platform features
         if task_type == "full_project_generation":
@@ -109,10 +127,12 @@ class LeadArchitectAgent(BaseAgent):
                 {"domain": "infrastructure", "instruction": f"Generate Docker orchestration for: {task}", "model": "smart"}
             ]
         elif task_type in ["migration", "project_migration"]:
+            target_arch = context.get("target_architecture", "Clean Architecture")
             return [
-                {"domain": "analysis", "instruction": f"Deep analysis of legacy source: {task}", "model": "smart"},
-                {"domain": "migration", "instruction": f"Modernize and migrate core logic: {task}", "model": "coder"},
-                {"domain": "infrastructure", "instruction": f"Containerize target environment: {task}", "model": "smart"}
+                {"domain": "audit", "instruction": f"Perform deep forensic audit and bug detection on: {task}", "model": "smart"},
+                {"domain": "architecture", "instruction": f"Plan {target_arch} blueprint and domain mapping for: {task}", "model": "specialist"},
+                {"domain": "migration", "instruction": f"Heal bugs and migrate core logic using {target_arch} best practices: {task}", "model": "coder"},
+                {"domain": "infrastructure", "instruction": f"Containerize target environment with optimized CI/CD: {task}", "model": "smart"}
             ]
         elif task_type in ["self_healing", "fix"]:
             return [

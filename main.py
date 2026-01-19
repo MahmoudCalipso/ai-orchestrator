@@ -11,8 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
+from platform_core.auth.models import User
 from core.orchestrator import Orchestrator
 from core.security import verify_api_key
+from platform_core.auth.dependencies import require_git_account
 from services.git import GitCredentialManager, RepositoryManager
 from schemas.spec import (
     InferenceRequest,
@@ -560,7 +562,7 @@ async def analyze_description(
 @app.post("/api/generate", tags=["Generation"])
 async def generate_code(
     request: Union[GenerationRequest, Dict[str, Any]],
-    api_key: str = Depends(verify_api_key)
+    user: User = Depends(require_git_account)
 ):
     """
     Perform AI-driven code or full application generation.
@@ -736,26 +738,72 @@ This solution was generated using a multi-model AI swarm (DeepSeek-V3 & Qwen-2.5
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/registry/metadata", tags=["Registry"])
+async def get_all_registry_metadata(api_key: str = Depends(verify_api_key)):
+    """Get all metadata for Languages, Frameworks, and Databases including Logos"""
+    from services.registry.framework_registry import framework_registry
+    return {
+        "status": "success",
+        "languages": framework_registry.languages,
+        "frameworks": framework_registry.frameworks,
+        "databases": framework_registry.databases
+    }
+
+@app.get("/api/migration/options", tags=["Migration"])
+async def get_migration_options(
+    language: str,
+    framework: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get valid architecture options and best practices for a target stack"""
+    from services.registry.framework_registry import framework_registry
+    info = framework_registry.get_framework_info(language, framework)
+    if not info:
+        raise HTTPException(status_code=404, detail="Framework not found")
+    
+    return {
+        "status": "success",
+        "architectures": info.get("architectures", []),
+        "best_practices": info.get("best_practices", []),
+        "recommended_version": info.get("latest_version")
+    }
+
 @app.post("/api/migrate", tags=["Migration"])
 async def migrate_code(
     request: Union[EnhancedMigrationRequest, Dict[str, Any]],
-    api_key: str = Depends(verify_api_key)
+    user: User = Depends(require_git_account)
 ):
     """
     Migrate code from ANY stack to ANY stack.
     
-    Supports repository cloning, source analysis, and intelligent transformation 
-    to modern architecture patterns.
+    Includes deep project scanning, forensic audit, and architecture-aware 
+    transformation to ensure high-quality, bug-free modernized code.
     """
     try:
-        # Check if it's a full migration request
-        is_complex = isinstance(request, EnhancedMigrationRequest) or (isinstance(request, dict) and "target_architecture" in request)
+        req_data = request.model_dump() if hasattr(request, "model_dump") else request
+        is_complex = "source_path" in req_data or "source_repo" in req_data
         
         if is_complex:
-            req_data = request.model_dump() if hasattr(request, "model_dump") else request
+            source_path = req_data.get("source_path")
             
-            # Start Swarm-based Project Migration
-            migration_task = f"Migrate project from {req_data.get('source_stack')} to {req_data.get('target_stack')}. Path: {req_data.get('source_path')}"
+            # 1. PHASE 0: DEEP SCAN & INDEXING
+            if source_path:
+                from agents.project_scanner import ProjectScannerAgent
+                scanner = ProjectScannerAgent(orchestrator)
+                project_map = await scanner.scan_project(source_path)
+                req_data["source_project_map"] = project_map.to_dict()
+                logger.info(f"Source project scanned: {project_map.source_stack}")
+
+            # 2. PHASE 1: FORENSIC AUDIT (Manual flag or auto-detected)
+            if req_data.get("perform_audit", True) and source_path:
+                from agents.migration_audit_agent import MigrationAuditAgent
+                auditor = MigrationAuditAgent(orchestrator)
+                audit_result = await auditor.audit_project(source_path)
+                req_data["audit_findings"] = audit_result.get("findings", [])
+                logger.info(f"Forensic audit complete: {len(req_data['audit_findings'])} findings")
+
+            # 3. PHASE 2: SWARM-BASED HEALING MIGRATION
+            migration_task = f"Migrate project from {req_data.get('source_stack')} to {req_data.get('target_stack')}. Path: {source_path}"
             
             swarm_result = await orchestrator.run_inference(
                 prompt=migration_task,
@@ -770,8 +818,8 @@ async def migrate_code(
                 "status": "success",
                 "type": "repository_migration",
                 "migrated_files": {},
-                "swarm_analysis": swarm_result.get("swarm_output", {}).get("decomposition"),
-                "documentation": ""
+                "audit": req_data.get("audit_findings", []),
+                "swarm_analysis": swarm_result.get("swarm_output", {}).get("decomposition")
             }
             
             # Assemble migrated files
@@ -789,14 +837,12 @@ async def migrate_code(
                     for i, block in enumerate(general_blocks):
                         result["migrated_files"][f"{domain}/migrated_{i}.py"] = block
 
-            result["documentation"] = f"# Migration Report\n\nFull swarm-based migration complete. Migrated {len(result['migrated_files'])} files."
             return result
         else:
             # Legacy/Snippet Mode
-            req_dict = request if isinstance(request, dict) else request.dict()
-            code = req_dict.get("code")
-            source_stack = req_dict.get("source_stack")
-            target_stack = req_dict.get("target_stack")
+            code = req_data.get("code")
+            source_stack = req_data.get("source_stack")
+            target_stack = req_data.get("target_stack")
             
             result = await orchestrator.universal_agent.migrate_code(
                 code=code,
@@ -817,7 +863,7 @@ async def migrate_code(
 @app.post("/api/fix", response_model=SwarmResponse, tags=["AI Agent"])
 async def fix_code(
     request: FixCodeRequest,
-    api_key: str = Depends(verify_api_key)
+    user: User = Depends(require_git_account)
 ):
     """
     Fix code issues in ANY language using a multi-model swarm.

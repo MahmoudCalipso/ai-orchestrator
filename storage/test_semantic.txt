@@ -1,0 +1,1 @@
+The database connection is managed in the DatabasePool class located in services/database/pool.py.

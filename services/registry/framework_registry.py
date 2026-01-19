@@ -1,70 +1,45 @@
 """
-Enhanced Language and Framework Registry with Version Management
-Tracks framework versions, SDKs, JDKs, and best practices
+Framework Registry - 2026 Edition
+Manages versions, logos, best practices, and architecture mappings 
+with DB persistence and auto-update capabilities.
 """
 import logging
+import asyncio
+import aiohttp
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-import aiohttp
-from pydantic import BaseModel
+from services.database.base import SessionLocal
+from services.registry.persistence import FrameworkMetadata, LanguageMetadata, DatabaseMetadata
+from sqlalchemy import select, update, insert
 
 logger = logging.getLogger(__name__)
 
-
-class FrameworkVersion(BaseModel):
-    """Framework version information"""
-    name: str
-    version: str
-    latest_version: str
-    release_date: Optional[str] = None
-    is_lts: bool = False
-    is_deprecated: bool = False
-
-
-class LanguageSpec(BaseModel):
-    """Enhanced language specification"""
-    language: str
-    framework: str
-    version: str
-    architecture: str  # MVP, MVC, MVVM, Clean Architecture, Hexagonal, etc.
-    sdk: Optional[str] = None  # For .NET
-    jdk: Optional[str] = None  # For Java
-    best_practices: List[str] = []
-    required_packages: List[str] = []
-
-
-from services.database.base import SessionLocal
-from services.registry.persistence import FrameworkMetadata
-from sqlalchemy import select, update, insert
-
 class FrameworkRegistry:
-    """Registry for framework versions and metadata with DB persistence"""
+    """Central registry for technology stack metadata"""
     
     def __init__(self):
         self.frameworks: Dict[str, Dict[str, Any]] = {}
+        self.languages: Dict[str, Dict[str, Any]] = {}
+        self.databases: Dict[str, Dict[str, Any]] = {}
         self.last_updated: Optional[datetime] = None
         self._initialize_from_db()
     
     def _initialize_from_db(self):
-        """Load framework data from database or initialize with defaults"""
+        """Load data from database or initialize with defaults"""
         with SessionLocal() as db:
-            # Check if we have any data
-            results = db.execute(select(FrameworkMetadata)).scalars().all()
-            
-            if not results:
-                logger.info("Initializing Framework Registry with default 2026 metadata...")
+            # 1. Load Frameworks
+            res_fw = db.execute(select(FrameworkMetadata)).scalars().all()
+            if not res_fw:
+                logger.info("Initializing Framework Registry with defaults...")
                 self._load_defaults()
                 self._save_to_db()
             else:
-                logger.info(f"Loading {len(results)} frameworks from database")
-                for item in results:
+                for item in res_fw:
                     lang = item.language
                     fw = item.framework
-                    
-                    if lang not in self.frameworks:
-                        self.frameworks[lang] = {}
-                        
+                    if lang not in self.frameworks: self.frameworks[lang] = {}
                     self.frameworks[lang][fw] = {
+                        "logo_url": item.logo_url,
                         "latest_version": item.latest_version,
                         "lts_version": item.lts_version,
                         "versions": item.versions,
@@ -72,573 +47,354 @@ class FrameworkRegistry:
                         "best_practices": item.best_practices,
                         "required_packages": item.required_packages
                     }
-                    if not self.last_updated or (item.last_updated and item.last_updated > self.last_updated):
-                        self.last_updated = item.last_updated
+
+            # 2. Load Languages
+            res_lang = db.execute(select(LanguageMetadata)).scalars().all()
+            for item in res_lang:
+                self.languages[item.name] = {
+                    "logo_url": item.logo_url,
+                    "description": item.description,
+                    "is_compiled": item.is_compiled
+                }
+
+            # 3. Load Databases
+            res_db = db.execute(select(DatabaseMetadata)).scalars().all()
+            for item in res_db:
+                self.databases[item.name] = {
+                    "logo_url": item.logo_url,
+                    "db_type": item.db_type,
+                    "latest_version": item.latest_version
+                }
 
     def _load_defaults(self):
-        """Set default framework metadata"""
+        """Set default metadata for 2026 including logos and TS-native Angular"""
+        # Languages
+        self.languages = {
+            "python": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg", "description": "AI & Data Science Leader"},
+            "typescript": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg", "description": "Typed JavaScript for Enterprise"},
+            "javascript": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg", "description": "The Web Standard"},
+            "java": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg", "description": "Robust Backend Language"},
+            "csharp": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg", "description": ".NET Core Hero"},
+            "go": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg", "description": "Cloud Native Expert"},
+            "rust": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg", "description": "High Performance & Safety"},
+            "ruby": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ruby/ruby-original.svg", "description": "Developer Happiness"},
+            "php": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg", "description": "Web Veteran"}
+        }
+
+        # Databases
+        self.databases = {
+            "postgresql": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg", "db_type": "SQL", "latest_version": "17.2"},
+            "mongodb": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mongodb/mongodb-original.svg", "db_type": "NoSQL", "latest_version": "8.0"},
+            "redis": {"logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg", "db_type": "Key-Value", "latest_version": "7.4"},
+            "chromadb": {"logo_url": "https://raw.githubusercontent.com/chroma-core/chroma/main/docs/static/img/chroma-logo.png", "db_type": "Vector", "latest_version": "0.5.23"}
+        }
+
+        # Frameworks
         self.frameworks = {
-            # Python Frameworks
             "python": {
-                "django": {
-                    "latest_version": "5.1.4",
-                    "lts_version": "5.1.x",
-                    "versions": ["5.1.4", "5.0.1", "4.2.17"],
-                    "architectures": ["MVT", "Clean Architecture", "Hexagonal", "AIOPS-Pattern"],
-                    "best_practices": [
-                        "Use Django REST Framework 4.0 (2025 Edition)",
-                        "Implement custom user model with MFA support",
-                        "Use environment variables for settings (python-dotenv 2026)",
-                        "Enable CORS and CSP headers properly",
-                        "Use Django ORM with Async support",
-                        "Implement proper authentication (OIDC/JWT)",
-                        "Use Django migrations with zero-downtime strategies"
-                    ],
-                    "required_packages": [
-                        "django",
-                        "djangorestframework",
-                        "django-cors-headers",
-                        "psycopg-binary",
-                        "django-filter",
-                        "drf-spectacular",
-                        "celery",
-                        "redis"
-                    ]
-                },
                 "fastapi": {
+                    "logo_url": "https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png",
                     "latest_version": "0.115.6",
-                    "versions": ["0.115.6", "0.111.0", "0.109.0"],
-                    "architectures": ["Clean Architecture", "Hexagonal", "Repository Pattern", "Micro-Core"],
-                    "best_practices": [
-                        "Use Pydantic V2.x models for high-performance validation",
-                        "Implement advanced Dependency Injection with lifespan events",
-                        "Use Python 3.13+ structural pattern matching for routers",
-                        "Add complete OpenAPI 3.1 documentation",
-                        "Use background tasks or TaskGroups for concurrency",
-                        "Integrate with Vector Databases (Chroma/Pinecone) for AI features",
-                        "Use SQLAlchemy 2.0+ with modern Mapped types"
-                    ],
-                    "required_packages": [
-                        "fastapi",
-                        "uvicorn[standard]",
-                        "sqlalchemy>=2.0",
-                        "pydantic[email]",
-                        "alembic",
-                        "python-jose[cryptography]",
-                        "passlib[bcrypt]",
-                        "redis",
-                        "celery"
-                    ]
+                    "versions": ["0.115.6", "0.111.0"],
+                    "architectures": ["Clean Architecture", "Hexagonal"],
+                    "best_practices": ["Use Pydantic V2", "Inject Dependencies via Lifespan"],
+                    "required_packages": ["fastapi", "uvicorn", "pydantic"]
                 },
-                "flask": {
-                    "latest_version": "3.1.0",
-                    "versions": ["3.1.0", "3.0.1", "2.3.x"],
-                    "architectures": ["MVC", "Blueprint Pattern", "Application Factory"],
-                    "best_practices": [
-                        "Use application factory pattern for scalability",
-                        "Organize with blueprints and modern CLI commands",
-                        "Use Flask-SQLAlchemy 3.1+",
-                        "Implement Flask-JWT-Extended for secure auth",
-                        "Use Flask-Migrate for robust schema management",
-                        "Implement proper error handlers and custom response classes"
-                    ],
-                    "required_packages": [
-                        "flask",
-                        "flask-sqlalchemy",
-                        "flask-migrate",
-                        "flask-jwt-extended",
-                        "flask-cors",
-                        "python-dotenv",
-                        "psycopg-binary",
-                        "redis"
-                    ]
+                "django": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/django/django-plain.svg",
+                    "latest_version": "5.1.4",
+                    "versions": ["5.1.4", "5.0.1"],
+                    "architectures": ["MVT", "Clean Architecture"],
+                    "best_practices": ["Use DRF 4.0", "Custom User Model"],
+                    "required_packages": ["django", "djangorestframework"]
                 }
             },
-            
-            # JavaScript/TypeScript Frameworks
-            "javascript": {
-                "express": {
-                    "latest_version": "5.0.0",
-                    "versions": ["5.0.0", "4.19.2", "4.18.x"],
-                    "architectures": ["MVC", "Clean Architecture", "Layered", "Micro-services"],
-                    "best_practices": [
-                        "Use Express 5.0 native Promise support",
-                        "Implement Node.js 23.x native test runners",
-                        "Use TypeScript 5.7+ for strict type safety",
-                        "Implement Zod for runtime schema validation",
-                        "Add security headers with Helmet 8.0",
-                        "Use Pino for high-performance structured logging"
-                    ],
-                    "required_packages": [
-                        "express",
-                        "cors",
-                        "helmet",
-                        "jsonwebtoken",
-                        "bcryptjs",
-                        "zod",
-                        "pino",
-                        "dotenv",
-                        "prisma"
-                    ]
-                },
-                "nestjs": {
-                    "latest_version": "11.0.0",
-                    "versions": ["11.0.0", "10.4.0", "10.3.x"],
-                    "architectures": ["Clean Architecture", "CQRS", "Microservices", "Event-Driven"],
-                    "best_practices": [
-                        "Use NestJS 11 modern dependency injection",
-                        "Implement guards and interceptors for cross-cutting concerns",
-                        "Use DTOs with Class-Validator 2026 edition",
-                        "Follow strictly decoupled module structure",
-                        "Use Prisma 6.x or Drizzle for type-safe DB access",
-                        "Implement Observability with OpenTelemetry"
-                    ],
-                    "required_packages": [
-                        "@nestjs/core",
-                        "@nestjs/common",
-                        "@nestjs/jwt",
-                        "@nestjs/passport",
-                        "prisma",
-                        "class-validator",
-                        "class-transformer"
-                    ]
-                }
-            },
-            
-            # Java Frameworks
-            "java": {
-                "spring_boot": {
-                    "latest_version": "3.4.1",
-                    "lts_version": "3.4.x",
-                    "versions": ["3.4.1", "3.3.0", "3.2.5"],
-                    "jdk_versions": ["21", "23", "17"],
-                    "recommended_jdk": "21",
-                    "architectures": ["Clean Architecture", "Hexagonal", "Stateless", "Reactive"],
-                    "best_practices": [
-                        "Use Java 21+ Virtual Threads (Project Loom) for high concurrency",
-                        "Integrate Spring AI for LLM orchestration",
-                        "Implement Spring Security 6.4+ with OIDC/OAuth2",
-                        "Use GraalVM native images for instant startup",
-                        "Adopt Micrometer 2.0 for advanced metrics",
-                        "Use Spring Data JPA 3.x with modern QueryDSL"
-                    ],
-                    "required_packages": [
-                        "spring-boot-starter-web",
-                        "spring-boot-starter-data-jpa",
-                        "spring-boot-starter-security",
-                        "spring-ai-openai-spring-boot-starter",
-                        "postgresql",
-                        "lombok",
-                        "mapstruct"
-                    ]
-                }
-            },
-            
-            # .NET Frameworks
-            "csharp": {
-                "aspnet_core": {
-                    "latest_version": "9.0.0",
-                    "lts_version": "8.0",
-                    "versions": ["9.0.0", "8.0.0", "7.0.x"],
-                    "sdk_versions": ["9.0.100", "8.0.400"],
-                    "recommended_sdk": "9.0.100",
-                    "architectures": ["Clean Architecture", "Vertical Slices", "CQRS", "DAPR"],
-                    "best_practices": [
-                        "Use C# 13 structural improvements and params collections",
-                        "Implement Minimal APIs for ultra-fast performance",
-                        "Use EF Core 9.0 with JSON column mapping and interceptors",
-                        "Apply Resilience patterns with Microsoft.Extensions.Http.Resilience",
-                        "Use Scalar or OpenAPI 3.1 for modern documentation",
-                        "Implement Native AOT for serverless deployments"
-                    ],
-                    "required_packages": [
-                        "Microsoft.AspNetCore.OpenApi",
-                        "Microsoft.EntityFrameworkCore.SqlServer",
-                        "Microsoft.Extensions.Http.Resilience",
-                        "Scalar.AspNetCore",
-                        "MediatR"
-                    ]
-                }
-            },
-            
-            # Go Frameworks
-            "go": {
-                "gin": {
-                    "latest_version": "1.10.x",
-                    "versions": ["1.10.0", "1.9.1"],
-                    "architectures": ["Clean Architecture", "Hexagonal", "Domain-Driven"],
-                    "best_practices": [
-                        "Use Go 1.25+ iterators and modern generics",
-                        "Implement structured logging with slog",
-                        "Use GORM 2.5+ with automated migrations",
-                        "Add request validation with playground/validator v11",
-                        "Implement graceful shutdown and context propagation",
-                        "Use OIDC for modern authentication"
-                    ],
-                    "required_packages": [
-                        "github.com/gin-gonic/gin",
-                        "github.com/golang-jwt/jwt/v5",
-                        "gorm.io/gorm",
-                        "github.com/joho/godotenv"
-                    ]
-                }
-            },
-            
-            # Frontend Frameworks
-            "frontend": {
+            "typescript": { 
                 "angular": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/angularjs/angularjs-original.svg",
                     "latest_version": "19.1.0",
                     "lts_version": "18.x",
-                    "versions": ["19.1.0", "18.2.0", "17.x"],
-                    "architectures": ["Component-based", "Signal-based", "Standalone"],
-                    "best_practices": [
-                        "Use Angular Signals for reactive state management",
-                        "Implement Standalone Components and functional routers",
-                        "Use Hydration for improved SSR performance",
-                        "Adopt modern Control Flow syntax (@if, @for)",
-                        "Implement route guards with functional approach",
-                        "Use modern deferrable views for lazy loading"
-                    ],
-                    "required_packages": [
-                        "@angular/core",
-                        "@angular/common",
-                        "@angular/router",
-                        "@angular/forms",
-                        "@angular/material",
-                        "rxjs"
-                    ]
+                    "versions": ["19.1.0", "18.2.0"],
+                    "architectures": ["Signal-based", "Standalone"],
+                    "best_practices": ["Use Signals for state", "Avoid Legacy Module Pattern"],
+                    "required_packages": ["@angular/core", "@angular/signals"]
+                },
+                "nestjs": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg",
+                    "latest_version": "11.0.0",
+                    "versions": ["11.0.0", "10.4.0"],
+                    "architectures": ["Clean Architecture", "CQRS"],
+                    "best_practices": ["Modular Decoupling", "Use Guards/Interceptors"],
+                    "required_packages": ["@nestjs/core", "@nestjs/common"]
+                }
+            },
+            "javascript": {
+                "express": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg",
+                    "latest_version": "5.0.0",
+                    "versions": ["5.0.0", "4.19.2"],
+                    "architectures": ["MVC", "Layered"],
+                    "best_practices": ["Use Express 5 native async support"],
+                    "required_packages": ["express", "cors", "helmet"]
+                },
+                "angularjs": { # Legacy Angular
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/angularjs/angularjs-original.svg",
+                    "latest_version": "1.8.3",
+                    "versions": ["1.8.3"],
+                    "architectures": ["MVC"],
+                    "best_practices": ["Upgrade to modern Angular"],
+                    "required_packages": ["angular"]
                 },
                 "react": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg",
                     "latest_version": "19.0.0",
-                    "versions": ["19.0.0", "18.3.x"],
-                    "architectures": ["Component-based", "Server Components", "Atomic Design"],
-                    "best_practices": [
-                        "Use React Server Components (RSC) where applicable",
-                        "Implement simplified Actions and the 'use' hook",
-                        "Use TanStack Query V6 for stateful data fetching",
-                        "Adopt Zustand 5.x for lightweight global state",
-                        "Implement strict TypeScript 5.x patterns",
-                        "Use shadcn/ui for consistent design system"
-                    ],
-                    "required_packages": [
-                        "react",
-                        "react-dom",
-                        "react-router-dom",
-                        "@tanstack/react-query",
-                        "zustand",
-                        "zod"
-                    ]
-                },
-                "vue": {
-                    "latest_version": "3.5.x",
-                    "versions": ["3.5.0", "3.4.15"],
-                    "architectures": ["Composition API", "SFC", "Script Setup"],
-                    "best_practices": [
-                        "Use Composition API with <script setup>",
-                        "Implement Pinia for modern state management",
-                        "Use Vite 6.x for lightning-fast HMR",
-                        "Adopt Vue Router 4.x functional navigation",
-                        "Use Volar for enhanced TS support",
-                        "Implement specialized composables for logic reuse"
-                    ],
-                    "required_packages": [
-                        "vue",
-                        "vue-router",
-                        "pinia",
-                        "axios",
-                        "vee-validate"
-                    ]
+                    "versions": ["19.0.0", "18.3.1"],
+                    "architectures": ["Component-based", "Server Components"],
+                    "best_practices": ["Use RSC", "Atomic Design"],
+                    "required_packages": ["react", "react-dom"]
+                }
+            },
+            "java": {
+                "spring_boot": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/spring/spring-original.svg",
+                    "latest_version": "3.4.1",
+                    "versions": ["3.4.1", "3.3.0"],
+                    "architectures": ["Clean Architecture", "Microservices"],
+                    "best_practices": ["Use Java 21+ Virtual Threads", "Spring Boot 3 conventions"],
+                    "required_packages": ["spring-boot-starter-web", "spring-boot-starter-data-jpa"]
+                }
+            },
+            "csharp": {
+                "aspnet_core": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dot-net/dot-net-original.svg",
+                    "latest_version": "9.0.0",
+                    "versions": ["9.0.0", "8.0.0"],
+                    "architectures": ["Clean Architecture", "Vertical Slices"],
+                    "best_practices": ["Use Minimal APIs", "EF Core 9 interceptors"],
+                    "required_packages": ["Microsoft.AspNetCore.OpenApi", "Microsoft.EntityFrameworkCore"]
+                }
+            },
+            "go": {
+                "gin": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/gin/gin-original.svg",
+                    "latest_version": "1.10.x",
+                    "versions": ["1.10.0"],
+                    "architectures": ["Clean Architecture"],
+                    "best_practices": ["Use structural logging with slog", "Graceful shutdown"],
+                    "required_packages": ["github.com/gin-gonic/gin"]
+                }
+            },
+            "rust": {
+                "actix": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg",
+                    "latest_version": "4.x",
+                    "versions": ["4.7.0"],
+                    "architectures": ["Clean Architecture"],
+                    "best_practices": ["Zero-copy deserialization", "Async-trait"],
+                    "required_packages": ["actix-web", "serde"]
+                }
+            },
+            "ruby": {
+                "rails": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rails/rails-original-wordmark.svg",
+                    "latest_version": "8.0.0",
+                    "versions": ["8.0.0", "7.2.1"],
+                    "architectures": ["MVC"],
+                    "best_practices": ["Solid Queue for jobs", "Turbo/Hotwire"],
+                    "required_packages": ["rails", "pg"]
+                }
+            },
+            "php": {
+                "laravel": {
+                    "logo_url": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/laravel/laravel-original.svg",
+                    "latest_version": "11.x",
+                    "versions": ["11.33.0"],
+                    "architectures": ["MVC", "Action-based"],
+                    "best_practices": ["Pint for styling", "Pest for testing"],
+                    "required_packages": ["laravel/framework", "lucascudo/laravel-pt-br-localization"]
                 }
             }
         }
 
     def _save_to_db(self):
-        """Save current framework metadata to database"""
+        """Save current metadata to database"""
         with SessionLocal() as db:
+            # 1. Save Languages
+            for name, info in self.languages.items():
+                existing = db.execute(select(LanguageMetadata).where(LanguageMetadata.name == name)).scalar_one_or_none()
+                if existing:
+                    db.execute(update(LanguageMetadata).where(LanguageMetadata.name == name).values(
+                        logo_url=info.get("logo_url"), description=info.get("description")
+                    ))
+                else:
+                    db.execute(insert(LanguageMetadata).values(
+                        name=name, logo_url=info.get("logo_url"), description=info.get("description")
+                    ))
+
+            # 2. Save Databases
+            for name, info in self.databases.items():
+                existing = db.execute(select(DatabaseMetadata).where(DatabaseMetadata.name == name)).scalar_one_or_none()
+                if existing:
+                    db.execute(update(DatabaseMetadata).where(DatabaseMetadata.name == name).values(
+                        logo_url=info.get("logo_url"), db_type=info.get("db_type"), latest_version=info.get("latest_version")
+                    ))
+                else:
+                    db.execute(insert(DatabaseMetadata).values(
+                        name=name, logo_url=info.get("logo_url"), db_type=info.get("db_type"), latest_version=info.get("latest_version")
+                    ))
+
+            # 3. Save Frameworks
             for lang, frameworks in self.frameworks.items():
                 for fw_name, info in frameworks.items():
-                    # Check if exists
-                    existing = db.execute(
-                        select(FrameworkMetadata).where(
-                            FrameworkMetadata.language == lang,
-                            FrameworkMetadata.framework == fw_name
-                        )
-                    ).scalar_one_or_none()
-                    
+                    existing = db.execute(select(FrameworkMetadata).where(FrameworkMetadata.language == lang, FrameworkMetadata.framework == fw_name)).scalar_one_or_none()
+                    vals = {
+                        "logo_url": info.get("logo_url"),
+                        "latest_version": info.get("latest_version"),
+                        "lts_version": info.get("lts_version"),
+                        "versions": info.get("versions"),
+                        "architectures": info.get("architectures"),
+                        "best_practices": info.get("best_practices"),
+                        "required_packages": info.get("required_packages"),
+                        "last_updated": datetime.utcnow()
+                    }
                     if existing:
-                        db.execute(
-                            update(FrameworkMetadata).where(
-                                FrameworkMetadata.language == lang,
-                                FrameworkMetadata.framework == fw_name
-                            ).values(
-                                latest_version=info.get("latest_version"),
-                                lts_version=info.get("lts_version"),
-                                versions=info.get("versions"),
-                                architectures=info.get("architectures"),
-                                best_practices=info.get("best_practices"),
-                                required_packages=info.get("required_packages"),
-                                last_updated=datetime.utcnow()
-                            )
-                        )
+                        db.execute(update(FrameworkMetadata).where(FrameworkMetadata.language == lang, FrameworkMetadata.framework == fw_name).values(**vals))
                     else:
-                        db.execute(
-                            insert(FrameworkMetadata).values(
-                                language=lang,
-                                framework=fw_name,
-                                latest_version=info.get("latest_version"),
-                                lts_version=info.get("lts_version"),
-                                versions=info.get("versions"),
-                                architectures=info.get("architectures"),
-                                best_practices=info.get("best_practices"),
-                                required_packages=info.get("required_packages"),
-                                last_updated=datetime.utcnow()
-                            )
-                        )
+                        db.execute(insert(FrameworkMetadata).values(language=lang, framework=fw_name, **vals))
             db.commit()
-            logger.info("Saved framework metadata to database")
+            logger.info("Saved all metadata (including logos) to database")
     
-    def get_framework_info(
-        self,
-        language: str,
-        framework: str
-    ) -> Optional[Dict[str, Any]]:
-        """Get framework information"""
-        lang_frameworks = self.frameworks.get(language.lower(), {})
-        return lang_frameworks.get(framework.lower())
+    def get_framework_info(self, language: str, framework: str) -> Optional[Dict[str, Any]]:
+        return self.frameworks.get(language.lower(), {}).get(framework.lower())
     
-    def get_recommended_version(
-        self,
-        language: str,
-        framework: str,
-        prefer_lts: bool = False
-    ) -> Optional[str]:
-        """Get recommended framework version"""
+    def get_language_info(self, name: str) -> Optional[Dict[str, Any]]:
+        return self.languages.get(name.lower())
+
+    def get_database_info(self, name: str) -> Optional[Dict[str, Any]]:
+        return self.databases.get(name.lower())
+
+    def get_best_practices(self, language: str, framework: str) -> List[str]:
         info = self.get_framework_info(language, framework)
-        if not info:
-            return None
-        
-        if prefer_lts and "lts_version" in info:
-            return info["lts_version"]
-        
-        return info.get("latest_version")
-    
-    def get_required_packages(
-        self,
-        language: str,
-        framework: str,
-        database: Optional[str] = None
-    ) -> List[str]:
-        """Get required packages for framework"""
-        info = self.get_framework_info(language, framework)
-        if not info:
-            return []
-        
-        packages = info.get("required_packages", []).copy()
-        
-        # Add database-specific packages
-        if database:
-            db_packages = self._get_database_packages(language, database)
-            packages.extend(db_packages)
-        
-        return list(set(packages))  # Remove duplicates
-    
-    def _get_database_packages(
-        self,
-        language: str,
-        database: str
-    ) -> List[str]:
-        """Get database-specific packages"""
-        db_map = {
-            "python": {
-                "postgresql": ["psycopg2-binary", "asyncpg"],
-                "mysql": ["mysqlclient", "aiomysql"],
-                "mongodb": ["pymongo", "motor"],
-                "redis": ["redis", "aioredis"]
-            },
-            "javascript": {
-                "postgresql": ["pg"],
-                "mysql": ["mysql2"],
-                "mongodb": ["mongoose"],
-                "redis": ["redis"]
-            },
-            "java": {
-                "postgresql": ["postgresql"],
-                "mysql": ["mysql-connector-java"],
-                "mongodb": ["spring-boot-starter-data-mongodb"]
-            },
-            "csharp": {
-                "postgresql": ["Npgsql.EntityFrameworkCore.PostgreSQL"],
-                "mysql": ["Pomelo.EntityFrameworkCore.MySql"],
-                "mongodb": ["MongoDB.Driver"],
-                "sqlserver": ["Microsoft.EntityFrameworkCore.SqlServer"]
-            }
-        }
-        
-        lang_dbs = db_map.get(language.lower(), {})
-        return lang_dbs.get(database.lower(), [])
-    
-    def get_best_practices(
-        self,
-        language: str,
-        framework: str
-    ) -> List[str]:
-        """Get best practices for framework"""
-        info = self.get_framework_info(language, framework)
-        if not info:
-            return []
-        
-        return info.get("best_practices", [])
-    
-    def get_supported_architectures(
-        self,
-        language: str,
-        framework: str
-    ) -> List[str]:
-        """Get supported architectures"""
-        info = self.get_framework_info(language, framework)
-        if not info:
-            return []
-        
-        return info.get("architectures", [])
-    
+        return info.get("best_practices", []) if info else []
+
     async def check_for_updates(self, apply: bool = True) -> Dict[str, Any]:
-        """Check for framework updates from official sources"""
-        updates = {
-            "checked_at": datetime.utcnow().isoformat(),
-            "updates_found": []
-        }
+        """Check for updates from all official sources (PyPI, npm, Maven, NuGet, Crates, Go, RubyGems, Packagist)"""
+        updates = {"checked_at": datetime.utcnow().isoformat(), "updates_found": []}
         
-        # Check Python packages from PyPI
-        python_updates = await self._check_pypi_updates()
-        updates["updates_found"].extend(python_updates)
-        
-        # Check npm packages
-        npm_updates = await self._check_npm_updates()
-        updates["updates_found"].extend(npm_updates)
-        
-        # Check Maven packages (Java)
-        maven_updates = await self._check_maven_updates()
-        updates["updates_found"].extend(maven_updates)
-        
-        # Check NuGet packages (.NET)
-        nuget_updates = await self._check_nuget_updates()
-        updates["updates_found"].extend(nuget_updates)
-        
+        async with aiohttp.ClientSession() as session:
+            # 1. Python (PyPI)
+            for pkg in ["fastapi", "django", "flask"]:
+                try:
+                    async with session.get(f"https://pypi.org/pypi/{pkg}/json") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            v = data["info"]["version"]
+                            if self.frameworks.get("python", {}).get(pkg, {}).get("latest_version") != v:
+                                updates["updates_found"].append({"language": "python", "package": pkg, "latest_version": v})
+                except: continue
+
+            # 2. JS/TS (npm)
+            for pkg in ["express", "@angular/core", "react", "@nestjs/core"]:
+                try:
+                    async with session.get(f"https://registry.npmjs.org/{pkg}") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            v = data["dist-tags"]["latest"]
+                            lang = "typescript" if "angular" in pkg or "nest" in pkg else "javascript"
+                            fw = "angular" if "angular" in pkg else pkg.split("/")[-1]
+                            if self.frameworks.get(lang, {}).get(fw, {}).get("latest_version") != v:
+                                updates["updates_found"].append({"language": lang, "package": fw, "latest_version": v})
+                except: continue
+
+            # 3. Java (Maven)
+            for group, artifact, fw in [("org.springframework.boot", "spring-boot-starter", "spring_boot")]:
+                try:
+                    url = f"https://search.maven.org/solrsearch/select?q=g:{group}+AND+a:{artifact}&rows=1&wt=json"
+                    async with session.get(url) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            docs = data.get("response", {}).get("docs", [])
+                            if docs:
+                                v = docs[0].get("latestVersion")
+                                if self.frameworks.get("java", {}).get(fw, {}).get("latest_version") != v:
+                                    updates["updates_found"].append({"language": "java", "package": fw, "latest_version": v})
+                except: continue
+
+            # 4. C# (NuGet)
+            for pkg, fw in [("Microsoft.AspNetCore.App", "aspnet_core")]:
+                try:
+                    url = f"https://api.nuget.org/v3-flatcontainer/{pkg.lower()}/index.json"
+                    async with session.get(url) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            vs = [v for v in data.get("versions", []) if "-" not in v] # Stable only
+                            if vs:
+                                v = vs[-1]
+                                if self.frameworks.get("csharp", {}).get(fw, {}).get("latest_version") != v:
+                                    updates["updates_found"].append({"language": "csharp", "package": fw, "latest_version": v})
+                except: continue
+
+            # 5. Rust (Crates.io)
+            for pkg, fw in [("actix-web", "actix")]:
+                try:
+                    async with session.get(f"https://crates.io/api/v1/crates/{pkg}") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            v = data.get("crate", {}).get("max_version")
+                            if self.frameworks.get("rust", {}).get(fw, {}).get("latest_version") != v:
+                                updates["updates_found"].append({"language": "rust", "package": fw, "latest_version": v})
+                except: continue
+
+            # 6. Go (Go Proxy)
+            for mod, fw in [("github.com/gin-gonic/gin", "gin")]:
+                try:
+                    async with session.get(f"https://proxy.golang.org/{mod}/@latest") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            v = data.get("Version", "").replace("v", "")
+                            if self.frameworks.get("go", {}).get(fw, {}).get("latest_version") != v:
+                                updates["updates_found"].append({"language": "go", "package": fw, "latest_version": v})
+                except: continue
+
+            # 7. Ruby (RubyGems)
+            for pkg, fw in [("rails", "rails")]:
+                try:
+                    async with session.get(f"https://rubygems.org/api/v1/versions/{pkg}/latest.json") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            v = data.get("version")
+                            if self.frameworks.get("ruby", {}).get(fw, {}).get("latest_version") != v:
+                                updates["updates_found"].append({"language": "ruby", "package": fw, "latest_version": v})
+                except: continue
+
+            # 8. PHP (Packagist)
+            for pkg, fw in [("laravel/framework", "laravel")]:
+                try:
+                    async with session.get(f"https://packagist.org/packages/{pkg}.json") as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            versions = data.get("package", {}).get("versions", {})
+                            vs = [v for v in versions.keys() if not v.endswith("-dev") and "dev-" not in v and "x" not in v]
+                            if vs:
+                                v = vs[0] # Usually newest is first
+                                if self.frameworks.get("php", {}).get(fw, {}).get("latest_version") != v:
+                                    updates["updates_found"].append({"language": "php", "package": fw, "latest_version": v})
+                except: continue
+
         if apply and updates["updates_found"]:
             self._apply_updates(updates["updates_found"])
             self._save_to_db()
-            logger.info(f"Applied and saved {len(updates['updates_found'])} updates to database")
             
-        self.last_updated = datetime.utcnow()
         return updates
 
-    def _apply_updates(self, updates_found: List[Dict[str, Any]]):
-        """Apply found updates to in-memory registry"""
-        for update_item in updates_found:
-            lang = update_item["language"]
-            fw = update_item["package"].replace("@nestjs/", "nestjs")
-            if fw == "@angular/core": fw = "angular"
-            
-            new_version = update_item["latest_version"]
-            
+    def _apply_updates(self, updates_found):
+        for item in updates_found:
+            lang, fw, v = item["language"], item["package"], item["latest_version"]
             if lang in self.frameworks and fw in self.frameworks[lang]:
                 info = self.frameworks[lang][fw]
-                if new_version not in info["versions"]:
-                    info["versions"].insert(0, new_version)
-                info["latest_version"] = new_version
-                logger.info(f"Updated {lang}/{fw} to version {new_version}")
-
-    async def run_auto_update(self):
-        """Background task for auto-updating the registry"""
-        logger.info("Running automatic framework registry update check...")
-        try:
-            results = await self.check_for_updates(apply=True)
-            if results["updates_found"]:
-                logger.info(f"Auto-update found and applied {len(results['updates_found'])} updates")
-            else:
-                logger.info("No updates found during auto-update check")
-        except Exception as e:
-            logger.error(f"Auto-update failed: {e}")
-    
-    async def _check_pypi_updates(self) -> List[Dict[str, Any]]:
-        """Check PyPI for Python package updates"""
-        updates = []
-        packages_to_check = ["django", "fastapi", "flask"]
-        
-        async with aiohttp.ClientSession() as session:
-            for package in packages_to_check:
-                try:
-                    async with session.get(f"https://pypi.org/pypi/{package}/json") as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            latest_version = data["info"]["version"]
-                            
-                            # Check if update needed
-                            current_info = self.frameworks.get("python", {}).get(package, {})
-                            current_version = current_info.get("latest_version")
-                            
-                            if current_version and latest_version != current_version:
-                                updates.append({
-                                    "language": "python",
-                                    "package": package,
-                                    "current_version": current_version,
-                                    "latest_version": latest_version,
-                                    "source": "PyPI"
-                                })
-                except Exception as e:
-                    print(f"Error checking {package}: {e}")
-        
-        return updates
-    
-    async def _check_npm_updates(self) -> List[Dict[str, Any]]:
-        """Check npm for JavaScript package updates"""
-        updates = []
-        packages_to_check = ["express", "@nestjs/core", "react", "vue", "@angular/core"]
-        
-        async with aiohttp.ClientSession() as session:
-            for package in packages_to_check:
-                try:
-                    async with session.get(f"https://registry.npmjs.org/{package}") as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            latest_version = data["dist-tags"]["latest"]
-                            
-                            # Determine language and framework
-                            if package.startswith("@angular"):
-                                lang, fw = "frontend", "angular"
-                            elif package == "react":
-                                lang, fw = "frontend", "react"
-                            elif package == "vue":
-                                lang, fw = "frontend", "vue"
-                            else:
-                                lang, fw = "javascript", package.replace("@nestjs/", "nestjs")
-                            
-                            current_info = self.frameworks.get(lang, {}).get(fw, {})
-                            current_version = current_info.get("latest_version")
-                            
-                            if current_version and latest_version != current_version:
-                                updates.append({
-                                    "language": lang,
-                                    "package": package,
-                                    "current_version": current_version,
-                                    "latest_version": latest_version,
-                                    "source": "npm"
-                                })
-                except Exception as e:
-                    print(f"Error checking {package}: {e}")
-        
-        return updates
-    
-    async def _check_maven_updates(self) -> List[Dict[str, Any]]:
-        """Check Maven Central for Java package updates"""
-        # Would implement Maven Central API check
-        return []
-    
-    async def _check_nuget_updates(self) -> List[Dict[str, Any]]:
-        """Check NuGet for .NET package updates"""
-        # Would implement NuGet API check
-        return []
-
+                if v not in info["versions"]: info["versions"].insert(0, v)
+                info["latest_version"] = v
+                logger.info(f"Auto-applied update: {lang}/{fw} -> {v}")
 
 # Global registry instance
 framework_registry = FrameworkRegistry()

@@ -97,6 +97,9 @@ class ProjectScannerAgent(BaseAgent):
         # Step 6: Estimate complexity
         project_map.migration_complexity = self._estimate_complexity(project_map)
         
+        # Step 7: Index files for Semantic RAG
+        await self._index_project_files(project_path)
+        
         return project_map
     
     def _find_manifests(self, project_path: str) -> List[str]:
@@ -280,3 +283,27 @@ class ProjectScannerAgent(BaseAgent):
             return "medium"
         else:
             return "high"
+    async def _index_project_files(self, project_path: str):
+        """Index all source files for semantic search"""
+        try:
+            from core.memory.vector_store import VectorStoreService
+            vector_store = VectorStoreService()
+            
+            all_files = []
+            for root, _, files in os.walk(project_path):
+                # Ignore common junk and internal directories
+                if any(ignored in root for ignored in ['.git', '__pycache__', 'node_modules', '.venv', '.gemini']):
+                    continue
+                for file in files:
+                    # Ignore common non-source/large files
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pdf', '.zip', '.exe')):
+                        continue
+                    all_files.append(os.path.join(root, file))
+            
+            logger.info(f"Indexing {len(all_files)} files for project at {project_path}")
+            # Run in a separate thread if needed, but for now we'll do it sequentially
+            # since indexing can be slow
+            vector_store.index_files(all_files)
+            logger.info(f"Successfully indexed project context for {project_path}")
+        except Exception as e:
+            logger.error(f"Failed to index project files: {e}")

@@ -241,16 +241,6 @@ async def get_current_tenant(
 ) -> Tenant:
     """
     Get current user's tenant
-    
-    Args:
-        current_user: Current authenticated user
-        db: Database session
-        
-    Returns:
-        Tenant object
-        
-    Raises:
-        HTTPException: If tenant not found or inactive
     """
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     
@@ -267,3 +257,33 @@ async def get_current_tenant(
         )
     
     return tenant
+
+
+async def require_git_account(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Enforce that the user has connected at least one Git account
+    """
+    from .models import ExternalAccount
+    
+    git_providers = ["github", "gitlab", "bitbucket"]
+    connected = db.query(ExternalAccount).filter(
+        ExternalAccount.user_id == current_user.id,
+        ExternalAccount.provider.in_(git_providers)
+    ).first()
+    
+    if not connected:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Git account required. Please connect your GitHub, GitLab, or Bitbucket account in settings to proceed."
+        )
+    
+    if not current_user.credentials_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must accept the Git credentials and terms of use before proceeding. Please review and accept in your profile settings."
+        )
+    
+    return current_user

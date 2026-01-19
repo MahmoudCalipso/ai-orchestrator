@@ -103,6 +103,38 @@ class RegistryUpdater:
         except Exception as e:
             logger.debug(f"Failed to check Go module {module_path}: {e}")
         return None
+
+    async def check_rubygems_package(self, package_name: str) -> Optional[str]:
+        """Check latest version of RubyGems package"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"https://rubygems.org/api/v1/versions/{package_name}/latest.json"
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get("version")
+        except Exception as e:
+            logger.debug(f"Failed to check RubyGems package {package_name}: {e}")
+        return None
+
+    async def check_packagist_package(self, package_name: str) -> Optional[str]:
+        """Check latest version of Packagist (PHP) package"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"https://packagist.org/packages/{package_name}.json"
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        # Get latest version from versions dict (it's usually sorted or has a latest field but API vary)
+                        versions = data.get("package", {}).get("versions", {})
+                        if versions:
+                            # Return the first version that doesn't look like a branch or dev
+                            for v in versions.keys():
+                                if not v.endswith("-dev") and "dev-" not in v:
+                                    return v
+        except Exception as e:
+            logger.debug(f"Failed to check Packagist package {package_name}: {e}")
+        return None
     
     async def update_javascript_registry(self) -> Dict[str, Any]:
         """Update JavaScript/TypeScript registry"""
