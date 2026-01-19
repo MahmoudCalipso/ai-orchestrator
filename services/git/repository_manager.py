@@ -79,3 +79,83 @@ class RepositoryManager:
          except Exception as e:
              logger.error(f"Failed to push to remote: {e}")
              return False
+
+    def create_ghost_branch(self, path: str, base_branch: str = "main") -> str:
+        """Create a temporary 'ghost' branch for AI changes"""
+        import time
+        ghost_name = f"ai-ghost-{int(time.time())}"
+        try:
+            subprocess.run(["git", "checkout", "-b", ghost_name, base_branch], cwd=path, check=True)
+            logger.info(f"Ghost branch {ghost_name} created from {base_branch}")
+            return ghost_name
+        except Exception as e:
+            logger.error(f"Failed to create ghost branch: {e}")
+            return base_branch
+
+    def merge_ghost(self, path: str, ghost_branch: str, target_branch: str = "main"):
+        """Merge ghost branch back with automatic conflict detection"""
+        try:
+            subprocess.run(["git", "checkout", target_branch], cwd=path, check=True)
+            result = subprocess.run(["git", "merge", ghost_branch], cwd=path, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                logger.warning(f"Merge conflict detected merging {ghost_branch} into {target_branch}")
+                conflicts = self._get_conflicted_files(path)
+                return {
+                    "status": "conflict",
+                    "conflicted_files": conflicts,
+                    "message": "Automatic merge failed; manual or AI resolution required."
+                }
+            
+            # Cleanup ghost branch after successful merge
+            subprocess.run(["git", "branch", "-d", ghost_branch], cwd=path)
+            return {"status": "success", "message": f"Successfully merged {ghost_branch}"}
+        except Exception as e:
+            logger.error(f"Merge error: {e}")
+            return {"status": "error", "message": str(e)}
+
+    def _get_conflicted_files(self, path: str) -> list:
+        """Get list of files with merge conflicts"""
+        try:
+            result = subprocess.run(["git", "diff", "--name-only", "--diff-filter=U"], cwd=path, capture_output=True, text=True)
+            return result.stdout.splitlines()
+        except:
+            return []
+
+    async def ai_resolve_conflict(self, path: str, file_path: str, orchestrator) -> bool:
+        """Use AI to resolve a merge conflict in a specific file"""
+        from pathlib import Path
+        full_path = Path(path) / file_path
+        if not full_path.exists(): return False
+        
+        try:
+            with open(full_path, 'r') as f:
+                content = f.read()
+                
+            if "<<<<<<<" not in content:
+                return True # Already resolved?
+                
+            prompt = f"""
+            Resolve the following git merge conflict in {file_path}.
+            Choose the better implementation or merge them logically if possible.
+            
+            CONFLICTED CONTENT:
+            {content}
+            
+            Respond only with the resolved file content, no explanations.
+            """
+            
+            # Simple AI call via orchestrator
+            result = await orchestrator.run_inference(prompt=prompt, task_type="fix")
+            resolved_content = result.get("output", "")
+            
+            if resolved_content and "<<<<<<<" not in resolved_content:
+                with open(full_path, 'w') as f:
+                    f.write(resolved_content)
+                subprocess.run(["git", "add", file_path], cwd=path, check=True)
+                return True
+                
+            return False
+        except Exception as e:
+            logger.error(f"AI conflict resolution failed for {file_path}: {e}")
+            return False

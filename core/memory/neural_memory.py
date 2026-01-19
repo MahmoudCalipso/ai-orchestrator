@@ -22,6 +22,8 @@ class NeuralMemoryManager(MemoryManager):
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
+        from core.memory.vector_store import VectorStoreService
+        self.vector_store = VectorStoreService()
 
     def _init_db(self):
         """Initialize SQLite L2 storage"""
@@ -44,17 +46,21 @@ class NeuralMemoryManager(MemoryManager):
 
     async def search_semantic(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Placeholder for Vector-based L3 indexing.
-        Current version uses improved keyword density and tag matching.
+        L3 Vector Store Indexing.
+        Uses ChromaDB for deep codebase awareness.
         """
-        logger.info(f"Neural Memory: Semantic search for '{query}'")
-        # In Vision 2026, this will use local embeddings (FAISS/Chroma)
-        # For now, we simulate with broad tag matching
-        keywords = query.lower().split()
-        results = []
-        for kw in keywords[:3]: # Use first 3 keywords
-            tag_results = await self.search_by_tag(kw)
-            results.extend(tag_results)
+        logger.info(f"Neural Memory: Performing deep semantic search for '{query}'")
+        
+        # Query ChromaDB
+        results = self.vector_store.query_semantic(query, limit=limit)
+        
+        # If no results from vector store, fall back to keyword matching
+        if not results:
+            logger.info("No vector results, falling back to keyword matching")
+            keywords = query.lower().split()
+            for kw in keywords[:3]: 
+                tag_results = await self.search_by_tag(kw)
+                results.extend(tag_results)
             
         return results[:limit]
 

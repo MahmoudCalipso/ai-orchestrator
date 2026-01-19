@@ -63,6 +63,28 @@ class PasswordChange(BaseModel):
         return v
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Request to initiate password reset"""
+    email: EmailStr
+
+
+class PasswordReset(BaseModel):
+    """Actual password reset with token"""
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=100)
+    
+    @validator('new_password')
+    def password_strength(cls, v):
+        """Validate password strength"""
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.islower() for c in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
+        return v
+
+
 # Response Schemas
 
 class TokenResponse(BaseModel):
@@ -120,8 +142,28 @@ class APIKeyResponse(BaseModel):
         from_attributes = True
 
 
+class ExternalAccountResponse(BaseModel):
+    """External account response"""
+    id: str
+    provider: str
+    username: Optional[str]
+    email: Optional[str]
+    avatar_url: Optional[str]
+    scopes: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class OAuthConnectRequest(BaseModel):
+    """OAuth connection initiation"""
+    redirect_uri: Optional[str] = None
+
+
 class MeResponse(BaseModel):
     """Current user info response"""
     user: UserResponse
     tenant: TenantResponse
     permissions: list[str]
+    external_accounts: list[ExternalAccountResponse]

@@ -10,22 +10,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from .schemas import (
-    UserRegister,
-    UserLogin,
-    TokenRefresh,
-    TokenResponse,
-    UserResponse,
-    TenantResponse,
-    MeResponse,
-    APIKeyCreate,
-    APIKeyResponse,
     PasswordChange,
+    ForgotPasswordRequest,
+    PasswordReset,
 )
-from .models import User, APIKey
+from .models import User, APIKey, ExternalAccount, PasswordResetToken
 from .jwt_manager import JWTManager
 from .dependencies import get_db, get_current_active_user, get_current_tenant
 from .rbac import Role, RBACManager
+from .oauth_service import oauth_service
+from .encryption import encryption_service
+from .email_service import email_service
+from .schemas import ExternalAccountResponse, OAuthConnectRequest
 from platform_core.tenancy.models import Tenant
+import json
 
 
 router = APIRouter(prefix="/api/v2/auth", tags=["Authentication"])
@@ -73,7 +71,7 @@ async def register(
         email=user_data.email,
         hashed_password=hashed_password,
         full_name=user_data.full_name,
-        role=Role.FREE.value,
+        role=Role.DEVELOPER.value,
         is_active=True
     )
     db.add(user)
@@ -216,8 +214,11 @@ async def get_me(
     user_role = Role(current_user.role)
     permissions = [p.value for p in RBACManager.get_role_permissions(user_role)]
     
+    # Get external accounts
+    external_accounts = db.query(ExternalAccount).filter(ExternalAccount.user_id == current_user.id).all()
+    
     return MeResponse(
-        user=UserResponse.from_orm(current_user),
+        user=UserResponse.from_attributes(current_user),
         tenant=TenantResponse(
             id=tenant.id,
             name=tenant.name,
@@ -230,8 +231,100 @@ async def get_me(
             is_active=tenant.is_active,
             created_at=tenant.created_at
         ),
-        permissions=permissions
+        permissions=permissions,
+        external_accounts=[ExternalAccountResponse.from_attributes(acc) for acc in external_accounts]
     )
+
+
+@router.get("/external/connect/{provider}")
+async def connect_external_account(
+    provider: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Initiate OAuth2 connection to an external account"""
+    state = secrets.token_urlsafe(32)
+    # In production, store state in Redis to verify on callback
+    redirect_uri = f"{os.getenv('FRONTEND_URL')}/auth/callback/{provider}"
+    auth_url = oauth_service.get_auth_url(provider, redirect_uri, state)
+    return {"auth_url": auth_url, "state": state}
+
+
+@router.get("/external/callback/{provider}")
+async def external_callback(
+    provider: str,
+    code: str,
+    state: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Handle OAuth2 callback and link account"""
+    redirect_uri = f"{os.getenv('FRONTEND_URL')}/auth/callback/{provider}"
+    
+    try:
+        # 1. Exchange code for token
+        token_data = await oauth_service.exchange_code(provider, code, redirect_uri)
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in")
+        
+        # 2. Get profile
+        profile = await oauth_service.get_user_profile(provider, access_token)
+        mapped = oauth_service.map_profile(provider, profile)
+        
+        # 3. Encrypt tokens
+        encrypted_access = encryption_service.encrypt(access_token)
+        encrypted_refresh = encryption_service.encrypt(refresh_token) if refresh_token else None
+        
+        # 4. Save or update ExternalAccount
+        existing = db.query(ExternalAccount).filter(
+            ExternalAccount.user_id == current_user.id,
+            ExternalAccount.provider == provider
+        ).first()
+        
+        expires_at = datetime.utcnow() + timedelta(seconds=expires_in) if expires_in else None
+        
+        if existing:
+            existing.access_token = encrypted_access
+            existing.refresh_token = encrypted_refresh
+            existing.expires_at = expires_at
+            existing.username = mapped["username"]
+            existing.avatar_url = mapped["avatar"]
+            existing.scopes = json.dumps(token_data.get("scope", "").split(" "))
+        else:
+            new_acc = ExternalAccount(
+                id=str(uuid.uuid4()),
+                user_id=current_user.id,
+                provider=provider,
+                provider_user_id=mapped["uid"],
+                access_token=encrypted_access,
+                refresh_token=encrypted_refresh,
+                expires_at=expires_at,
+                username=mapped["username"],
+                email=mapped["email"],
+                avatar_url=mapped["avatar"],
+                scopes=json.dumps(token_data.get("scope", "").split(" "))
+            )
+            db.add(new_acc)
+            
+        # 5. Optional: Sync details to User model if missing
+        user_updated = False
+        if not current_user.full_name and mapped.get("username"):
+            current_user.full_name = mapped["username"]
+            user_updated = True
+        
+        # We don't have avatar_url on User model yet, but we could add it or just rely on ExternalAccount
+        # For now, let's just ensure the username/full_name is synced
+        
+        if user_updated:
+            db.add(current_user)
+            
+        db.commit()
+        return {"status": "success", "message": f"Connected to {provider} successfully"}
+        
+    except Exception as e:
+        logger.error(f"OAuth callback failed for {provider}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
@@ -359,7 +452,89 @@ async def change_password(
     current_user.hashed_password = jwt_manager.hash_password(password_data.new_password)
     db.commit()
     
-    # Revoke all refresh tokens (force re-login on all devices)
-    jwt_manager.revoke_token(current_user.id)
-    
     return {"message": "Password changed successfully. Please login again."}
+
+
+@router.post("/accept-credentials")
+async def accept_credentials(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    User acknowledges and accepts Git credentials/terms
+    """
+    current_user.credentials_accepted = True
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Credentials accepted successfully"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Request a password reset email
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        # Don't reveal if email exists or not for security
+        return {"message": "If this email is registered, you will receive a reset link shortly."}
+    
+    # Generate token
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    
+    # Save token
+    reset_token = PasswordResetToken(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.utcnow() + timedelta(hours=1),
+        used=False
+    )
+    db.add(reset_token)
+    db.commit()
+    
+    # Send email
+    email_service.send_password_reset_email(user.email, token)
+    
+    return {"message": "If this email is registered, you will receive a reset link shortly."}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    data: PasswordReset,
+    db: Session = Depends(get_db)
+):
+    """
+    Reset password using token
+    """
+    token_hash = hashlib.sha256(data.token.encode()).hexdigest()
+    
+    reset_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash,
+        PasswordResetToken.used == False,
+        PasswordResetToken.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not reset_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+    
+    user = db.query(User).filter(User.id == reset_token.user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Update password
+    user.hashed_password = jwt_manager.hash_password(data.new_password)
+    reset_token.used = True
+    db.commit()
+    
+    # Revoke all tokens
+    jwt_manager.revoke_token(user.id)
+    
+    return {"message": "Password reset successfully. Please login with your new password."}
