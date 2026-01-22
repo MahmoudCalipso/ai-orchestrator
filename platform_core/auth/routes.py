@@ -4,6 +4,9 @@ User registration, login, token management, and API keys
 """
 
 import uuid
+import secrets
+import hashlib
+import os
 from datetime import datetime, timedelta
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +16,9 @@ from .schemas import (
     PasswordChange,
     ForgotPasswordRequest,
     PasswordReset,
+    TokenResponse,
+    UserRegister,
+    UserLogin,
 )
 from .models import User, APIKey, ExternalAccount, PasswordResetToken
 from .jwt_manager import JWTManager

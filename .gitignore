@@ -60,6 +60,7 @@ models/*.pt
 .env
 .env.local
 .env.*.local
+.git_encryption_key
 
 # Database
 *.db

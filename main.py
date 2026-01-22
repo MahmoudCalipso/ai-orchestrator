@@ -574,15 +574,15 @@ async def analyze_description(
         analysis = await analyzer.analyze(description, {})
         
         # Build complete generation config
-        generated_config = await analyzer.build_generation_config(
-            analysis=analysis,
-            project_name=project_name,
-            description=description,
-            language_registry=language_registry
-        )
-        
-        # Create human-readable summary
-        summary = f"""
+    generated_config = await analyzer.build_generation_config(
+        analysis=analysis,
+        project_name=project_name,
+        description=description,
+        language_registry=language_registry
+    )
+    
+    # Create human-readable summary
+    summary = f"""
 **Project Type**: {analysis.project_type}
 **Complexity**: {analysis.estimated_complexity}
 **Features Detected**: {len(analysis.core_features)} ({', '.join(analysis.core_features[:5])}{'...' if len(analysis.core_features) > 5 else ''})
@@ -590,23 +590,59 @@ async def analyze_description(
 **Architecture**: {', '.join(analysis.architecture_patterns)}
 **Database**: {analysis.database_type}
 **Integrations**: {len(analysis.integration_points)} detected
-        """.strip()
+    """.strip()
+    
+    logger.info(f"✅ Analysis complete: {analysis.project_type} project, {analysis.estimated_complexity} complexity")
+    
+    return {
+        "status": "success",
+        "analysis": analysis.to_dict(),
+        "generated_config": generated_config,
+        "summary": summary,
+        "message": "Configuration generated successfully. You can now use 'generated_config' in /api/generate"
+    }
+except HTTPException:
+    raise
+except Exception as e:
+    logger.error(f"Description analysis failed: {e}", exc_info=True)
+    raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.post("/api/generate", response_model=StandardResponse, tags=["Generation"])
+async def generate_project(
+    request: GenerationRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Generate a complete software project based on the configuration.
+    
+    Uses the Lead Architect Swarm to:
+    1. **Plan**: Decompose the project into subtasks
+    2. **Execute**: Parallel agents generate backend, frontend, database, and infra
+    3. **Review**: Self-correction loop ensures quality
+    4. **Deliver**: Returns the full solution
+    """
+    try:
+        logger.info(f"🚀 Starting project generation: {request.project_name}")
         
-        logger.info(f"✅ Analysis complete: {analysis.project_type} project, {analysis.estimated_complexity} complexity")
+        # Convert request to context for Lead Architect
+        context = request.model_dump()
+        context["type"] = "full_project_generation"
         
-        return {
-            "status": "success",
-            "analysis": analysis.to_dict(),
-            "generated_config": generated_config,
-            "summary": summary,
-            "message": "Configuration generated successfully. You can now use 'generated_config' in /api/generate"
-        }
+        # Delegate to Lead Architect Agent (Swarm)
+        result = await orchestrator.lead_architect.act(
+            task=f"Generate project: {request.project_name}",
+            context=context
+        )
         
-    except HTTPException:
-        raise
+        return StandardResponse(
+            status="success",
+            result=result,
+            message=f"Project '{request.project_name}' generated successfully."
+        )
     except Exception as e:
-        logger.error(f"Description analysis failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        logger.error(f"Generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 
 @app.post("/api/generate", tags=["Generation"])

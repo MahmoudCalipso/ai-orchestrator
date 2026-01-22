@@ -87,6 +87,14 @@ class TerminalSession:
     
     async def resize(self, cols: int, rows: int):
         """Resize terminal"""
+        # Handle Docker container resize
+        if hasattr(self, 'container') and self.container:
+            try:
+                self.container.resize(height=rows, width=cols)
+            except Exception as e:
+                logger.error(f"Failed to resize docker container: {e}")
+
+        # Handle local PTY resize
         self._set_terminal_size(cols, rows)
     
     async def stop(self):
@@ -163,11 +171,27 @@ class TerminalService:
             try:
                 data = await websocket.receive_text()
                 
-                # Handle special commands
+                # Attempt to parse as JSON for control messages (e.g. resize)
+                try:
+                    payload = json.loads(data)
+                    if isinstance(payload, dict):
+                        if payload.get("type") == "resize":
+                            cols = payload.get("cols", 80)
+                            rows = payload.get("rows", 24)
+                            await session.resize(cols, rows)
+                            continue
+                        # If it's a JSON command but not resize, we might want to handle other types or fall through
+                        # For now, if it's JSON but has 'data' field, maybe it's wrapped input?
+                        # Let's assume raw input unless it's a specific control command.
+                except json.JSONDecodeError:
+                    # Not JSON, treat as raw input
+                    pass
+                
+                # Handle special commands (Legacy/Escape sequence check)
                 if data.startswith('\x1b['):  # Escape sequence
                     # Handle resize command
                     if 'resize' in data:
-                        # Parse resize command
+                        # Legacy placeholder - functionality now handled via JSON above
                         pass
                 
                 await session.write(data)

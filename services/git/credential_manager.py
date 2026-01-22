@@ -62,10 +62,19 @@ class GitCredentialManager:
         if key:
             return base64.urlsafe_b64encode(key.encode().ljust(32)[:32])
         
+        # Check for key file
+        key_file = Path(".git_encryption_key")
+        if key_file.exists():
+            with open(key_file, 'rb') as f:
+                return f.read().strip()
+
         # Generate new key if not found
         if self.config.get("security", {}).get("encrypt_credentials", True):
-            logger.warning("No encryption key found, generating new one")
-            return Fernet.generate_key()
+            logger.warning("No encryption key found, generating new one and saving to .git_encryption_key")
+            new_key = Fernet.generate_key()
+            with open(key_file, 'wb') as f:
+                f.write(new_key)
+            return new_key
         
         return None
     
