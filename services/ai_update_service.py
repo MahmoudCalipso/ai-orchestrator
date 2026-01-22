@@ -26,6 +26,14 @@ class AIUpdateService:
         """Apply code updates based on a chat prompt"""
         logger.info(f"Applying AI chat update for project {project_id}")
         
+        # Validate orchestrator has required components
+        if not hasattr(self.orchestrator, 'lead_architect') or self.orchestrator.lead_architect is None:
+            logger.error("LeadArchitect not available in orchestrator")
+            return {
+                "success": False,
+                "error": "AI update service not properly configured - LeadArchitect missing"
+            }
+        
         # In a real implementation, this would:
         # 1. Use the Universal AI Agent to analyze the prompt and project context
         # 2. Identify files that need to be changed
@@ -77,6 +85,14 @@ class AIUpdateService:
         full_file_path = Path(local_path) / file_path
         if not full_file_path.exists():
             return {"success": False, "error": f"File {file_path} not found"}
+        
+        # Validate orchestrator has required components
+        if not hasattr(self.orchestrator, 'universal_agent') or self.orchestrator.universal_agent is None:
+            logger.error("UniversalAgent not available in orchestrator")
+            return {
+                "success": False,
+                "error": "AI update service not properly configured - UniversalAgent missing"
+            }
             
         logger.info(f"Applying AI inline update to {file_path}")
         

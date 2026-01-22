@@ -1,38 +1,47 @@
 """
-Authentication API Routes
-User registration, login, token management, and API keys
+Authentication API Controller
+Handles user registration, login, token management, and API keys.
+Converted from legacy platform_core routes.
 """
 
 import uuid
 import secrets
 import hashlib
 import os
+import logging
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from .schemas import (
+from platform_core.auth.schemas import (
     PasswordChange,
     ForgotPasswordRequest,
     PasswordReset,
     TokenResponse,
     UserRegister,
     UserLogin,
+    TokenRefresh,
+    MeResponse,
+    UserResponse,
+    APIKeyResponse,
+    APIKeyCreate,
+    ExternalAccountResponse
 )
-from .models import User, APIKey, ExternalAccount, PasswordResetToken
-from .jwt_manager import JWTManager
-from .dependencies import get_db, get_current_active_user, get_current_tenant
-from .rbac import Role, RBACManager
-from .oauth_service import oauth_service
-from .encryption import encryption_service
-from .email_service import email_service
-from .schemas import ExternalAccountResponse, OAuthConnectRequest
+from platform_core.auth.models import User, APIKey, ExternalAccount, PasswordResetToken
+from platform_core.auth.jwt_manager import JWTManager
+from platform_core.auth.dependencies import get_db, get_current_active_user, get_current_tenant
+from platform_core.auth.rbac import Role, RBACManager
+from platform_core.auth.oauth_service import oauth_service
+from platform_core.auth.encryption import encryption_service
+from platform_core.auth.email_service import email_service
 from platform_core.tenancy.models import Tenant
+from platform_core.tenancy.schemas import TenantResponse
 import json
 
+logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v2/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 jwt_manager = JWTManager()
 
 
@@ -43,9 +52,6 @@ async def register(
 ):
     """
     Register a new user and create tenant
-    
-    Creates a new user account with associated tenant.
-    Default plan is 'free' with basic quotas.
     """
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -108,8 +114,6 @@ async def login(
 ):
     """
     Login with email and password
-    
-    Returns access and refresh tokens for authenticated requests.
     """
     # Find user
     user = db.query(User).filter(User.email == credentials.email).first()
@@ -155,8 +159,6 @@ async def refresh_token(
 ):
     """
     Refresh access token using refresh token
-    
-    Generates a new access token without requiring re-authentication.
     """
     try:
         # Verify refresh token
@@ -182,7 +184,7 @@ async def refresh_token(
         
         return TokenResponse(
             access_token=access_token,
-            refresh_token=token_data.refresh_token,  # Return same refresh token
+            refresh_token=token_data.refresh_token,
             expires_in=jwt_manager.access_token_expire * 60
         )
         
@@ -199,8 +201,6 @@ async def logout(
 ):
     """
     Logout current user
-    
-    Revokes all refresh tokens for the user.
     """
     jwt_manager.revoke_token(current_user.id)
     return {"message": "Successfully logged out"}
@@ -209,12 +209,11 @@ async def logout(
 @router.get("/me", response_model=MeResponse)
 async def get_me(
     current_user: User = Depends(get_current_active_user),
-    tenant: Tenant = Depends(get_current_tenant)
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db)
 ):
     """
     Get current user information
-    
-    Returns user profile, tenant info, and permissions.
     """
     # Get user permissions
     user_role = Role(current_user.role)
@@ -245,12 +244,10 @@ async def get_me(
 @router.get("/external/connect/{provider}")
 async def connect_external_account(
     provider: str,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Initiate OAuth2 connection to an external account"""
     state = secrets.token_urlsafe(32)
-    # In production, store state in Redis to verify on callback
     redirect_uri = f"{os.getenv('FRONTEND_URL')}/auth/callback/{provider}"
     auth_url = oauth_service.get_auth_url(provider, redirect_uri, state)
     return {"auth_url": auth_url, "state": state}
@@ -319,9 +316,6 @@ async def external_callback(
             current_user.full_name = mapped["username"]
             user_updated = True
         
-        # We don't have avatar_url on User model yet, but we could add it or just rely on ExternalAccount
-        # For now, let's just ensure the username/full_name is synced
-        
         if user_updated:
             db.add(current_user)
             
@@ -341,9 +335,6 @@ async def create_api_key(
 ):
     """
     Create a new API key
-    
-    Generates a new API key for programmatic access.
-    The key is only shown once during creation.
     """
     # Generate API key
     api_key = jwt_manager.generate_api_key()
@@ -368,11 +359,10 @@ async def create_api_key(
     db.commit()
     db.refresh(api_key_record)
     
-    # Return response with actual key (only time it's shown)
     return APIKeyResponse(
         id=api_key_record.id,
         name=api_key_record.name,
-        key=api_key,  # Only returned on creation
+        key=api_key,
         created_at=api_key_record.created_at,
         expires_at=api_key_record.expires_at,
         last_used=None,
@@ -388,8 +378,6 @@ async def list_api_keys(
 ):
     """
     List all API keys for current user
-    
-    Returns list of API keys without the actual key values.
     """
     api_keys = db.query(APIKey).filter(APIKey.user_id == current_user.id).all()
     
@@ -397,7 +385,7 @@ async def list_api_keys(
         APIKeyResponse(
             id=key.id,
             name=key.name,
-            key=None,  # Never return actual key
+            key=None,
             created_at=key.created_at,
             expires_at=key.expires_at,
             last_used=key.last_used,
@@ -416,8 +404,6 @@ async def revoke_api_key(
 ):
     """
     Revoke an API key
-    
-    Deactivates the specified API key.
     """
     api_key = db.query(APIKey).filter(
         APIKey.id == key_id,
@@ -444,8 +430,6 @@ async def change_password(
 ):
     """
     Change user password
-    
-    Requires current password for verification.
     """
     # Verify current password
     if not jwt_manager.verify_password(password_data.current_password, current_user.hashed_password):
@@ -485,7 +469,6 @@ async def forgot_password(
     """
     user = db.query(User).filter(User.email == data.email).first()
     if not user:
-        # Don't reveal if email exists or not for security
         return {"message": "If this email is registered, you will receive a reset link shortly."}
     
     # Generate token

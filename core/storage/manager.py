@@ -116,9 +116,11 @@ class StorageManager:
         self,
         status: Optional[str] = None,
         language: Optional[str] = None,
-        min_size_gb: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
-        """List projects with optional filters"""
+        min_size_gb: Optional[float] = None,
+        page: int = 1,
+        page_size: int = 20
+    ) -> Dict[str, Any]:
+        """List projects with optional filters and pagination"""
         projects = []
         
         for project_dir in self.projects_path.iterdir():
@@ -146,7 +148,21 @@ class StorageManager:
             
             projects.append(metadata)
         
-        return projects
+        # Sort by creation date (newest first)
+        projects.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        total = len(projects)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_projects = projects[start:end]
+        
+        return {
+            "projects": paginated_projects,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        }
     
     async def archive_project(self, project_id: str) -> bool:
         """Archive a project"""

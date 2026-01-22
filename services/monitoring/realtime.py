@@ -187,12 +187,31 @@ class RealtimeMonitoringService:
         """Get build progress"""
         return self.builds.get(build_id)
     
-    def list_builds(self, status: Optional[str] = None) -> List[BuildProgress]:
-        """List builds"""
+    def list_builds(
+        self, 
+        status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20
+    ) -> Dict[str, Any]:
+        """List builds with pagination"""
         builds = list(self.builds.values())
         if status:
             builds = [b for b in builds if b.status == status]
-        return sorted(builds, key=lambda x: x.start_time, reverse=True)
+        
+        sorted_builds = sorted(builds, key=lambda x: x.start_time, reverse=True)
+        
+        total = len(sorted_builds)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_builds = sorted_builds[start:end]
+        
+        return {
+            "builds": paginated_builds,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        }
     
     async def stream_build_logs(self, build_id: str, websocket: WebSocket):
         """Stream build logs via WebSocket"""

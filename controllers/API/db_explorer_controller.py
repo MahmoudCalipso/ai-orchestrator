@@ -1,6 +1,7 @@
 """
-Database Explorer - API Routes
+Database Explorer - API Controller
 Allows frontend to introspect and query project databases.
+Converted from legacy platform_core routes.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Dict, Any, Optional
@@ -16,7 +17,7 @@ from schemas.generation_spec import DatabaseConfig
 
 router = APIRouter(prefix="/database-explorer", tags=["Database Explorer"])
 
-# Initialized via dependency
+# Initialized via dependency or singleton
 db_manager = DatabaseConnectionManager()
 explorer_service = DatabaseExplorerService(db_manager)
 

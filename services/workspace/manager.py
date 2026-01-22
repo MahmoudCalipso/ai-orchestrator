@@ -243,10 +243,28 @@ class WorkspaceManager:
         del self.workspaces[workspace_id]
         return True
     
-    def list_user_workspaces(self, user_id: str) -> List[Workspace]:
-        """List workspaces for user"""
+    def list_user_workspaces(
+        self, 
+        user_id: str,
+        page: int = 1,
+        page_size: int = 20
+    ) -> Dict[str, Any]:
+        """List workspaces for user with pagination"""
         workspace_ids = self.user_workspaces.get(user_id, [])
-        return [self.workspaces[wid] for wid in workspace_ids if wid in self.workspaces]
+        all_user_workspaces = [self.workspaces[wid] for wid in workspace_ids if wid in self.workspaces]
+        
+        total = len(all_user_workspaces)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_workspaces = all_user_workspaces[start:end]
+        
+        return {
+            "workspaces": paginated_workspaces,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        }
     
     def invite_member(
         self,

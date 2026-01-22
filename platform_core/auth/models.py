@@ -22,12 +22,12 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
-    role = Column(String, default="developer")  # admin, pro, developer, free
-    is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
+    role = Column(String, default="developer", index=True)  # admin, pro, developer, free
+    is_active = Column(Boolean, default=True, index=True)
+    is_verified = Column(Boolean, default=False, index=True)
     credentials_accepted = Column(Boolean, default=False)
     last_login = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
@@ -49,9 +49,9 @@ class APIKey(Base):
     name = Column(String)
     last_used = Column(DateTime)
     usage_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    expires_at = Column(DateTime)
-    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    expires_at = Column(DateTime, index=True)
+    is_active = Column(Boolean, default=True, index=True)
     
     # Relationships
     user = relationship("User", back_populates="api_keys")
@@ -67,9 +67,9 @@ class RefreshToken(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     token_hash = Column(String, nullable=False, unique=True)
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    revoked = Column(Boolean, default=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    revoked = Column(Boolean, default=False, index=True)
     revoked_at = Column(DateTime)
     
     def __repr__(self):
@@ -115,9 +115,9 @@ class PasswordResetToken(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     token_hash = Column(String, nullable=False, unique=True)
-    expires_at = Column(DateTime, nullable=False)
-    used = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     def __repr__(self):
         return f"<PasswordResetToken for user {self.user_id}>"

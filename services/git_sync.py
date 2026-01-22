@@ -7,6 +7,7 @@ import subprocess
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,26 @@ class GitSyncService:
     """Handles Git clone, pull, push operations"""
     
     def __init__(self):
-        pass
+        # Load Git user configuration from environment
+        self.git_user_name = os.getenv("GIT_USER_NAME", "AI Orchestrator")
+        self.git_user_email = os.getenv("GIT_USER_EMAIL", "ai-orchestrator@example.com")
+    
+    def _configure_git_user(self, local_path: str):
+        """Configure Git user for a repository"""
+        try:
+            subprocess.run(
+                ["git", "-C", local_path, "config", "user.name", self.git_user_name],
+                check=True,
+                capture_output=True
+            )
+            subprocess.run(
+                ["git", "-C", local_path, "config", "user.email", self.git_user_email],
+                check=True,
+                capture_output=True
+            )
+            logger.info(f"Configured Git user: {self.git_user_name} <{self.git_user_email}>")
+        except Exception as e:
+            logger.warning(f"Failed to configure Git user: {e}")
     
     async def clone_repository(
         self,
@@ -69,6 +89,9 @@ class GitSyncService:
             
             # Get commit hash
             commit_hash = self._get_current_commit(local_path)
+            
+            # Configure Git user for this repository
+            self._configure_git_user(local_path)
             
             # Count files
             files_count = sum(1 for _ in Path(local_path).rglob('*') if _.is_file())
@@ -222,4 +245,86 @@ class GitSyncService:
             return {
                 "success": False,
                 "error": str(e)
+            }
+    
+    async def push_changes(
+        self,
+        local_path: str,
+        branch: str = "main",
+        commit_message: str = "Update from AI Orchestrator"
+    ) -> Dict[str, Any]:
+        """Add, commit, and push changes to remote repository"""
+        try:
+            # Add all changes
+            subprocess.run(
+                ["git", "-C", local_path, "add", "."],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Check if there are changes to commit
+            status_result = subprocess.run(
+                ["git", "-C", local_path, "status", "--porcelain"],
+                capture_output=True,
+                text=True
+            )
+            
+            if not status_result.stdout.strip():
+                return {
+                    "success": True,
+                    "message": "No changes to commit",
+                    "committed": False
+                }
+            
+            # Commit changes
+            subprocess.run(
+                ["git", "-C", local_path, "commit", "-m", commit_message],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Push to remote
+            push_result = subprocess.run(
+                ["git", "-C", local_path, "push", "origin", branch],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            if push_result.returncode != 0:
+                logger.error(f"Git push failed: {push_result.stderr}")
+                return {
+                    "success": False,
+                    "error": push_result.stderr,
+                    "message": "Failed to push to remote"
+                }
+            
+            # Get new commit hash
+            commit_hash = self._get_current_commit(local_path)
+            
+            logger.info(f"Successfully pushed changes to {branch}")
+            
+            return {
+                "success": True,
+                "message": "Changes pushed successfully",
+                "committed": True,
+                "commit_hash": commit_hash,
+                "branch": branch
+            }
+            
+        except subprocess.TimeoutExpired:
+            logger.error("Git push timeout")
+            return {
+                "success": False,
+                "error": "Push operation timed out",
+                "message": "Push took too long"
+            }
+        except Exception as e:
+            logger.error(f"Git push error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "Failed to push changes"
             }

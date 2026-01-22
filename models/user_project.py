@@ -54,14 +54,14 @@ class UserProject(Base):
     git_repo_url = Column(String(500))
     git_branch = Column(String(100), default="main")
     local_path = Column(String(500))
-    status = Column(String(50), default="active")  # active, archived, building, running
-    language = Column(String(50))
-    framework = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(50), default="active", index=True)  # active, archived, building, running
+    language = Column(String(50), index=True)
+    framework = Column(String(100), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_opened_at = Column(DateTime)
-    build_status = Column(String(50))  # success, failed, pending, building
-    run_status = Column(String(50))  # running, stopped, crashed
+    last_opened_at = Column(DateTime, index=True)
+    build_status = Column(String(50), index=True)  # success, failed, pending, building
+    run_status = Column(String(50), index=True)  # running, stopped, crashed
     metadata = Column(JSONB)
     
     __table_args__ = (
@@ -156,9 +156,9 @@ class WorkflowExecution(Base):
     workflow_type = Column(String(50))  # update-push-build-run, build-run, etc.
     steps = Column(JSONB)  # List of steps with status
     current_step = Column(String(50))
-    status = Column(String(50), default="pending")  # pending, in_progress, completed, failed
-    started_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime)
+    status = Column(String(50), default="pending", index=True)  # pending, in_progress, completed, failed
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    completed_at = Column(DateTime, index=True)
     error_message = Column(Text)
     logs = Column(JSONB)
     

@@ -14,7 +14,7 @@ class Tenant(Base):
     
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    plan = Column(String, default="free")  # free, developer, pro, enterprise
+    plan = Column(String, default="free", index=True)  # free, developer, pro, enterprise
     
     # Storage quotas
     storage_quota_gb = Column(Integer, default=10)
@@ -27,16 +27,16 @@ class Tenant(Base):
     api_rate_limit = Column(Integer, default=100)  # -1 for unlimited
     
     # Billing
-    stripe_customer_id = Column(String)
-    stripe_subscription_id = Column(String)
-    subscription_status = Column(String, default="active")  # active, canceled, past_due
+    stripe_customer_id = Column(String, index=True)
+    stripe_subscription_id = Column(String, index=True)
+    subscription_status = Column(String, default="active", index=True)  # active, canceled, past_due
     
     # Status
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     trial_ends_at = Column(DateTime)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships

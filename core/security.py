@@ -38,39 +38,44 @@ class SecurityManager:
         else:
             logger.warning("No DEFAULT_API_KEY environment variable set. API key required for all requests.")
 
-    def get_user_info(self, api_key: str) -> Optional[dict]:
-        """Get user info associated with an API key"""
-        return self.api_keys.get(api_key)
+    def get_user_info(self, api_key: str, db: Optional[Session] = None) -> Optional[dict]:
+        """Get user info associated with an API key (Local cache or DB)"""
+        # 1. Check local cache (Admin/Env keys)
+        if api_key in self.api_keys:
+            return self.api_keys[api_key]
+            
+        # 2. Check Database
+        if db:
+            from platform_core.auth.models import APIKey
+            from platform_core.auth.jwt_manager import JWTManager
+            
+            # This is hash based lookup - optimization: cache this
+            jwt_mgr = JWTManager()
+            key_hash = jwt_mgr.hash_api_key(api_key)
+            
+            record = db.query(APIKey).filter(
+                APIKey.key_hash == key_hash, 
+                APIKey.is_active == True
+            ).first()
+            
+            if record:
+                # Return standardized user info dict
+                return {
+                    "user_id": record.user.id,
+                    "username": record.user.email,
+                    "email": record.user.email,
+                    "role": record.user.role,
+                    "org_id": record.user.tenant_id, # Using tenant_id as org_id
+                    "tenant_id": record.user.tenant_id,
+                    "source": "database"
+                }
 
-    def is_superuser(self, api_key: str) -> bool:
+        return None
+
+    def is_superuser(self, api_key: str, db: Optional[Session] = None) -> bool:
         """Check if the user is a SuperUser"""
-        user_info = self.get_user_info(api_key)
-        return user_info and user_info.get("role") == "admin"
-
-    def check_permission(self, api_key: str, action: str, resource_owner_id: Optional[str] = None) -> bool:
-        """
-        Check if user has permission for an action.
-        SuperUser always gets access.
-        """
-        user_info = self.get_user_info(api_key)
-        if not user_info:
-            return False
-            
-        # SuperUser Override
-        if user_info.get("role") == "admin":
-            return True
-            
-        # Developer/Viewer logic
-        user_id = user_info.get("user_id")
-        role = user_info.get("role")
-        
-        if action in ["list_own", "read_own", "update_own", "delete_own"]:
-            return user_id == resource_owner_id
-            
-        if action == "create_project":
-            return role in ["admin", "developer"]
-            
-        return False
+        user_info = self.get_user_info(api_key, db)
+        return user_info and user_info.get("role") == Role.ADMIN.value
 
     def verify_api_key(self, api_key: str, db: Optional[Session] = None) -> bool:
         """
@@ -95,12 +100,8 @@ class SecurityManager:
             ).first()
             
             if api_key_record:
-                # Check expiration
                 if api_key_record.expires_at and api_key_record.expires_at < datetime.now():
                     return False
-                    
-                # Cache user info locally for this session (Optional: sync with DB)
-                # For now just return True
                 return True
                 
         return False
@@ -117,7 +118,6 @@ async def verify_api_key(
     db: Session = Depends(get_db)
 ) -> str:
     """Verify API key from header, supporting both ENV and DB keys"""
-    
     if not x_api_key:
         raise HTTPException(
             status_code=401,
@@ -132,10 +132,46 @@ async def verify_api_key(
             detail="Invalid or expired API key"
         )
         
-    if not security_manager.check_rate_limit(x_api_key):
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded"
-        )
-        
     return x_api_key
+
+
+# RBAC System
+from enum import Enum
+
+class Role(str, Enum):
+    ADMIN = "admin"
+    ENTERPRISE = "enterprises"
+    DEVELOPER = "developer"
+
+def require_role(allowed_roles: list[Role]):
+    """
+    Dependency to enforce role-based access control.
+    SuperUser (Admin) always has access.
+    Returns user_info dict.
+    """
+    def _check_role(
+        api_key: str = Depends(verify_api_key),
+        db: Session = Depends(get_db)
+    ):
+        security_manager = SecurityManager()
+        user_info = security_manager.get_user_info(api_key, db)
+        
+        if not user_info:
+             raise HTTPException(status_code=401, detail="User not found")
+             
+        user_role = user_info.get("role")
+        
+        # Super Admin Bypass
+        if user_role == Role.ADMIN.value:
+            return user_info
+            
+        # Check permissions
+        if user_role not in [r.value for r in allowed_roles]:
+             raise HTTPException(
+                 status_code=403, 
+                 detail=f"Insufficient permissions. Required: {[r.value for r in allowed_roles]}"
+             )
+             
+        return user_info
+        
+    return _check_role
