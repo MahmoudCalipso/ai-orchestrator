@@ -9,12 +9,72 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+class MigrationTransformer:
+    """Specialized service for structural code transformation using AST patterns"""
+    
+    def __init__(self, orchestrator):
+        self.orchestrator = orchestrator
+
+    async def transform_codebase(self, project_path: str, source_stack: str, target_stack: str) -> Dict[str, Any]:
+        """Perform full structural transformation of a codebase with auto-application"""
+        logger.info(f"🚀 Elite Power-Up: Transforming codebase from {source_stack} to {target_stack}")
+        
+        prompt = f"""
+        YOU ARE THE LEAD ARCHITECT AGENT. 
+        PERFORM A FULL ARCHITECTURAL TRANSFORMATION of the codebase at {project_path}.
+        SOURCE: {source_stack}
+        TARGET: {target_stack}
+        
+        REQUIREMENTS:
+        1. Replace all legacy patterns with 2026 standards (Signals, Virtual Threads, etc.).
+        2. Reorganize directory structure if necessary for Clean Architecture.
+        3. Respond ONLY with a list of files to be created or modified in this exact format:
+        
+        FILE: path/to/file.ext
+        ```
+        CODE
+        ```
+        """
+        
+        context = {
+            "type": "codebase_transformation",
+            "source": source_stack,
+            "target": target_stack,
+            "project_path": project_path,
+            "custom_prompt": prompt
+        }
+        
+        try:
+            result = await self.orchestrator.lead_architect.act("Transform architectural stack", context)
+            solution = result.get("solution", "")
+            
+            import re
+            file_blocks = re.findall(r'FILE:\s*(.*?)\n```(?:\w+)?\n(.*?)\n```', solution, re.DOTALL)
+            
+            if not file_blocks:
+                logger.warning("Lead Architect suggested transformation but no valid file blocks were extracted.")
+                return {"status": "failed", "error": "No files extracted from AI solution"}
+
+            for rel_path, content in file_blocks:
+                full_path = Path(project_path) / rel_path.strip()
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(full_path, "w", encoding="utf-8") as f:
+                    f.write(content.strip())
+                logger.info(f"Architectural Shift Applied: {rel_path}")
+
+            return {"status": "success", "files_transformed": len(file_blocks)}
+            
+        except Exception as e:
+            logger.error(f"Transformation failed: {e}")
+            return {"status": "failed", "error": str(e)}
+
 class MigrationHealingService:
-    """Service to automatically fix build and runtime errors in migrated code"""
+    """Service to automatically fix and TRANSFORM migrated code"""
     
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
         self.max_fixing_rounds = 3
+        self.transformer = MigrationTransformer(orchestrator)
 
     async def heal_project(self, project_path: str, stack: str) -> Dict[str, Any]:
         """Attempt to build and fix project repeatedly until it works or limit reached"""
@@ -82,7 +142,7 @@ class MigrationHealingService:
             return {"status": "failed", "output": str(e)}
 
     async def _apply_ai_fixes(self, project_path: str, error_output: str, stack: str):
-        """Analyze errors and fix files via LLM"""
+        """Analyze errors and fix files via LLM, applying them to the workspace"""
         logger.info("Applying AI fixes to resolve build errors...")
         
         prompt = f"""
@@ -92,14 +152,43 @@ class MigrationHealingService:
         PROJECT PATH: {project_path}
         
         Identify the root cause and provide the corrected code for the failing file(s).
-        Respond with a list of file paths and their corrected content in this format:
-        FILE: path/to/file.ext
+        Respond ONLY with a list of file paths and their corrected content in this exact format:
+        FILE: path/from/base/to/file.ext
         ```
         CODE
         ```
         """
         
-        result = await self.orchestrator.run_inference(prompt=prompt, task_type="fix")
-        # Apply the fixes (simplified file parsing logic here)
-        # In production, we'd use a regex to extract files and write them back
-        logger.info("AI fixes suggested. Applying to workspace...")
+        try:
+            result = await self.orchestrator.universal_agent.act("Fix the build errors in this migrated project", {
+                "type": "bug_fix",
+                "error": error_output,
+                "stack": stack,
+                "project_path": project_path,
+                "custom_prompt": prompt
+            })
+            
+            solution = result.get("solution", "")
+            
+            # Extract and Apply Files
+            import re
+            file_blocks = re.findall(r'FILE:\s*(.*?)\n```(?:\w+)?\n(.*?)\n```', solution, re.DOTALL)
+            
+            if not file_blocks:
+                logger.warning("AI suggested fixes but no valid file blocks were extracted.")
+                return
+
+            for rel_path, content in file_blocks:
+                full_path = Path(project_path) / rel_path.strip()
+                
+                # Ensure directory exists
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Write the fix
+                with open(full_path, "w", encoding="utf-8") as f:
+                    f.write(content.strip())
+                
+                logger.info(f"Automatically patched: {rel_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to apply AI fixes: {e}")

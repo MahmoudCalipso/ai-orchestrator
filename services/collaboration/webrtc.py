@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import WebSocket
 from datetime import datetime
 import uuid
+from services.collaboration.recorder import SessionRecorder
 
 
 class CollaborationSession:
@@ -20,6 +21,7 @@ class CollaborationSession:
         self.created_at = datetime.utcnow()
         self.active = True
         self.screen_sharing_user: Optional[str] = None
+        self.recorder = SessionRecorder()
     
     def add_participant(self, user_id: str, username: str, websocket: WebSocket):
         """Add participant to session"""
@@ -170,6 +172,9 @@ class WebRTCSignalingService:
         
         session.screen_sharing_user = user_id
         
+        # Start recording
+        await session.recorder.start_recording(session_id, session.project_id, user_id)
+        
         # Notify all participants
         await session.broadcast({
             "type": "screen_sharing_started",
@@ -186,6 +191,9 @@ class WebRTCSignalingService:
             return
         
         session.screen_sharing_user = None
+        
+        # Stop recording
+        await session.recorder.stop_recording(session_id)
         
         # Notify all participants
         await session.broadcast({

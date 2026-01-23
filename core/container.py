@@ -35,6 +35,11 @@ class ServiceContainer:
         self.backup_manager = None
         self.collaboration_service = None
         
+        # Extreme Power 2026 Services
+        self.iac_engine = None
+        self.cost_pilot = None
+        self.red_team_ai = None
+        
         # Security
         self.auth_router = None
         
@@ -73,6 +78,12 @@ class ServiceContainer:
         self.storage_manager = storage
         self.backup_manager = backup
         self.collaboration_service = collaboration
+
+    def initialize_extreme_power_services(self, iac_engine, cost_pilot, red_team_ai):
+        """Initialize Extreme Power 2026 platform services"""
+        self.iac_engine = iac_engine
+        self.cost_pilot = cost_pilot
+        self.red_team_ai = red_team_ai
 
 # Global accessor
 container = ServiceContainer.get_instance()

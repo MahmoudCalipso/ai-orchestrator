@@ -11,7 +11,9 @@ class LanguageMetadata(Base):
     name = Column(String(50), unique=True, index=True)
     logo_url = Column(String(255), nullable=True)
     description = Column(String(500), nullable=True)
-    is_compiled = Column(JSON, default=False) # Store extra flags in JSON for flexibility
+    update_source = Column(String(255), nullable=True) # e.g. "pypi", "npm"
+    update_identifier = Column(String(255), nullable=True) # e.g. "python"
+    is_compiled = Column(JSON, default=False)
 
 class DatabaseMetadata(Base):
     __tablename__ = "database_metadata"
@@ -20,6 +22,8 @@ class DatabaseMetadata(Base):
     logo_url = Column(String(255), nullable=True)
     db_type = Column(String(20)) # SQL, NoSQL, Vector, Graph
     latest_version = Column(String(20), nullable=True)
+    update_source = Column(String(255), nullable=True)
+    update_identifier = Column(String(255), nullable=True)
 
 class FrameworkMetadata(Base):
     __tablename__ = "framework_metadata"
@@ -27,13 +31,15 @@ class FrameworkMetadata(Base):
     id = Column(Integer, primary_key=True, index=True)
     language = Column(String(50), index=True)
     framework = Column(String(50), index=True)
-    logo_url = Column(String(255), nullable=True) # Added logo field
+    logo_url = Column(String(255), nullable=True)
     latest_version = Column(String(20))
     lts_version = Column(String(20), nullable=True)
     versions = Column(JSON)  # List of strings
-    architectures = Column(JSON)  # List of strings
-    best_practices = Column(JSON)  # List of strings
+    architectures = Column(JSON)  # Detailed architecture guides
+    best_practices = Column(JSON)  # Enhanced best practices
     required_packages = Column(JSON)  # List of strings
+    update_source = Column(String(255), nullable=True) # e.g. "npm", "maven"
+    update_identifier = Column(String(255), nullable=True) # e.g. "@angular/core"
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     class Config:

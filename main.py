@@ -38,6 +38,11 @@ from core.storage import StorageManager, BackupManager
 from services.collaboration import CollaborationService
 from core.database.manager import unified_db
 
+# Extreme Power 2026 Imports
+from services.devops.iac_engine import AutonomousIaCEngine
+from services.monitoring.cost_pilot import AICostPilot
+from services.security.red_team_ai import RedTeamAI
+
 # Controllers
 from controllers.API.system_controller import router as system_router
 from controllers.API.ai_controller import router as ai_router
@@ -52,6 +57,7 @@ from controllers.API.enterprise_controller import router as enterprise_router
 from controllers.API.auth_controller import router as auth_controller
 from controllers.API.db_explorer_controller import router as db_explorer_controller
 from controllers.API.tools_controller import router as tools_router
+from controllers.API.registry_controller import router as registry_router
 from controllers.WS.websocket_controller import router as ws_router
 
 # Configure logging
@@ -122,6 +128,14 @@ async def lifespan(app: FastAPI):
         build_service, runtime_service, workflow_engine, monitoring_service,
         storage_manager, backup_manager, collaboration_service
     )
+    
+    # 3. Initialize Extreme Power 2026 Services
+    iac_engine = AutonomousIaCEngine(orchestrator)
+    cost_pilot = AICostPilot(monitoring_service)
+    red_team_ai = RedTeamAI(orchestrator)
+    
+    container.initialize_extreme_power_services(iac_engine, cost_pilot, red_team_ai)
+    logger.info("Extreme Power 2026 services initialized and registered")
     
     # Auth router is now handled via Controller registration below
     container.auth_router = auth_controller
@@ -273,6 +287,9 @@ app.include_router(db_explorer_controller, prefix="/api")
 # Controller: /api/figma... (Wait, I checked tools_controller.py, I put /api/figma/analyze)
 # So prefix="" for tools controller.
 app.include_router(tools_router)
+
+# Registry Controller
+app.include_router(registry_router, prefix="/api")
 
 # WebSocket Controller
 # Original: /api/ide/terminal..., /api/monitoring/stream...
