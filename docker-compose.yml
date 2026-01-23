@@ -1,23 +1,39 @@
 version: '3.8'
 
+# =============================================================================
+# IA-ORCHESTRATOR 2026 - ENTERPRISE DOCKER COMPOSE
+# Secure, scalable, production-ready deployment
+# =============================================================================
+
 services:
+  # ===========================================================================
   # AI Orchestrator Main Application
+  # ===========================================================================
   ai-orchestrator:
-    build: .
-    container_name: ai-orchestrator
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: ia-orchestrator:2.0.0
+    container_name: ia-orchestrator
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
       - ./logs:/app/logs
       - ./cache:/app/cache
+      - ./data:/app/data
+      - model-cache:/app/models
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=INFO
-      - DATABASE_URL=postgresql://orchestrator:MA-120396@postgres:5432/ai_orchestrator
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=postgresql://orchestrator:${POSTGRES_PASSWORD:-CHANGE_ME}@postgres:5432/ai_orchestrator
       - REDIS_URL=redis://redis:6379/0
-      - MONGO_URL=mongodb://orchestrator:MA-120396@mongodb:27017
+      - MONGO_URL=mongodb://orchestrator:${MONGO_PASSWORD:-CHANGE_ME}@mongodb:27017
       - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,45 +43,88 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+      ollama:
+        condition: service_started
     deploy:
       resources:
+        limits:
+          cpus: '4'
+          memory: 8G
         reservations:
+          cpus: '2'
+          memory: 4G
           devices:
             - driver: nvidia
               count: all
-              capabilities: [ gpu ]
+              capabilities: [gpu]
     networks:
       - ai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,size=1G
 
-  # Primary Transactional Database
+  # ===========================================================================
+  # PostgreSQL - Primary Transactional Database
+  # ===========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: orchestrator-postgres
     environment:
       - POSTGRES_DB=ai_orchestrator
       - POSTGRES_USER=orchestrator
-      - POSTGRES_PASSWORD=MA-120396
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-CHANGE_ME}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      - PGDATA=/var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_connections=200
+      -c log_statement=all
+      -c log_duration=on
     networks:
       - ai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U orchestrator -d ai_orchestrator" ]
+      test: ["CMD-SHELL", "pg_isready -U orchestrator -d ai_orchestrator"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
 
-  # Cache & Real-time Layer
+  # ===========================================================================
+  # Redis - Cache & Real-time Layer
+  # ===========================================================================
   redis:
     image: redis:7-alpine
     container_name: orchestrator-redis
@@ -73,17 +132,38 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-backlog 511
+      --timeout 0
+      --tcp-keepalive 300
+      --requirepass ${REDIS_PASSWORD:-}
     networks:
       - ai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
 
-  # Vector Database (Semantic Search)
+  # ===========================================================================
+  # Qdrant - Vector Database (Semantic Search)
+  # ===========================================================================
   qdrant:
     image: qdrant/qdrant:latest
     container_name: orchestrator-qdrant
@@ -92,36 +172,64 @@ services:
       - "6334:6334"
     volumes:
       - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=INFO
     networks:
       - ai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:6333/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
 
-  # Document Store (Large JSON/Files)
+  # ===========================================================================
+  # MongoDB - Document Store (Large JSON/Files)
+  # ===========================================================================
   mongodb:
     image: mongo:7
     container_name: orchestrator-mongodb
     environment:
       - MONGO_INITDB_ROOT_USERNAME=orchestrator
-      - MONGO_INITDB_ROOT_PASSWORD=MA-120396
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-CHANGE_ME}
+      - MONGO_INITDB_DATABASE=ai_orchestrator
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    command: >
+      mongod
+      --auth
+      --bind_ip_all
+      --wiredTigerCacheSizeGB 1
     networks:
       - ai-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
 
-  # AI Model Engine (Local)
+  # ===========================================================================
+  # Ollama - AI Model Engine (Local LLM)
+  # ===========================================================================
   ollama:
     image: ollama/ollama:latest
     container_name: orchestrator-ollama
@@ -129,24 +237,81 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=2
     deploy:
       resources:
+        limits:
+          cpus: '8'
+          memory: 32G
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [ gpu ]
+              capabilities: [gpu]
     networks:
       - ai-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
+  # ===========================================================================
+  # Model Downloader - Automatic AI Model Setup
+  # ===========================================================================
+  model-downloader:
+    image: ollama/ollama:latest
+    container_name: orchestrator-model-downloader
+    volumes:
+      - ollama-data:/root/.ollama
+      - ./scripts:/scripts:ro
+    environment:
+      - OLLAMA_HOST=ollama:11434
+      - MODEL_TIER=${MODEL_TIER:-balanced}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - ai-network
+    entrypoint: ["/bin/sh", "/scripts/download_models.sh"]
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+# =============================================================================
+# Networks
+# =============================================================================
 networks:
   ai-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
 
+# =============================================================================
+# Volumes - Persistent Data Storage
+# =============================================================================
 volumes:
   postgres-data:
+    driver: local
   redis-data:
+    driver: local
   qdrant-data:
+    driver: local
   mongo-data:
+    driver: local
+  mongo-config:
+    driver: local
   ollama-data:
+    driver: local
+  model-cache:
+    driver: local
