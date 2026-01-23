@@ -4,9 +4,9 @@ Strictly focused on Free & Open Source AI models via Ollama.
 """
 import logging
 import os
+import time
 import json
-from typing import List, Dict, Any, Optional, AsyncGenerator
-from openai import OpenAI
+from services.monitoring.calt_service import CALTLogger
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +18,11 @@ class LLMInference:
     """
     
     def __init__(self, provider: str = "ollama", model: str = None, api_key: str = None):
-        """
-        Initialize LLM Inference Engine
-        
-        Args:
-            provider: LLM provider (Defaults to ollama)
-            model: Model name (e.g., qwen2.5-coder:7b)
-            api_key: Not needed for open source models
-        """
-        # Hard default to Ollama for privacy and cost-efficiency
+        # ... existing config ...
         self.provider = "ollama"
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
         self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+        self.calt = CALTLogger()
         
         # Initialize client (Ollama uses OpenAI-compatible API)
         try:
@@ -50,29 +43,38 @@ class LLMInference:
         system_prompt: str = None,
         model: str = None
     ) -> str:
-        """Generate response from Open-Source LLM"""
+        """Generate response with CALT tracking"""
+        start_time = time.time()
         target_model = model or self.model
         
-        if self.client is None:
-            return self._mock_generate(prompt)
-        
         try:
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
+            # ... execution ...
+            result = await self._execute_generate(prompt, max_tokens, temperature, system_prompt, target_model)
             
-            messages.append({"role": "user", "content": prompt})
+            # CALT Tracking
+            duration = time.time() - start_time
+            tokens_in = len(prompt.split()) # Rough estimation
+            tokens_out = len(result.split())
+            self.calt.log_operation("LLM_GENERATE", duration, tokens_in, tokens_out, {"model": target_model})
             
-            response = self.client.chat.completions.create(
-                model=target_model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            return response.choices[0].message.content
+            return result
         except Exception as e:
-            logger.error(f"LLM generation error (Ollama): {e}")
-            return self._mock_generate(prompt)
+            logger.error(f"Generate error: {e}")
+            return "Error during generation"
+
+    async def _execute_generate(self, prompt, max_tokens, temp, system, model):
+        # Actual implementation moved here to keep generate() clean for logging
+        from openai import OpenAI
+        target_client = OpenAI(base_url=f"{self.base_url}/v1", api_key="ollama")
+        
+        messages = []
+        if system: messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = target_client.chat.completions.create(
+            model=model, messages=messages, max_tokens=max_tokens, temperature=temp
+        )
+        return response.choices[0].message.content
 
     async def generate_streaming(
         self,
@@ -82,34 +84,34 @@ class LLMInference:
         system_prompt: str = None,
         model: str = None
     ) -> AsyncGenerator[str, None]:
-        """Generate streaming response from Open-Source LLM"""
-        target_model = model or self.model
+        """Generate streaming response with CALT tracking"""
+        start_time = time.time()
+        total_content = []
         
-        if self.client is None:
-            yield self._mock_generate(prompt)
-            return
+        async for chunk in self._execute_stream(prompt, max_tokens, temperature, system_prompt, model or self.model):
+            total_content.append(chunk)
+            yield chunk
+            
+        # CALT Tracking after stream completes
+        duration = time.time() - start_time
+        tokens_in = len(prompt.split())
+        tokens_out = len("".join(total_content).split())
+        self.calt.log_operation("LLM_STREAM", duration, tokens_in, tokens_out, {"model": model or self.model})
+
+    async def _execute_stream(self, prompt, max_tokens, temp, system, model):
+        from openai import OpenAI
+        target_client = OpenAI(base_url=f"{self.base_url}/v1", api_key="ollama")
         
-        try:
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            
-            messages.append({"role": "user", "content": prompt})
-            
-            stream = self.client.chat.completions.create(
-                model=target_model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stream=True
-            )
-            
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-        except Exception as e:
-            logger.error(f"Streaming error (Ollama): {e}")
-            yield self._mock_generate(prompt)
+        messages = []
+        if system: messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
+        stream = target_client.chat.completions.create(
+            model=model, messages=messages, max_tokens=max_tokens, temperature=temp, stream=True
+        )
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     async def get_embeddings(self, text: str, model: str = None) -> List[float]:
         """Generate semantic embeddings via Open-Source model"""

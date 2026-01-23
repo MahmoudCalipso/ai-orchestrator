@@ -49,18 +49,51 @@ class FigmaAnalyzer:
 
         try:
             result = await self.orchestrator.universal_agent.act(task, context)
-            solution = result.get("solution", "")
+            interpretation = result.get("solution", "")
+            
+            # 3. Hyper-Intelligence: Predictive UI Variations
+            ui_variants = await self.generate_ui_variants(tokens, interpretation)
             
             return {
                 "status": "success",
-                "ai_interpretation": solution,
+                "ai_interpretation": interpretation,
                 "tokens": tokens,
+                "ui_variants": ui_variants,
                 "document_name": file_data.get("name"),
                 "timestamp": file_data.get("lastModified")
             }
         except Exception as e:
             logger.error(f"AI Figma analysis failed: {e}")
             return {**self._extract_legacy(file_data), "tokens": tokens}
+
+    async def generate_ui_variants(self, tokens: List[DesignToken], design_audit: str) -> List[Dict[str, Any]]:
+        """🧠 Hyper-Intelligence: Generate Predictive UI variants based on Figma tokens"""
+        if not self.orchestrator:
+            return []
+            
+        logger.info("🎨 Hyper-Intelligence: Generating Predictive UI Variants")
+        
+        prompt = f"""
+        YOU ARE THE PREDICTIVE UI DESIGNER.
+        Based on these Figma Design Tokens: {tokens}
+        And this Design Audit: {design_audit}
+        
+        GENERATE 3 UNIQUE UI VARIANTS using modern 2026 aesthetics:
+        1. "Universal Accessibility": Hyper-readable, high contrast, AR-friendly.
+        2. "Futuristic Glassmorphism": Depth-heavy, translucent, micro-animated.
+        3. "Bento Grid Evolution": Modular, high-density, adaptive.
+        
+        Return CSS/HTML snippets for each.
+        """
+        
+        context = {"type": "predictive_ui_gen", "tokens": tokens, "audit": design_audit}
+        
+        try:
+            result = await self.orchestrator.universal_agent.act("Create predictive UI variants", context)
+            # In a real scenario, we'd parse the Markdown into structured JSON
+            return [{"variant": "Predictive Suggestions", "content": result.get("solution")}]
+        except Exception:
+            return []
 
     def _extract_design_tokens(self, file_data: Dict[str, Any]) -> List[DesignToken]:
         """Specialized logic to extract colors and typography from Figma styles"""

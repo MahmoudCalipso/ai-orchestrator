@@ -43,6 +43,14 @@ from services.devops.iac_engine import AutonomousIaCEngine
 from services.monitoring.cost_pilot import AICostPilot
 from services.security.red_team_ai import RedTeamAI
 
+# Next-Gen Core 2026+ Imports
+from core.messaging.bus import MessageBus
+from services.monitoring.calt_service import CALTLogger
+
+# Hyper-Intelligence 2026 Final Imports
+from core.memory.knowledge_graph import KnowledgeGraphService
+from services.security.quantum_vault import QuantumVaultService
+
 # Controllers
 from controllers.API.system_controller import router as system_router
 from controllers.API.ai_controller import router as ai_router
@@ -136,6 +144,21 @@ async def lifespan(app: FastAPI):
     
     container.initialize_extreme_power_services(iac_engine, cost_pilot, red_team_ai)
     logger.info("Extreme Power 2026 services initialized and registered")
+    
+    # 4. Initialize Next-Gen Core 2026+ Services
+    message_bus = MessageBus()
+    await message_bus.start() # Start background worker
+    calt_logger = CALTLogger()
+    
+    container.initialize_next_gen_services(message_bus, calt_logger)
+    logger.info("Next-Gen Core 2026+ services (CALT, MessageBus) initialized and registered")
+    
+    # 5. Initialize Hyper-Intelligence Final 2026 Services
+    knowledge_graph = KnowledgeGraphService()
+    quantum_vault = QuantumVaultService(orchestrator)
+    
+    container.initialize_hyper_intelligence_services(knowledge_graph, quantum_vault)
+    logger.info("Hyper-Intelligence Final 2026 services (KG, PQC) initialized and registered")
     
     # Auth router is now handled via Controller registration below
     container.auth_router = auth_controller

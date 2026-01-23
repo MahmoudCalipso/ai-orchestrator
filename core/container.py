@@ -40,6 +40,14 @@ class ServiceContainer:
         self.cost_pilot = None
         self.red_team_ai = None
         
+        # Next-Gen Core 2026+
+        self.message_bus = None
+        self.calt_logger = None
+        
+        # Hyper-Intelligence 2026 Final
+        self.knowledge_graph = None
+        self.quantum_vault = None
+        
         # Security
         self.auth_router = None
         
@@ -84,6 +92,16 @@ class ServiceContainer:
         self.iac_engine = iac_engine
         self.cost_pilot = cost_pilot
         self.red_team_ai = red_team_ai
+
+    def initialize_next_gen_services(self, message_bus, calt_logger):
+        """Initialize Next-Gen Core platform services"""
+        self.message_bus = message_bus
+        self.calt_logger = calt_logger
+
+    def initialize_hyper_intelligence_services(self, knowledge_graph, quantum_vault):
+        """Initialize Hyper-Intelligence Final 2026 platform services"""
+        self.knowledge_graph = knowledge_graph
+        self.quantum_vault = quantum_vault
 
 # Global accessor
 container = ServiceContainer.get_instance()
