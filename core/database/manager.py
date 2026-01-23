@@ -32,15 +32,19 @@ class UnifiedDatabaseManager:
         self.mongo_db = None
         self.qdrant = None
 
-        # Config
-        self.pg_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://orchestrator:MA-120396@postgres:5432/ai_orchestrator")
+        # Config - SECURITY: All credentials must come from environment
+        self.pg_url = os.getenv("DATABASE_URL")
+        if not self.pg_url:
+            logger.error("DATABASE_URL environment variable is required")
+            raise ValueError("DATABASE_URL must be set in environment")
+        
         # Convert sync URL to async if needed
         if self.pg_url.startswith("postgresql://"):
             self.pg_url = self.pg_url.replace("postgresql://", "postgresql+asyncpg://")
 
-        self.redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-        self.mongo_url = os.getenv("MONGO_URL", "mongodb://orchestrator:MA-120396@mongodb:27017")
-        self.qdrant_url = os.getenv("QDRANT_URL", "http://qdrant:6333")
+        self.redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.mongo_url = os.getenv("MONGO_URL")
+        self.qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
 
     async def initialize(self):
         """Initialize all database connections"""

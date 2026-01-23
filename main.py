@@ -4,6 +4,7 @@ Refactored to use modular Controllers and Service Container.
 """
 import logging
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -242,13 +243,18 @@ app = FastAPI(
     },
 )
 
-# Add CORS middleware
+# Add CORS middleware - SECURITY: Restrict origins in production
+# Get allowed origins from environment variable
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,  # Restricted to specific origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Explicit methods
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],  # Explicit headers
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Add Rate Limiting Middleware
