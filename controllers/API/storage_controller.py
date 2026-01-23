@@ -5,6 +5,7 @@ Handles project storage, archiving, cleanup, and backups.
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
+from core.container import container
 from schemas.api_spec import StandardResponse
 import logging
 
@@ -16,9 +17,9 @@ router = APIRouter(tags=["Storage"])
 async def get_storage_stats(api_key: str = Depends(verify_api_key)):
     """Retrieve statistics about local storage usage."""
     try:
-        from core.storage import StorageManager
-        storage = StorageManager()
-        stats = await storage.get_storage_stats()
+        if not container.storage_manager:
+            raise HTTPException(status_code=503, detail="Storage service not ready")
+        stats = await container.storage_manager.get_storage_stats()
         return {"status": "success", "stats": stats}
     except Exception as e:
         logger.error(f"Failed to get storage stats: {e}")
@@ -35,9 +36,9 @@ async def list_stored_projects(
 ):
     """List all generated projects currently stored on disk with pagination."""
     try:
-        from core.storage import StorageManager
-        storage = StorageManager()
-        result = await storage.list_projects(
+        if not container.storage_manager:
+            raise HTTPException(status_code=53, detail="Storage service not ready")
+        result = await container.storage_manager.list_projects(
             status=status,
             language=language,
             min_size_gb=min_size_gb,
@@ -68,9 +69,9 @@ async def get_stored_project(
 ):
     """Retrieve detailed metadata and file structure for a specific stored project."""
     try:
-        from core.storage import StorageManager
-        storage = StorageManager()
-        project = await storage.get_project(project_id)
+        if not container.storage_manager:
+            raise HTTPException(status_code=503, detail="Storage service not ready")
+        project = await container.storage_manager.get_project(project_id)
         
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
@@ -93,9 +94,9 @@ async def delete_stored_project(
 ):
     """Delete a project (soft or hard delete)"""
     try:
-        from core.storage import StorageManager
-        storage = StorageManager()
-        success = await storage.delete_project(project_id, soft=soft)
+        if not container.storage_manager:
+            raise HTTPException(status_code=503, detail="Storage service not ready")
+        success = await container.storage_manager.delete_project(project_id, soft=soft)
         
         if not success:
             raise HTTPException(status_code=404, detail="Project not found")
@@ -118,9 +119,9 @@ async def archive_stored_project(
 ):
     """Archive a project"""
     try:
-        from core.storage import StorageManager
-        storage = StorageManager()
-        success = await storage.archive_project(project_id)
+        if not container.storage_manager:
+            raise HTTPException(status_code=503, detail="Storage service not ready")
+        success = await container.storage_manager.archive_project(project_id)
         
         if not success:
             raise HTTPException(status_code=404, detail="Project not found")
@@ -140,19 +141,17 @@ async def archive_stored_project(
 async def cleanup_storage(api_key: str = Depends(verify_api_key)):
     """Run storage cleanup"""
     try:
-        from core.storage import StorageManager, BackupManager
-        
-        storage = StorageManager()
-        backup_mgr = BackupManager()
+        if not container.storage_manager or not container.backup_manager:
+            raise HTTPException(status_code=503, detail="Storage or Backup service not ready")
         
         # Archive old projects
-        archived_count = await storage.archive_old_projects(days=90)
+        archived_count = await container.storage_manager.archive_old_projects(days=90)
         
         # Clean cache
-        freed_bytes = await storage.clean_cache()
+        freed_bytes = await container.storage_manager.clean_cache()
         
         # Remove old backups
-        removed_backups = await backup_mgr.cleanup_old_backups(days=30)
+        removed_backups = await container.backup_manager.cleanup_old_backups(days=30)
         
         return {
             "status": "success",
@@ -169,9 +168,9 @@ async def cleanup_storage(api_key: str = Depends(verify_api_key)):
 async def backup_stored_project(project_id: str, api_key: str = Depends(verify_api_key)):
     """Back up a stored project manually."""
     try:
-        from core.storage.backup import BackupManager
-        backup_manager = BackupManager()
-        result = await backup_manager.create_backup(project_id)
+        if not container.backup_manager:
+            raise HTTPException(status_code=503, detail="Backup service not ready")
+        result = await container.backup_manager.create_backup(project_id)
         if result:
             return {"status": "success", "message": f"Backup created: {result}"}
         else:

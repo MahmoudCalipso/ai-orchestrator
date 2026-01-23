@@ -19,9 +19,9 @@ async def get_monitoring_metrics(
 ):
     """Get monitoring metrics"""
     try:
-        from services.monitoring import RealtimeMonitoringService
-        monitoring = RealtimeMonitoringService()
-        metrics = monitoring.get_metrics(limit)
+        if not container.monitoring_service:
+            raise HTTPException(status_code=503, detail="Monitoring service not ready")
+        metrics = container.monitoring_service.get_metrics(limit)
         return {"metrics": metrics}
     except Exception as e:
         logger.error(f"Failed to get metrics: {e}")
@@ -31,9 +31,9 @@ async def get_monitoring_metrics(
 async def get_current_metrics(api_key: str = Depends(verify_api_key)):
     """Get current system metrics"""
     try:
-        from services.monitoring import RealtimeMonitoringService
-        monitoring = RealtimeMonitoringService()
-        metrics = monitoring.get_current_metrics()
+        if not container.monitoring_service:
+             raise HTTPException(status_code=503, detail="Monitoring service not ready")
+        metrics = container.monitoring_service.get_current_metrics()
         return metrics or {}
     except Exception as e:
         logger.error(f"Failed to get current metrics: {e}")
@@ -48,9 +48,9 @@ async def list_builds(
 ):
     """List build progress with pagination"""
     try:
-        from services.monitoring import RealtimeMonitoringService
-        monitoring = RealtimeMonitoringService()
-        result = monitoring.list_builds(status, page, page_size)
+        if not container.monitoring_service:
+             raise HTTPException(status_code=503, detail="Monitoring service not ready")
+        result = container.monitoring_service.list_builds(status, page, page_size)
         return {
             "builds": [b.to_dict() for b in result["builds"]],
             "pagination": {
@@ -71,9 +71,9 @@ async def get_build(
 ):
     """Get build progress"""
     try:
-        from services.monitoring import RealtimeMonitoringService
-        monitoring = RealtimeMonitoringService()
-        build = monitoring.get_build(build_id)
+        if not container.monitoring_service:
+             raise HTTPException(status_code=503, detail="Monitoring service not ready")
+        build = container.monitoring_service.get_build(build_id)
         if not build:
             raise HTTPException(status_code=404, detail="Build not found")
         return build.to_dict()

@@ -7,7 +7,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
 from schemas.api_spec import (
-    StandardResponse, GitConfigUpdate, GitRepoInit
+    StandardResponse, GitConfigUpdate, GitRepoInit,
+    GitRemoteCreate, GitBranchCreate, GitCommitRequest,
+    GitConflictResolve, GitMergeRequest
 )
 import logging
 
@@ -20,7 +22,7 @@ async def set_git_config(provider: str, request: GitConfigUpdate, api_key: str =
     """Update or set credentials (token, SSH key) for a specific Git provider."""
     try:
         if not container.git_credentials:
-            raise HTTPException(status_code=503, detail="Git Credentials service not ready")
+            raise HTTPException(status_code=53, detail="Git Credentials service not ready")
             
         credentials = request.model_dump(exclude_none=True)
         success = container.git_credentials.set_credentials(provider, credentials)
@@ -38,7 +40,7 @@ async def delete_git_config(provider: str, api_key: str = Depends(verify_api_key
     """Delete credentials for a Git provider"""
     try:
         if not container.git_credentials:
-            raise HTTPException(status_code=53, detail="Git Credentials service not ready")
+            raise HTTPException(status_code=503, detail="Git Credentials service not ready")
             
         success = container.git_credentials.set_credentials(provider, {})
         if success:
@@ -128,7 +130,7 @@ async def clone_repository(
 @router.post("/git/repositories/{repo_id}/push", response_model=StandardResponse)
 async def push_repository(
     repo_id: str,
-    request: Dict[str, Any],
+    request: GitCommitRequest,
     api_key: str = Depends(verify_api_key)
 ):
     """Push changes to remote repository."""
@@ -136,14 +138,10 @@ async def push_repository(
         if not container.git_sync_service:
              raise HTTPException(status_code=503, detail="Git Sync service not ready")
              
-        local_path = request.get("local_path")
-        branch = request.get("branch", "main")
-        message = request.get("message", "Update from AI Orchestrator")
-        
         result = await container.git_sync_service.push_changes(
-            local_path=local_path,
-            branch=branch,
-            commit_message=message
+            local_path=request.local_path,
+            branch=request.branch,
+            commit_message=request.message
         )
         
         if result["success"]:
@@ -221,7 +219,6 @@ async def list_branches(
                 current_branch = line[2:]
                 branches.append({"name": current_branch, "current": True})
             elif line:
-                # Handle remote branches (remove 'remotes/origin/' etc if needed, but keeping raw for now)
                 branches.append({"name": line, "current": False})
         
         total = len(branches)
@@ -248,20 +245,25 @@ async def list_branches(
 @router.post("/git/repositories/{repo_id}/checkout", response_model=StandardResponse)
 async def checkout_branch(
     repo_id: str,
-    request: Dict[str, Any],
+    request: GitBranchCreate,
     api_key: str = Depends(verify_api_key)
 ):
     """Checkout a branch."""
     try:
         import subprocess
         
-        local_path = request.get("local_path")
-        branch = request.get("branch")
-        create = request.get("create", False)
+        local_path = request.local_path
+        branch = request.branch_name
+        create = True # Assuming creation if base branch is provided or for this flow
         
         cmd = ["git", "checkout"]
-        if create:
+        # Basic logic: check if branch exists
+        check_cmd = ["git", "rev-parse", "--verify", branch]
+        exists = subprocess.run(check_cmd, cwd=local_path, capture_output=True).returncode == 0
+        
+        if not exists:
             cmd.append("-b")
+        
         cmd.append(branch)
         
         result = subprocess.run(
@@ -280,4 +282,122 @@ async def checkout_branch(
             raise HTTPException(status_code=500, detail=result.stderr)
     except Exception as e:
         logger.error(f"Git checkout failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/git/repositories/{repo_id}/log")
+async def get_repo_history(
+    repo_id: str,
+    local_path: str,
+    limit: int = 50,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get repository commit history."""
+    try:
+        if not container.git_sync_service:
+            raise HTTPException(status_code=503, detail="Git Sync service not ready")
+        return await container.git_sync_service.get_history(local_path, limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/git/repositories/{repo_id}/diff")
+async def get_repo_diff(
+    repo_id: str,
+    local_path: str,
+    cached: bool = False,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get repository diff."""
+    try:
+        if not container.git_sync_service:
+            raise HTTPException(status_code=503, detail="Git Sync service not ready")
+        return await container.git_sync_service.get_diff(local_path, cached)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/git/repositories/{repo_id}/fetch", response_model=StandardResponse)
+async def fetch_repo(
+    repo_id: str,
+    local_path: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Fetch from remote."""
+    try:
+        if not container.git_sync_service:
+            raise HTTPException(status_code=503, detail="Git Sync service not ready")
+        result = await container.git_sync_service.fetch_remote(local_path)
+        return StandardResponse(status="success" if result["success"] else "failed", result=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/git/repositories/{repo_id}/merge", response_model=StandardResponse)
+async def merge_branches(
+    repo_id: str,
+    request: GitMergeRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Merge branches using Repo Manager."""
+    try:
+        if not container.repo_manager:
+            raise HTTPException(status_code=503, detail="Repo Manager not ready")
+        
+        # RepositoryManager logic expects ghost branch but we can adapt
+        # For a general merge:
+        import subprocess
+        subprocess.run(["git", "checkout", request.target_branch], cwd=request.local_path, check=True)
+        result = subprocess.run(["git", "merge", request.source_branch], cwd=request.local_path, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            return StandardResponse(status="success", message=f"Merged {request.source_branch} into {request.target_branch}")
+        else:
+            return StandardResponse(status="conflict", message="Merge conflict detected", result=result.stderr)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/git/repositories/{repo_id}/remote", response_model=StandardResponse)
+async def create_remote_repo(
+    repo_id: str,
+    request: GitRemoteCreate,
+    api_key: str = Depends(verify_api_key)
+):
+    """Create a remote repository via API."""
+    try:
+        if not container.repo_manager:
+            raise HTTPException(status_code=503, detail="Repo Manager not ready")
+        
+        clone_url = await container.repo_manager.create_remote_repository(
+            provider=request.provider,
+            name=request.name,
+            description=request.description,
+            private=request.private
+        )
+        
+        if clone_url:
+            return StandardResponse(status="success", result={"clone_url": clone_url})
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create remote repository")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/git/repositories/{repo_id}/resolve", response_model=StandardResponse)
+async def resolve_conflict_ai(
+    repo_id: str,
+    request: GitConflictResolve,
+    api_key: str = Depends(verify_api_key)
+):
+    """Resolve a conflict using AI."""
+    try:
+        if not container.repo_manager:
+            raise HTTPException(status_code=503, detail="Repo Manager not ready")
+        
+        success = await container.repo_manager.ai_resolve_conflict(
+            path=request.local_path,
+            file_path=request.file_path,
+            orchestrator=container.orchestrator
+        )
+        
+        if success:
+            return StandardResponse(status="success", message=f"Conflict resolved for {request.file_path}")
+        else:
+            raise HTTPException(status_code=500, detail="AI failed to resolve conflict")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

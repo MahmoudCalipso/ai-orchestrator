@@ -5,40 +5,38 @@ L2: SQLite (Persistent Metadata & Context)
 L3: Vector Store (Semantic Indexing - Placeholder)
 """
 import logging
-import sqlite3
 import json
-import os
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+from sqlalchemy import Column, String, DateTime, Text, select, insert, delete
+from sqlalchemy.orm import Session
 from core.memory import MemoryManager
+from platform_core.database import Base, engine, SessionLocal
 
 logger = logging.getLogger(__name__)
 
+class Interaction(Base):
+    """Memory interaction model for persistence"""
+    __tablename__ = "interactions"
+    key = Column(String, primary_key=True)
+    value = Column(Text)
+    tags = Column(Text) # JSON string
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_access = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Ensure table exists
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception:
+    pass
+
 class NeuralMemoryManager(MemoryManager):
-    """Enhanced memory manager with persistent L2 storage"""
+    """Enhanced memory manager with persistent SQLAlchemy storage"""
     
-    def __init__(self, db_path: str = "data/memory.db", max_entries: int = 2000):
+    def __init__(self, max_entries: int = 2000):
         super().__init__(max_entries=max_entries)
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._init_db()
         from core.memory.vector_store import VectorStoreService
         self.vector_store = VectorStoreService()
-
-    def _init_db(self):
-        """Initialize SQLite L2 storage"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS interactions (
-                    key TEXT PRIMARY KEY,
-                    value TEXT,
-                    tags TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_access TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_tags ON interactions(tags)")
-            conn.commit()
 
     async def get_keys(self, pattern: Optional[str] = None) -> List[str]:
         """Get all keys matching pattern"""
@@ -65,42 +63,50 @@ class NeuralMemoryManager(MemoryManager):
         return results[:limit]
 
     async def store(self, key: str, value: Any, tags: List[str] = None, ttl: Optional[int] = None):
-        """Store in L1 and L2"""
+        """Store in L1 and DB"""
         # L1 (Current session ram)
         await super().store(key, value, ttl)
         
-        # L2 (SQLite Persistence)
+        # DB Persistence (PostgreSQL/SQLite)
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with SessionLocal() as db:
                 value_json = json.dumps(value)
                 tags_json = json.dumps(tags or [])
-                conn.execute("""
-                    INSERT OR REPLACE INTO interactions (key, value, tags, last_access)
-                    VALUES (?, ?, ?, ?)
-                """, (key, value_json, tags_json, datetime.now()))
-                conn.commit()
+                
+                existing = db.query(Interaction).filter(Interaction.key == key).first()
+                if existing:
+                    existing.value = value_json
+                    existing.tags = tags_json
+                    existing.last_access = datetime.utcnow()
+                else:
+                    new_interaction = Interaction(
+                        key=key,
+                        value=value_json,
+                        tags=tags_json
+                    )
+                    db.add(new_interaction)
+                db.commit()
         except Exception as e:
-            logger.error(f"L2 Storage failed for key {key}: {e}")
+            logger.error(f"DB Storage failed for key {key}: {e}")
 
     async def retrieve(self, key: str) -> Optional[Any]:
-        """Retrieve from L1 (fast) or L2 (persistent)"""
+        """Retrieve from L1 (fast) or DB (persistent)"""
         # Try L1 first
         val = await super().retrieve(key)
         if val:
             return val
             
-        # Try L2
+        # Try DB
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute("SELECT value FROM interactions WHERE key = ?", (key,))
-                row = cursor.fetchone()
-                if row:
-                    data = json.loads(row[0])
+            with SessionLocal() as db:
+                interaction = db.query(Interaction).filter(Interaction.key == key).first()
+                if interaction:
+                    data = json.loads(interaction.value)
                     # Populate back to L1 for faster subsequent access
                     await super().store(key, data)
                     return data
         except Exception as e:
-            logger.error(f"L2 Retrieval failed for key {key}: {e}")
+            logger.error(f"DB Retrieval failed for key {key}: {e}")
             
         return None
 
@@ -108,11 +114,11 @@ class NeuralMemoryManager(MemoryManager):
         """Find relevant context by technical tags"""
         results = []
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                # Simple JSON tag search
-                cursor = conn.execute("SELECT key, value FROM interactions WHERE tags LIKE ?", (f'%"{tag}"%',))
-                for row in cursor.fetchall():
-                    results.append({"key": row[0], "value": json.loads(row[1])})
+            with SessionLocal() as db:
+                # Simple string contains search for tags
+                interactions = db.query(Interaction).filter(Interaction.tags.like(f'%"{tag}"%')).all()
+                for item in interactions:
+                    results.append({"key": item.key, "value": json.loads(item.value)})
         except Exception as e:
-            logger.error(f"L2 Tag search failed for {tag}: {e}")
+            logger.error(f"DB Tag search failed for {tag}: {e}")
         return results

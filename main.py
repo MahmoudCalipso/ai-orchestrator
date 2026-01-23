@@ -5,6 +5,10 @@ Refactored to use modular Controllers and Service Container.
 import logging
 import asyncio
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,15 +26,16 @@ from services.registry import LanguageRegistry
 from platform_core.auth.dependencies import require_git_account
 
 # Services
-from services.ide.editor_service import EditorService
-from services.ide.terminal_service import TerminalService
-from services.ide.debugger_service import DebuggerService
+from services.ide import EditorService, TerminalService, DebuggerService
 from services.project_manager import ProjectManager
 from services.git_sync import GitSyncService
 from services.ai_update_service import AIUpdateService
 from services.build_service import BuildService
 from services.runtime_service import RuntimeService
 from services.workflow_engine import WorkflowEngine
+from services.monitoring import RealtimeMonitoringService
+from core.storage import StorageManager, BackupManager
+from services.collaboration import CollaborationService
 
 # Controllers
 from controllers.API.system_controller import router as system_router
@@ -64,8 +69,8 @@ async def lifespan(app: FastAPI):
     orchestrator = Orchestrator()
     await orchestrator.initialize()
     
-    # Initialize Core Services
-    git_credentials = GitCredentialManager()
+    # Initialize Core Services (Shared with Orchestrator where relevant)
+    git_credentials = orchestrator.git_credentials
     repo_manager = RepositoryManager(git_credentials)
     db_manager = DatabaseConnectionManager()
     schema_analyzer = SchemaAnalyzer(db_manager)
@@ -85,6 +90,10 @@ async def lifespan(app: FastAPI):
     ai_update_service = AIUpdateService(orchestrator)
     build_service = BuildService()
     runtime_service = RuntimeService()
+    monitoring_service = RealtimeMonitoringService()
+    storage_manager = orchestrator.storage
+    backup_manager = BackupManager()
+    collaboration_service = CollaborationService()
     
     workflow_engine = WorkflowEngine({
         "project_manager": project_manager,
@@ -106,14 +115,17 @@ async def lifespan(app: FastAPI):
     
     container.initialize_project_services(
         project_manager, git_sync_service, ai_update_service,
-        build_service, runtime_service, workflow_engine
+        build_service, runtime_service, workflow_engine, monitoring_service,
+        storage_manager, backup_manager, collaboration_service
     )
     
     # Auth router is now handled via Controller registration below
     container.auth_router = auth_controller
     logger.info("Auth router registered in container")
 
-    # Start Registry Auto-Update background task
+    # Start background tasks
+    await monitoring_service.start()
+    
     from services.registry.registry_updater import RegistryUpdater
     updater = RegistryUpdater()
     asyncio.create_task(updater.schedule_periodic_updates(interval_hours=24))
@@ -124,6 +136,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Shutting down AI Orchestrator...")
+    await container.monitoring_service.stop()
     await orchestrator.shutdown()
     logger.info("AI Orchestrator shut down successfully")
 

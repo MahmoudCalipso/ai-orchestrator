@@ -114,6 +114,17 @@ class RedisCacheService:
         total = hits + misses
         return (hits / total * 100) if total > 0 else 0.0
 
+    async def increment(self, key: str) -> int:
+        """Increment a key in cache"""
+        if not self.redis:
+            return 1
+        
+        try:
+            return self.redis.incr(key)
+        except Exception as e:
+            logger.error(f"Cache increment error: {e}")
+            return 1
+
 
 # Global cache instance
 cache_service = RedisCacheService()

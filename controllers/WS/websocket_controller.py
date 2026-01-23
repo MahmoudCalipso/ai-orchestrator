@@ -25,17 +25,19 @@ async def monitoring_stream(websocket: WebSocket):
     await websocket.accept()
     
     try:
-        from services.monitoring import RealtimeMonitoringService
-        monitoring = RealtimeMonitoringService()
-        await monitoring.register_websocket(websocket)
+        if not container.monitoring_service:
+            await websocket.close(code=1011, reason="Monitoring service ready")
+            return
+            
+        await container.monitoring_service.register_websocket(websocket)
         
         while True:
             await websocket.receive_text()  # Keep connection alive
     except Exception:
         pass
     finally:
-        # monitoring.unregister_websocket(websocket) # Should be implemented in service
-        pass
+        if container.monitoring_service:
+            await container.monitoring_service.unregister_websocket(websocket)
 
 @router.websocket("/collaboration/{session_id}")
 async def collaboration_websocket(
@@ -48,9 +50,11 @@ async def collaboration_websocket(
     await websocket.accept()
     
     try:
-        from services.collaboration import CollaborationService
-        collaboration = CollaborationService()
-        await collaboration.handle_websocket(websocket, session_id, user_id, username)
+        if not container.collaboration_service:
+            await websocket.close(code=1011, reason="Collaboration service not ready")
+            return
+            
+        await container.collaboration_service.handle_websocket(websocket, session_id, user_id, username)
     except Exception as e:
         logger.error(f"Collaboration WS error: {e}")
         await websocket.close()

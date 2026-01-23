@@ -108,12 +108,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 count = await cache_service.increment(key)
                 
                 # Set expiry on first request in window
-                if count == 1:
-                    await cache_service.redis.expire(key, window)
+                if count == 1 and cache_service.redis:
+                    try:
+                        await cache_service.redis.expire(key, window)
+                    except:
+                        pass # Ignore expiry errors
                     
                 remaining = max(0, limit - count)
                 reset = window_start + window
                 
+                # If Redis is disabled (returning 1 always), count will never exceed limit
                 return count <= limit, remaining, reset
             except Exception as e:
                 logger.error(f"Rate limit verification failed: {e}")

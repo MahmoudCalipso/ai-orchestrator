@@ -26,45 +26,49 @@ class FrameworkRegistry:
     
     def _initialize_from_db(self):
         """Load data from database or initialize with defaults"""
-        with SessionLocal() as db:
-            # 1. Load Frameworks
-            res_fw = db.execute(select(FrameworkMetadata)).scalars().all()
-            if not res_fw:
-                logger.info("Initializing Framework Registry with defaults...")
-                self._load_defaults()
-                self._save_to_db()
-            else:
-                for item in res_fw:
-                    lang = item.language
-                    fw = item.framework
-                    if lang not in self.frameworks: self.frameworks[lang] = {}
-                    self.frameworks[lang][fw] = {
+        try:
+            with SessionLocal() as db:
+                # 1. Load Frameworks
+                res_fw = db.execute(select(FrameworkMetadata)).scalars().all()
+                if not res_fw:
+                    logger.info("Initializing Framework Registry with defaults...")
+                    self._load_defaults()
+                    self._save_to_db()
+                else:
+                    for item in res_fw:
+                        lang = item.language
+                        fw = item.framework
+                        if lang not in self.frameworks: self.frameworks[lang] = {}
+                        self.frameworks[lang][fw] = {
+                            "logo_url": item.logo_url,
+                            "latest_version": item.latest_version,
+                            "lts_version": item.lts_version,
+                            "versions": item.versions,
+                            "architectures": item.architectures,
+                            "best_practices": item.best_practices,
+                            "required_packages": item.required_packages
+                        }
+
+                # 2. Load Languages
+                res_lang = db.execute(select(LanguageMetadata)).scalars().all()
+                for item in res_lang:
+                    self.languages[item.name] = {
                         "logo_url": item.logo_url,
-                        "latest_version": item.latest_version,
-                        "lts_version": item.lts_version,
-                        "versions": item.versions,
-                        "architectures": item.architectures,
-                        "best_practices": item.best_practices,
-                        "required_packages": item.required_packages
+                        "description": item.description,
+                        "is_compiled": item.is_compiled
                     }
 
-            # 2. Load Languages
-            res_lang = db.execute(select(LanguageMetadata)).scalars().all()
-            for item in res_lang:
-                self.languages[item.name] = {
-                    "logo_url": item.logo_url,
-                    "description": item.description,
-                    "is_compiled": item.is_compiled
-                }
-
-            # 3. Load Databases
-            res_db = db.execute(select(DatabaseMetadata)).scalars().all()
-            for item in res_db:
-                self.databases[item.name] = {
-                    "logo_url": item.logo_url,
-                    "db_type": item.db_type,
-                    "latest_version": item.latest_version
-                }
+                # 3. Load Databases
+                res_db = db.execute(select(DatabaseMetadata)).scalars().all()
+                for item in res_db:
+                    self.databases[item.name] = {
+                        "logo_url": item.logo_url,
+                        "db_type": item.db_type,
+                        "latest_version": item.latest_version
+                    }
+        except Exception as e:
+             logger.error(f"Database unavailable during registry initialization: {e}")
+             self._load_defaults()
 
     def _load_defaults(self):
         """Set default metadata for 2026 including logos and TS-native Angular"""
@@ -218,51 +222,54 @@ class FrameworkRegistry:
 
     def _save_to_db(self):
         """Save current metadata to database"""
-        with SessionLocal() as db:
-            # 1. Save Languages
-            for name, info in self.languages.items():
-                existing = db.execute(select(LanguageMetadata).where(LanguageMetadata.name == name)).scalar_one_or_none()
-                if existing:
-                    db.execute(update(LanguageMetadata).where(LanguageMetadata.name == name).values(
-                        logo_url=info.get("logo_url"), description=info.get("description")
-                    ))
-                else:
-                    db.execute(insert(LanguageMetadata).values(
-                        name=name, logo_url=info.get("logo_url"), description=info.get("description")
-                    ))
-
-            # 2. Save Databases
-            for name, info in self.databases.items():
-                existing = db.execute(select(DatabaseMetadata).where(DatabaseMetadata.name == name)).scalar_one_or_none()
-                if existing:
-                    db.execute(update(DatabaseMetadata).where(DatabaseMetadata.name == name).values(
-                        logo_url=info.get("logo_url"), db_type=info.get("db_type"), latest_version=info.get("latest_version")
-                    ))
-                else:
-                    db.execute(insert(DatabaseMetadata).values(
-                        name=name, logo_url=info.get("logo_url"), db_type=info.get("db_type"), latest_version=info.get("latest_version")
-                    ))
-
-            # 3. Save Frameworks
-            for lang, frameworks in self.frameworks.items():
-                for fw_name, info in frameworks.items():
-                    existing = db.execute(select(FrameworkMetadata).where(FrameworkMetadata.language == lang, FrameworkMetadata.framework == fw_name)).scalar_one_or_none()
-                    vals = {
-                        "logo_url": info.get("logo_url"),
-                        "latest_version": info.get("latest_version"),
-                        "lts_version": info.get("lts_version"),
-                        "versions": info.get("versions"),
-                        "architectures": info.get("architectures"),
-                        "best_practices": info.get("best_practices"),
-                        "required_packages": info.get("required_packages"),
-                        "last_updated": datetime.utcnow()
-                    }
+        try:
+            with SessionLocal() as db:
+                # 1. Save Languages
+                for name, info in self.languages.items():
+                    existing = db.execute(select(LanguageMetadata).where(LanguageMetadata.name == name)).scalar_one_or_none()
                     if existing:
-                        db.execute(update(FrameworkMetadata).where(FrameworkMetadata.language == lang, FrameworkMetadata.framework == fw_name).values(**vals))
+                        db.execute(update(LanguageMetadata).where(LanguageMetadata.name == name).values(
+                            logo_url=info.get("logo_url"), description=info.get("description")
+                        ))
                     else:
-                        db.execute(insert(FrameworkMetadata).values(language=lang, framework=fw_name, **vals))
-            db.commit()
-            logger.info("Saved all metadata (including logos) to database")
+                        db.execute(insert(LanguageMetadata).values(
+                            name=name, logo_url=info.get("logo_url"), description=info.get("description")
+                        ))
+
+                # 2. Save Databases
+                for name, info in self.databases.items():
+                    existing = db.execute(select(DatabaseMetadata).where(DatabaseMetadata.name == name)).scalar_one_or_none()
+                    if existing:
+                        db.execute(update(DatabaseMetadata).where(DatabaseMetadata.name == name).values(
+                            logo_url=info.get("logo_url"), db_type=info.get("db_type"), latest_version=info.get("latest_version")
+                        ))
+                    else:
+                        db.execute(insert(DatabaseMetadata).values(
+                            name=name, logo_url=info.get("logo_url"), db_type=info.get("db_type"), latest_version=info.get("latest_version")
+                        ))
+
+                # 3. Save Frameworks
+                for lang, frameworks in self.frameworks.items():
+                    for fw_name, info in frameworks.items():
+                        existing = db.execute(select(FrameworkMetadata).where(FrameworkMetadata.language == lang, FrameworkMetadata.framework == fw_name)).scalar_one_or_none()
+                        vals = {
+                            "logo_url": info.get("logo_url"),
+                            "latest_version": info.get("latest_version"),
+                            "lts_version": info.get("lts_version"),
+                            "versions": info.get("versions"),
+                            "architectures": info.get("architectures"),
+                            "best_practices": info.get("best_practices"),
+                            "required_packages": info.get("required_packages"),
+                            "last_updated": datetime.utcnow()
+                        }
+                        if existing:
+                            db.execute(update(FrameworkMetadata).where(FrameworkMetadata.language == lang, FrameworkMetadata.framework == fw_name).values(**vals))
+                        else:
+                            db.execute(insert(FrameworkMetadata).values(language=lang, framework=fw_name, **vals))
+                db.commit()
+                logger.info("Saved all metadata (including logos) to database")
+        except Exception as e:
+            logger.error(f"Failed to save registry to database: {e}")
     
     def get_framework_info(self, language: str, framework: str) -> Optional[Dict[str, Any]]:
         return self.frameworks.get(language.lower(), {}).get(framework.lower())

@@ -68,6 +68,36 @@ class GitRepoInit(BaseModel):
     """Request to initialize a Git repository"""
     path: str = Field(..., description="Directory path to initialize")
 
+class GitRemoteCreate(BaseModel):
+    """Request to create a remote repository"""
+    provider: str = Field(..., description="github or gitlab")
+    name: str = Field(..., description="Repository name")
+    description: str = ""
+    private: bool = True
+
+class GitBranchCreate(BaseModel):
+    """Request to create a branch"""
+    local_path: str
+    branch_name: str
+    base_branch: str = "main"
+
+class GitCommitRequest(BaseModel):
+    """Request to commit changes"""
+    local_path: str
+    message: str
+    branch: str = "main"
+
+class GitConflictResolve(BaseModel):
+    """Request to resolve a conflict via AI"""
+    local_path: str
+    file_path: str
+
+class GitMergeRequest(BaseModel):
+    """Request to merge branches"""
+    local_path: str
+    source_branch: str
+    target_branch: str = "main"
+
 # --- Workbench & Migration Schemas ---
 
 class WorkbenchCreateRequest(BaseModel):

@@ -40,4 +40,8 @@ class FrameworkMetadata(Base):
         unique_constraints = ["language", "framework"]
 
 # Create tables
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).error(f"Failed to create registry tables: {e}")

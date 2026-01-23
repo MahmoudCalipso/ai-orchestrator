@@ -30,6 +30,10 @@ class ServiceContainer:
         self.build_service = None
         self.runtime_service = None
         self.workflow_engine = None
+        self.monitoring_service = None
+        self.storage_manager = None
+        self.backup_manager = None
+        self.collaboration_service = None
         
         # Security
         self.auth_router = None
@@ -57,7 +61,7 @@ class ServiceContainer:
         self.terminal_service = terminal
         self.debugger_service = debugger
         
-    def initialize_project_services(self, project_manager, git_sync, ai_update, build, runtime, workflow):
+    def initialize_project_services(self, project_manager, git_sync, ai_update, build, runtime, workflow, monitoring, storage, backup, collaboration):
         """Initialize Project Management services"""
         self.project_manager = project_manager
         self.git_sync_service = git_sync
@@ -65,6 +69,10 @@ class ServiceContainer:
         self.build_service = build
         self.runtime_service = runtime
         self.workflow_engine = workflow
+        self.monitoring_service = monitoring
+        self.storage_manager = storage
+        self.backup_manager = backup
+        self.collaboration_service = collaboration
 
 # Global accessor
 container = ServiceContainer.get_instance()

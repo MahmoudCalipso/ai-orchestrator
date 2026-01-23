@@ -26,7 +26,8 @@ from platform_core.auth.schemas import (
     UserResponse,
     APIKeyResponse,
     APIKeyCreate,
-    ExternalAccountResponse
+    ExternalAccountResponse,
+    TenantResponse
 )
 from platform_core.auth.models import User, APIKey, ExternalAccount, PasswordResetToken
 from platform_core.auth.jwt_manager import JWTManager
@@ -36,7 +37,6 @@ from platform_core.auth.oauth_service import oauth_service
 from platform_core.auth.encryption import encryption_service
 from platform_core.auth.email_service import email_service
 from platform_core.tenancy.models import Tenant
-from platform_core.tenancy.schemas import TenantResponse
 import json
 
 logger = logging.getLogger(__name__)
