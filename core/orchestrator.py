@@ -182,20 +182,27 @@ class Orchestrator:
             # or continue with the legacy model-specific path if needed.
             # For this refactor, we transition to Swarm-first.
             
+            processing_time = time.time() - start_time
+            self.metrics["successful_requests"] += 1
+            self.metrics["total_processing_time"] += processing_time
+            
             return {
                 "request_id": request_id,
                 "status": "success",
                 "swarm_output": swarm_result,
-                "processing_time": time.time() - start_time
+                "processing_time": processing_time
             }
 
-            # LEGACY PATH (Disabled for Swarm transition)
+            # LEGACY PATH (Disabled for Swarm transition - unreachable code removed)
+            # The following code is commented out as it's unreachable after the return above
+            # If you need to re-enable the legacy path, remove the return statement above
+            
             # Create execution plan
-            plan = await self.planner.create_plan(
-                task_type=task_type,
-                model=model,
-                context=context
-            )
+            # plan = await self.planner.create_plan(
+            #     task_type=task_type,
+            #     model=model,
+            #     context=context
+            # )
             
             # Route to appropriate model and runtime
             routing_decision = await self.router.route(

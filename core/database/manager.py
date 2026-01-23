@@ -113,19 +113,21 @@ class UnifiedDatabaseManager:
             await self.qdrant.close()
         logger.info("✓ All databases disconnected")
 
-    # Helper for Postgres Session
-    async def get_pg_session(self) -> AsyncSession:
+    # Helper for Postgres Session (async context manager)
+    async def get_pg_session(self):
+        """Get a PostgreSQL session as an async context manager"""
         if not self.AsyncSessionLocal:
             raise RuntimeError("PostgreSQL not initialized")
-        async with self.AsyncSessionLocal() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-            finally:
-                await session.close()
+        
+        session = self.AsyncSessionLocal()
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 # Global Instance
 unified_db = UnifiedDatabaseManager()

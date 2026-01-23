@@ -17,7 +17,7 @@ import uvicorn
 # Core Imports
 from core.orchestrator import Orchestrator
 from core.container import container
-from services.middleware.rate_limit import RateLimitMiddleware
+from middleware.rate_limit import RateLimitMiddleware
 
 # Platform Components
 from services.git import GitCredentialManager, RepositoryManager
@@ -186,7 +186,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down AI Orchestrator...")
     await container.monitoring_service.stop()
-    await unified_db.shutdown()
+    await unified_db.close()
     await orchestrator.shutdown()
     logger.info("AI Orchestrator shut down successfully")
 

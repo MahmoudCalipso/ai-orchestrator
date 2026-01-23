@@ -5,7 +5,7 @@ High-performance caching layer for API responses and model data
 import json
 import logging
 from typing import Any, Optional
-import redis
+import redis.asyncio as redis
 import os
 
 logger = logging.getLogger(__name__)
@@ -18,22 +18,30 @@ class RedisCacheService:
         self.redis_host = os.getenv("REDIS_HOST", "localhost")
         self.redis_port = int(os.getenv("REDIS_PORT", 6379))
         self.redis_db = int(os.getenv("REDIS_DB_CACHE", 2))
+        self.redis = None
+        self._initialized = False
         
+    async def initialize(self):
+        """Initialize async Redis connection"""
+        if self._initialized:
+            return
+            
         try:
-            self.redis = redis.Redis(
-                host=self.redis_host,
-                port=self.redis_port,
-                db=self.redis_db,
+            self.redis = await redis.from_url(
+                f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}",
+                encoding="utf-8",
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5
             )
             # Test connection
-            self.redis.ping()
+            await self.redis.ping()
+            self._initialized = True
             logger.info(f"Redis cache connected: {self.redis_host}:{self.redis_port}/{self.redis_db}")
         except Exception as e:
             logger.warning(f"Redis connection failed: {e}. Cache will be disabled.")
             self.redis = None
+            self._initialized = False
     
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache"""
@@ -41,7 +49,7 @@ class RedisCacheService:
             return None
         
         try:
-            value = self.redis.get(key)
+            value = await self.redis.get(key)
             if value:
                 return json.loads(value)
             return None
@@ -56,7 +64,7 @@ class RedisCacheService:
         
         try:
             serialized = json.dumps(value)
-            self.redis.setex(key, ttl, serialized)
+            await self.redis.setex(key, ttl, serialized)
             return True
         except Exception as e:
             logger.error(f"Cache set error: {e}")
@@ -68,7 +76,7 @@ class RedisCacheService:
             return False
         
         try:
-            self.redis.delete(key)
+            await self.redis.delete(key)
             return True
         except Exception as e:
             logger.error(f"Cache delete error: {e}")
@@ -80,9 +88,9 @@ class RedisCacheService:
             return 0
         
         try:
-            keys = self.redis.keys(pattern)
+            keys = await self.redis.keys(pattern)
             if keys:
-                return self.redis.delete(*keys)
+                return await self.redis.delete(*keys)
             return 0
         except Exception as e:
             logger.error(f"Cache invalidate error: {e}")
@@ -94,14 +102,16 @@ class RedisCacheService:
             return {"status": "disabled"}
         
         try:
-            info = self.redis.info("stats")
+            info = await self.redis.info("stats")
+            memory_info = await self.redis.info("memory")
+            dbsize = await self.redis.dbsize()
             return {
                 "status": "connected",
-                "total_keys": self.redis.dbsize(),
+                "total_keys": dbsize,
                 "hits": info.get("keyspace_hits", 0),
                 "misses": info.get("keyspace_misses", 0),
                 "hit_rate": self._calculate_hit_rate(info),
-                "memory_used": self.redis.info("memory").get("used_memory_human", "N/A")
+                "memory_used": memory_info.get("used_memory_human", "N/A")
             }
         except Exception as e:
             logger.error(f"Cache stats error: {e}")
@@ -120,10 +130,17 @@ class RedisCacheService:
             return 1
         
         try:
-            return self.redis.incr(key)
+            return await self.redis.incr(key)
         except Exception as e:
             logger.error(f"Cache increment error: {e}")
             return 1
+    
+    async def close(self):
+        """Close Redis connection"""
+        if self.redis:
+            await self.redis.close()
+            self._initialized = False
+            logger.info("Redis cache connection closed")
 
 
 # Global cache instance

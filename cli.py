@@ -44,7 +44,7 @@ class OrchestratorCLI:
 
 
 @click.group()
-@click.option('--url', default='http://localhost:8080', help='Orchestrator URL')
+@click.option('--url', default='http://localhost:8000', help='Orchestrator URL')
 @click.option('--api-key', default=None, envvar='ORCHESTRATOR_API_KEY', help='API key (or set ORCHESTRATOR_API_KEY env var)')
 @click.pass_context
 def cli(ctx, url, api_key):
