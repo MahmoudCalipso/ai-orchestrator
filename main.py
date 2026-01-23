@@ -36,6 +36,7 @@ from services.workflow_engine import WorkflowEngine
 from services.monitoring import RealtimeMonitoringService
 from core.storage import StorageManager, BackupManager
 from services.collaboration import CollaborationService
+from core.database.manager import unified_db
 
 # Controllers
 from controllers.API.system_controller import router as system_router
@@ -68,6 +69,9 @@ async def lifespan(app: FastAPI):
     logger.info("Starting AI Orchestrator...")
     orchestrator = Orchestrator()
     await orchestrator.initialize()
+    
+    # Initialize Unified Database Stack
+    await unified_db.initialize()
     
     # Initialize Core Services (Shared with Orchestrator where relevant)
     git_credentials = orchestrator.git_credentials
@@ -137,6 +141,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down AI Orchestrator...")
     await container.monitoring_service.stop()
+    await unified_db.shutdown()
     await orchestrator.shutdown()
     logger.info("AI Orchestrator shut down successfully")
 

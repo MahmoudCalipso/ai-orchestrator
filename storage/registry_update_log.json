@@ -118,5 +118,203 @@
         }
       ]
     }
+  },
+  {
+    "timestamp": "2026-01-23T02:51:56.527550",
+    "updates": {
+      "typescript": {
+        "tsx": {
+          "old": "4.7.0",
+          "new": "4.21.0"
+        },
+        "@types/node": {
+          "old": "20.11.5",
+          "new": "25.0.10"
+        },
+        "eslint": {
+          "old": "8.56.0",
+          "new": "9.39.2"
+        },
+        "prettier": {
+          "old": "3.2.4",
+          "new": "3.8.1"
+        }
+      },
+      "csharp": {
+        "Serilog": {
+          "old": "4.3.1-dev-02395",
+          "new": "4.3.1-dev-02404"
+        },
+        "MediatR": {
+          "old": "12.2.0",
+          "new": "14.0.0"
+        },
+        "FluentValidation": {
+          "old": "11.9.0",
+          "new": "12.1.1"
+        }
+      },
+      "ruby": {
+        "rspec": {
+          "old": "3.12.0",
+          "new": "3.13.2"
+        },
+        "puma": {
+          "old": "6.4.2",
+          "new": "7.2.0"
+        },
+        "sidekiq": {
+          "old": "7.2.0",
+          "new": "8.1.0"
+        },
+        "devise": {
+          "old": "4.9.3",
+          "new": "4.9.4"
+        },
+        "pundit": {
+          "old": "2.3.1",
+          "new": "2.5.2"
+        }
+      },
+      "frameworks": [
+        {
+          "language": "python",
+          "package": "fastapi",
+          "latest_version": "0.128.0"
+        },
+        {
+          "language": "python",
+          "package": "django",
+          "latest_version": "6.0.1"
+        },
+        {
+          "language": "python",
+          "package": "flask",
+          "latest_version": "3.1.2"
+        },
+        {
+          "language": "javascript",
+          "package": "express",
+          "latest_version": "5.2.1"
+        },
+        {
+          "language": "typescript",
+          "package": "angular",
+          "latest_version": "21.1.1"
+        },
+        {
+          "language": "javascript",
+          "package": "react",
+          "latest_version": "19.2.3"
+        },
+        {
+          "language": "typescript",
+          "package": "core",
+          "latest_version": "11.1.12"
+        },
+        {
+          "language": "java",
+          "package": "spring_boot",
+          "latest_version": "3.5.3"
+        },
+        {
+          "language": "csharp",
+          "package": "aspnet_core",
+          "latest_version": "2.2.8"
+        },
+        {
+          "language": "rust",
+          "package": "actix",
+          "latest_version": "4.12.1"
+        },
+        {
+          "language": "go",
+          "package": "gin",
+          "latest_version": "1.11.0"
+        },
+        {
+          "language": "ruby",
+          "package": "rails",
+          "latest_version": "8.1.2"
+        },
+        {
+          "language": "php",
+          "package": "laravel",
+          "latest_version": "v12.48.1"
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-01-23T02:56:48.846944",
+    "updates": {
+      "frameworks": [
+        {
+          "language": "python",
+          "package": "fastapi",
+          "latest_version": "0.128.0"
+        },
+        {
+          "language": "python",
+          "package": "django",
+          "latest_version": "6.0.1"
+        },
+        {
+          "language": "python",
+          "package": "flask",
+          "latest_version": "3.1.2"
+        },
+        {
+          "language": "javascript",
+          "package": "express",
+          "latest_version": "5.2.1"
+        },
+        {
+          "language": "typescript",
+          "package": "angular",
+          "latest_version": "21.1.1"
+        },
+        {
+          "language": "javascript",
+          "package": "react",
+          "latest_version": "19.2.3"
+        },
+        {
+          "language": "typescript",
+          "package": "core",
+          "latest_version": "11.1.12"
+        },
+        {
+          "language": "java",
+          "package": "spring_boot",
+          "latest_version": "3.5.3"
+        },
+        {
+          "language": "csharp",
+          "package": "aspnet_core",
+          "latest_version": "2.2.8"
+        },
+        {
+          "language": "rust",
+          "package": "actix",
+          "latest_version": "4.12.1"
+        },
+        {
+          "language": "go",
+          "package": "gin",
+          "latest_version": "1.11.0"
+        },
+        {
+          "language": "ruby",
+          "package": "rails",
+          "latest_version": "8.1.2"
+        },
+        {
+          "language": "php",
+          "package": "laravel",
+          "latest_version": "v12.48.1"
+        }
+      ]
+    }
   }
 ]

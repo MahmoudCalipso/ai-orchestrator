@@ -28,10 +28,10 @@
     ],
     "packages": {
         "Newtonsoft.Json": "13.0.4",
-        "Serilog": "4.3.1-dev-02395",
+        "Serilog": "4.3.1-dev-02404",
         "AutoMapper": "16.0.0",
-        "MediatR": "12.2.0",
-        "FluentValidation": "11.9.0",
+        "MediatR": "14.0.0",
+        "FluentValidation": "12.1.1",
         "Dapper": "2.1.66",
         "NHibernate": "5.4.9",
         "Polly": "8.2.1",

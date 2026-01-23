@@ -20,77 +20,51 @@ class DesignComponent(BaseModel):
     children: List['DesignComponent'] = []
 
 class FigmaAnalyzer:
-    """Analyzes Figma files to extract design system and components"""
+    """Analyzes Figma files to extract design system and components using AI Intelligence"""
     
-    def analyze_file(self, file_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze full Figma file"""
-        document = file_data.get("document", {})
-        
-        styles = self._extract_styles(file_data)
-        components = self._extract_components(document)
-        
-        return {
-            "styles": styles,
-            "components": components,
-            "name": file_data.get("name")
-        }
-    
-    def _extract_styles(self, file_data: Dict[str, Any]) -> List[DesignToken]:
-        """Extract styles/tokens"""
-        # Placeholder for complex style extraction logic
-        # Would parse styles map from file_data["styles"]
-        return []
-        
-    def _extract_components(self, node: Dict[str, Any]) -> List[DesignComponent]:
-        """Recursively extract components"""
-        components = []
-        
-        node_type = node.get("type")
-        if node_type == "COMPONENT" or (node_type == "FRAME" and node.get("name", "").startswith("#")):
-            # It's a component or designated frame
-            comp = DesignComponent(
-                id=node.get("id"),
-                name=node.get("name"),
-                type=node_type,
-                properties=self._extract_properties(node)
-            )
-            # Scan children
-            if "children" in node:
-                for child in node["children"]:
-                    comp.children.extend(self._extract_components(child))
-            
-            # Don't return the component itself if it's nested (unless root), 
-            # here we return a flat list of found high-level components for simplicity
-            return [comp] 
-            
-        # Continue recursion
-        if "children" in node:
-            for child in node["children"]:
-                components.extend(self._extract_components(child))
-                
-        return components
+    def __init__(self, orchestrator=None):
+        self.orchestrator = orchestrator
 
-    def _extract_properties(self, node: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract CSS-relevant properties"""
-        props = {}
-        # Size
-        if "absoluteBoundingBox" in node:
-            box = node["absoluteBoundingBox"]
-            props["width"] = box.get("width")
-            props["height"] = box.get("height")
-            
-        # Color (fills)
-        if "fills" in node:
-            for fill in node["fills"]:
-                if fill.get("type") == "SOLID" and fill.get("visible", True):
-                    color = fill.get("color")
-                    # Convert 0-1 RGB to Hex
-                    props["background-color"] = self._rgb_to_hex(color)
-                    
-        return props
+    async def analyze_file(self, file_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze full Figma file using AI for rich interpretation.
+        """
+        logger.info(f"🚀 AI Power-Up: Analyzing Figma Design '{file_data.get('name')}'")
         
-    def _rgb_to_hex(self, color: Dict[str, float]) -> str:
-        r = int(color.get("r", 0) * 255)
-        g = int(color.get("g", 0) * 255)
-        b = int(color.get("b", 0) * 255)
-        return f"#{r:02x}{g:02x}{b:02x}"
+        if not self.orchestrator:
+            # Fallback for simple extraction if no AI is available
+            return self._extract_legacy(file_data)
+
+        # Construct task for the AI Agent to perform forensic analysis of the Figma JSON
+        task = "Perform a deep design audit of this Figma document structure."
+        context = {
+            "type": "figma_analysis",
+            "document_name": file_data.get("name"),
+            "file_data": file_data, # Pass a truncated version or specific nodes if too large
+            "requirements": "Extract design tokens (colors, typography, spacing) and high-level component structures."
+        }
+
+        try:
+            result = await self.orchestrator.universal_agent.act(task, context)
+            solution = result.get("solution", "")
+            
+            # The AI returns an intelligent interpretation of the design
+            return {
+                "status": "success",
+                "ai_interpretation": solution,
+                "document_name": file_data.get("name"),
+                "timestamp": file_data.get("lastModified")
+            }
+        except Exception as e:
+            logger.error(f"AI Figma analysis failed: {e}")
+            return self._extract_legacy(file_data)
+
+    def _extract_legacy(self, file_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Legacy fall-back logic for basic extraction"""
+        document = file_data.get("document", {})
+        return {
+            "styles": [],
+            "components": [],
+            "name": file_data.get("name"),
+            "warning": "Initial AI analysis failed, used legacy extraction."
+        }

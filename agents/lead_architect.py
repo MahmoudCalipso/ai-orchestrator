@@ -76,8 +76,13 @@ class LeadArchitectAgent(BaseAgent):
             target_arch = base_context.get("target_architecture", "Clean Architecture")
             
             from services.registry.framework_registry import framework_registry
-            # Simplified lookup
-            best_practices = framework_registry.get_best_practices("python", "fastapi") # Mocked for now
+            
+            # Dynamic lookup based on project stack
+            lang = base_context.get("language", "python")
+            fw = base_context.get("framework", "fastapi")
+            
+            logger.info(f"🚀 AI Power-Up: Fetching best practices for {lang}/{fw}")
+            best_practices = framework_registry.get_best_practices(lang, fw)
             
             if best_practices:
                 injected_context += "\nSTRICT BEST PRACTICES TO FOLLOW:\n- " + "\n- ".join(best_practices)

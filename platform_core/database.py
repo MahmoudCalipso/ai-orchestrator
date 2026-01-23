@@ -9,8 +9,9 @@ from sqlalchemy.orm import sessionmaker
 # Get database URL from environment
 # Default to SQLite for local development if not set
 # Get database URL from environment
-# Default to PostgreSQL if possible, otherwise SQLite for local dev
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_orchestrator")
+# DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
+# Default to PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:MA-120396@127.0.0.1:5432/ai_orchestrator")
 
 # For SQLite, we need to allow multithreading. For PostgreSQL, we add pooling.
 if DATABASE_URL.startswith("sqlite"):

@@ -20,13 +20,12 @@ async def analyze_figma_design(
     request: FigmaAnalyzeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Analyze Figma design for code generation."""
+    """Analyze Figma design for code generation using AI."""
     try:
-        # Import locally if not in container or just use logic
-        # Assuming FigmaAnalyzer is available
-        from services.tools.figma_analyzer import FigmaAnalyzer
-        analyzer = FigmaAnalyzer()
-        result = await analyzer.analyze(request.file_key, request.token)
+        from services.figma.analyzer import FigmaAnalyzer
+        # Use orchestrator from container for AI power
+        analyzer = FigmaAnalyzer(orchestrator=container.orchestrator)
+        result = await analyzer.analyze_file(request.file_data)
         return StandardResponse(status="success", result=result)
     except Exception as e:
         logger.error(f"Figma analysis failed: {e}")
@@ -37,11 +36,15 @@ async def generate_kubernetes_config(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate Kubernetes manifests."""
+    """Generate Kubernetes manifests with AI refinement."""
     try:
-        from services.tools.k8s_generator import KubernetesGenerator
-        generator = KubernetesGenerator()
-        result = await generator.generate(request.get("project_id"), request.get("config"))
+        from services.kubernetes.manifest_generator import KubernetesGenerator
+        generator = KubernetesGenerator(orchestrator=container.orchestrator)
+        result = await generator.generate_manifests(
+            request.get("app_name"), 
+            request.get("image"), 
+            request.get("config")
+        )
         return StandardResponse(status="success", result=result)
     except Exception as e:
         logger.error(f"K8s generation failed: {e}")
@@ -52,11 +55,11 @@ async def security_scan(
     request: SecurityScanRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Perform security scan."""
+    """Perform security scan with AI remediation."""
     try:
-        from services.tools.security_scanner import SecurityScanner
-        scanner = SecurityScanner()
-        result = await scanner.scan(request.target, request.scan_type)
+        from services.security.vulnerability_scanner import VulnerabilityScanner
+        scanner = VulnerabilityScanner(orchestrator=container.orchestrator)
+        result = await scanner.scan_code(request.project_path, request.language)
         return StandardResponse(status="success", result=result)
     except Exception as e:
         logger.error(f"Security scan failed: {e}")

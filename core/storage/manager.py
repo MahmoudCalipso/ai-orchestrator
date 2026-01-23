@@ -47,23 +47,16 @@ class StorageManager:
         compress: bool = False
     ) -> str:
         """
-        Store a project in local storage
-        
-        Args:
-            project_path: Path to the project to store
-            metadata: Project metadata (name, type, etc.)
-            compress: Whether to compress the project
-            
-        Returns:
-            Project ID
+        Store a project in local storage and metadata in MongoDB
         """
         import uuid
+        from core.database.manager import unified_db
         
         project_id = str(uuid.uuid4())
         project_dir = self.projects_path / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
         
-        # Add metadata
+        # Enrich metadata
         metadata["project_id"] = project_id
         metadata["created_at"] = datetime.utcnow().isoformat()
         metadata["status"] = "active"
@@ -74,20 +67,27 @@ class StorageManager:
         )
         metadata["size_bytes"] = total_size
         
-        # Save metadata
+        # 1. Save local metadata (Fallback/Original logic)
         with open(project_dir / "metadata.json", 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        # Copy or compress project
-        source_dir = project_dir / "source"
+        # 2. Save to MongoDB (Powerful Document Store)
+        try:
+            if unified_db.mongo_db is not None:
+                await unified_db.mongo_db.projects.insert_one(metadata.copy())
+                logger.info(f"✓ Project {project_id} metadata stored in MongoDB")
+        except Exception as e:
+            logger.error(f"Failed to store project metadata in MongoDB: {e}")
         
+        # 3. Copy or compress project files
+        source_dir = project_dir / "source"
         if compress:
-            # Compress project
             archive_path = project_dir / "source.tar.gz"
             await self._compress_directory(project_path, archive_path)
         else:
-            # Copy project
-            shutil.copytree(project_path, source_dir, dirs_exist_ok=True)
+            # Skip if source and dest are same
+            if os.path.abspath(project_path) != os.path.abspath(source_dir):
+                shutil.copytree(project_path, source_dir, dirs_exist_ok=True)
         
         return project_id
     
