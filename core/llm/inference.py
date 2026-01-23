@@ -16,7 +16,6 @@ class LLMInference:
     Optimized for FREE & OPEN SOURCE Models.
     Primary Provider: Ollama (Local/Self-hosted)
     """
-    
     def __init__(self, provider: str = "ollama", model: str = None, api_key: str = None):
         # ... existing config ...
         self.provider = "ollama"
@@ -24,8 +23,15 @@ class LLMInference:
         self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
         self.calt = CALTLogger()
         
+        # Batching Engine (2026 Polish)
+        self.batch_queue = asyncio.Queue()
+        self.batch_window = 0.05 # 50ms window to collect concurrent requests
+        self.max_batch_size = 5
+        asyncio.create_task(self._process_batches())
+        
         # Initialize client (Ollama uses OpenAI-compatible API)
         try:
+            from openai import OpenAI
             self.client = OpenAI(
                 base_url=f"{self.base_url}/v1",
                 api_key="ollama"  # placeholder
@@ -43,24 +49,59 @@ class LLMInference:
         system_prompt: str = None,
         model: str = None
     ) -> str:
-        """Generate response with CALT tracking"""
-        start_time = time.time()
-        target_model = model or self.model
+        """Generate response with Dynamic Batching (if applicable) and CALT tracking"""
+        # If concurrency is low, we might still benefit from batching via the queue
+        future = asyncio.get_event_loop().create_future()
+        await self.batch_queue.put((prompt, max_tokens, temperature, system_prompt, model or self.model, future))
+        return await future
+
+    async def _process_batches(self):
+        """Background worker to process LLM requests in batches"""
+        while True:
+            batch = []
+            try:
+                # Wait for at least one item
+                batch.append(await self.batch_queue.get())
+                
+                # Try to collect more until window or max_size
+                start_time = time.time()
+                while len(batch) < self.max_batch_size and (time.time() - start_time) < self.batch_window:
+                    try:
+                        batch.append(self.batch_queue.get_nowait())
+                    except asyncio.QueueEmpty:
+                        await asyncio.sleep(0.01)
+                
+                # Process the batch
+                await self._execute_batch(batch)
+                
+            except Exception as e:
+                logger.error(f"Batch processing error: {e}")
+                await asyncio.sleep(1)
+
+    async def _execute_batch(self, batch: List[tuple]):
+        """Execute a batch of requests (simulated or via supporting provider)"""
+        # Note: Standard OpenAI-compat APIs don't support true batching in one call but 
+        # we can process them concurrently to the endpoint or use a multi-prompt endpoint if available.
+        tasks = []
+        for prompt, max_t, temp, system, model, future in batch:
+            tasks.append(self._single_generate(prompt, max_t, temp, system, model, future))
         
+        await asyncio.gather(*tasks)
+
+    async def _single_generate(self, prompt, max_tokens, temperature, system_prompt, model, future):
+        start_time = time.time()
         try:
-            # ... execution ...
-            result = await self._execute_generate(prompt, max_tokens, temperature, system_prompt, target_model)
+            result = await self._execute_generate(prompt, max_tokens, temperature, system_prompt, model)
             
             # CALT Tracking
             duration = time.time() - start_time
-            tokens_in = len(prompt.split()) # Rough estimation
+            tokens_in = len(prompt.split())
             tokens_out = len(result.split())
-            self.calt.log_operation("LLM_GENERATE", duration, tokens_in, tokens_out, {"model": target_model})
+            self.calt.log_operation("LLM_GENERATE_BATCH", duration, tokens_in, tokens_out, {"model": model})
             
-            return result
+            future.set_result(result)
         except Exception as e:
-            logger.error(f"Generate error: {e}")
-            return "Error during generation"
+            future.set_exception(e)
 
     async def _execute_generate(self, prompt, max_tokens, temp, system, model):
         # Actual implementation moved here to keep generate() clean for logging

@@ -48,6 +48,9 @@ class ServiceContainer:
         self.knowledge_graph = None
         self.quantum_vault = None
         
+        # Strategic 20/20 Refinements
+        self.mcp_bridge = None
+        
         # Security
         self.auth_router = None
         
@@ -102,6 +105,10 @@ class ServiceContainer:
         """Initialize Hyper-Intelligence Final 2026 platform services"""
         self.knowledge_graph = knowledge_graph
         self.quantum_vault = quantum_vault
+
+    def initialize_strategic_services(self, mcp_bridge):
+        """Initialize Strategic 20/20 Optimization services"""
+        self.mcp_bridge = mcp_bridge
 
 # Global accessor
 container = ServiceContainer.get_instance()

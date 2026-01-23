@@ -49,9 +49,10 @@ class Orchestrator:
         self.security = SecurityManager()
         
         # LLM Engine (Default to free local Ollama)
+        self.edge_mode = os.getenv("EDGE_MODE", "auto")
         self.llm = LLMInference(
             provider=os.getenv("LLM_PROVIDER", "ollama"),
-            model=os.getenv("LLM_MODEL", "qwen2.5-coder:7b")
+            model=self._detect_optimal_model()
         )
         
         # UNIVERSAL AI AGENT (Main Agent)
@@ -89,6 +90,15 @@ class Orchestrator:
             "total_tokens": 0,
             "total_processing_time": 0.0
         }
+        
+    def _detect_optimal_model(self) -> str:
+        """🧠 Strategic: Detect model to use based on EDGE_MODE and hardware"""
+        if self.edge_mode == "force-edge":
+            logger.info("⚡ EDGE MODE: Forcing ultra-light model for local execution")
+            return "qwen2.5-coder:0.5b"
+        
+        # Default production model
+        return os.getenv("LLM_MODEL", "qwen2.5-coder:7b")
         
     async def initialize(self):
         """Initialize the orchestrator"""

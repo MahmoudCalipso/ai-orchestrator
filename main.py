@@ -47,6 +47,9 @@ from services.security.red_team_ai import RedTeamAI
 from core.messaging.bus import MessageBus
 from services.monitoring.calt_service import CALTLogger
 
+# Strategic 20/20 Refinements
+from services.mcp.bridge import MCPBridge
+
 # Hyper-Intelligence 2026 Final Imports
 from core.memory.knowledge_graph import KnowledgeGraphService
 from services.security.quantum_vault import QuantumVaultService
@@ -159,6 +162,11 @@ async def lifespan(app: FastAPI):
     
     container.initialize_hyper_intelligence_services(knowledge_graph, quantum_vault)
     logger.info("Hyper-Intelligence Final 2026 services (KG, PQC) initialized and registered")
+    
+    # 6. Initialize Strategic 20/20 Optimization Services
+    mcp_bridge = MCPBridge(orchestrator)
+    container.initialize_strategic_services(mcp_bridge)
+    logger.info("Strategic 20/20 services (MCP Bridge) initialized and registered")
     
     # Auth router is now handled via Controller registration below
     container.auth_router = auth_controller
