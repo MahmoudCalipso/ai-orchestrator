@@ -60,6 +60,19 @@ The system leverages local **Ollama** models for maximum privacy and zero cost.
 
 ---
 
+---
+
+## ⚡ WebSocket Reference
+Real-time streams are served under the `/ws` prefix.
+
+| Endpoint | Protocol | Purpose |
+| :--- | :--- | :--- |
+| `/ws/ide/terminal/{sid}` | `WS` | Real-time shell access. |
+| `/ws/monitoring/stream` | `WS` | System metrics live feed. |
+| `/ws/collaboration/{sid}` | `WS` | Multi-user sync stream. |
+
+---
+
 ## 📂 Storage & Git
 - **StorageManager**: Handles projects >1GB with local persistence and MongoDB metadata.
 - **GitCredentialManager**: Securely stores tokens for GitHub, GitLab, and Bitbucket.

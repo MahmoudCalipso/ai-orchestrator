@@ -146,17 +146,55 @@ async def lifespan(app: FastAPI):
     logger.info("AI Orchestrator shut down successfully")
 
 
-# Create FastAPI app
+# Premium Documentation Metadata
+API_DESCRIPTION = """
+# 🚀 AI Orchestrator Control Plane
+### The Ultimate AI Agent OS for Production-Ready Scalability
+
+Welcome to the interactive nerve center of the **AI Orchestrator**. This platform provides the unified API and WebSocket gateway for high-performance AI agent swarms, project lifecycle automation, and real-time developer collaboration.
+
+---
+
+## ⚡ WebSocket Channels (Real-time Flow)
+While standard REST endpoints are documented below, the platform also exposes a high-performance **WebSocket Layer** for real-time interaction:
+
+| Protocol | Path | Usage |
+| :--- | :--- | :--- |
+| `WS` | `/ws/ide/terminal/{sid}` | **Cloud Shell**: Low-latency terminal access to sandboxed environments. |
+| `WS` | `/ws/monitoring/stream` | **Observability**: Live telemetry from running AI agents and system resources. |
+| `WS` | `/ws/collaboration/{sid}` | **Shared Context**: Real-time cursor syncing and multi-agent peer reviews. |
+
+---
+
+## 🔐 Design Tools & Team Security
+- **RBAC**: Integrated Role-Based Access Control ensures secure design handoffs.
+- **Swagger Integration**: Use the interactive console below to test AI generates and Figma interpretations directly.
+- **Git Sync**: Automatic commits and pushes linked to every AI action.
+"""
+
+# Create FastAPI app with premium documentation settings
 app = FastAPI(
     title="🚀 AI Orchestrator API",
-    description="""
-# Advanced AI Model Orchestration System
-Modular Controller-based Architecture
-    """,
-    version="2026.2.0-MODULAR",
+    description=API_DESCRIPTION,
+    version="2026.2.0-PREMIUM",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url=None,  # Disabled ReDoc as requested
+    swagger_ui_parameters={
+        "syntaxHighlight.theme": "monokai",
+        "persistAuthorization": True,
+        "tryItOutEnabled": True,
+        "filter": True,
+    },
+    contact={
+        "name": "Mahmoud Calipso",
+        "url": "https://github.com/MahmoudCalipso",
+        "email": "support@ia-orch.example.com",
+    },
+    license_info={
+        "name": "Proprietary / Enterprise",
+        "url": "https://ia-orch.example.com/license",
+    },
 )
 
 # Add CORS middleware
@@ -239,8 +277,8 @@ app.include_router(tools_router)
 # WebSocket Controller
 # Original: /api/ide/terminal..., /api/monitoring/stream...
 # Controller: /ide/terminal..., /monitoring/stream
-# So prefix="/api"
-app.include_router(ws_router, prefix="/api")
+# Updated to use /ws prefix as requested
+app.include_router(ws_router, prefix="/ws")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
