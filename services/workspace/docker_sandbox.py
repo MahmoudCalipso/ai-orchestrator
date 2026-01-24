@@ -156,7 +156,8 @@ class DockerSandboxService:
             "go": "golang:1.22-alpine",
             "rust": "rust:1.75-slim",
             "java": "eclipse-temurin:21-alpine",
-            "dotnet": "mcr.microsoft.com/dotnet/sdk:8.0"
+            "dotnet": "mcr.microsoft.com/dotnet/sdk:8.0",
+            "android": "budtmo/docker-android-x86-13.0"
         }
         return mapping.get(stack, "alpine:latest")
 
