@@ -2,11 +2,11 @@
 Storage Controller
 Handles project storage, archiving, cleanup, and backups.
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from schemas.api_spec import StandardResponse
+from dto.common.base_response import BaseResponse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,12 @@ async def get_storage_stats(api_key: str = Depends(verify_api_key)):
         if not container.storage_manager:
             raise HTTPException(status_code=503, detail="Storage service not ready")
         stats = await container.storage_manager.get_storage_stats()
-        return {"status": "success", "stats": stats}
+        return BaseResponse(
+            status="success",
+            code="STORAGE_STATS_RETRIEVED",
+            message="Storage statistics retrieved",
+            data=stats
+        )
     except Exception as e:
         logger.error(f"Failed to get storage stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -45,16 +50,20 @@ async def list_stored_projects(
             page=page,
             page_size=page_size
         )
-        return {
-            "status": "success",
-            "projects": result["projects"],
-            "pagination": {
-                "page": result["page"],
-                "page_size": result["page_size"],
-                "total": result["total"],
-                "total_pages": result["total_pages"]
+        return BaseResponse(
+            status="success",
+            code="STORED_PROJECTS_RETRIEVED",
+            message=f"Retrieved {len(result['projects'])} projects from storage",
+            data=result["projects"],
+            meta={
+                "pagination": {
+                    "page": result["page"],
+                    "page_size": result["page_size"],
+                    "total": result["total"],
+                    "total_pages": result["total_pages"]
+                }
             }
-        }
+        )
     except Exception as e:
         logger.error(f"Failed to list projects: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -76,10 +85,11 @@ async def get_stored_project(
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
         
-        return {
-            "status": "success",
-            "project": project
-        }
+        return BaseResponse(
+            status="success",
+            code="STORED_PROJECT_RETRIEVED",
+            data=project
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -101,11 +111,12 @@ async def delete_stored_project(
         if not success:
             raise HTTPException(status_code=404, detail="Project not found")
         
-        return {
-            "status": "success",
-            "message": f"Project {'soft' if soft else 'hard'} deleted",
-            "project_id": project_id
-        }
+        return BaseResponse(
+            status="success",
+            code="PROJECT_DELETED",
+            message=f"Project {'soft' if soft else 'hard'} deleted",
+            data={"project_id": project_id}
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -126,11 +137,12 @@ async def archive_stored_project(
         if not success:
             raise HTTPException(status_code=404, detail="Project not found")
         
-        return {
-            "status": "success",
-            "message": "Project archived",
-            "project_id": project_id
-        }
+        return BaseResponse(
+            status="success",
+            code="PROJECT_ARCHIVED",
+            message="Project archived",
+            data={"project_id": project_id}
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -153,13 +165,16 @@ async def cleanup_storage(api_key: str = Depends(verify_api_key)):
         # Remove old backups
         removed_backups = await container.backup_manager.cleanup_old_backups(days=30)
         
-        return {
-            "status": "success",
-            "archived_projects": archived_count,
-            "freed_bytes": freed_bytes,
-            "freed_gb": freed_bytes / (1024**3),
-            "removed_backups": removed_backups
-        }
+        return BaseResponse(
+            status="success",
+            code="STORAGE_CLEANUP_SUCCESS",
+            data={
+                "archived_projects": archived_count,
+                "freed_bytes": freed_bytes,
+                "freed_gb": freed_bytes / (1024**3),
+                "removed_backups": removed_backups
+            }
+        )
     except Exception as e:
         logger.error(f"Storage cleanup failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -172,7 +187,12 @@ async def backup_stored_project(project_id: str, api_key: str = Depends(verify_a
             raise HTTPException(status_code=503, detail="Backup service not ready")
         result = await container.backup_manager.create_backup(project_id)
         if result:
-            return {"status": "success", "message": f"Backup created: {result}"}
+            return BaseResponse(
+                status="success",
+                code="BACKUP_CREATED",
+                message=f"Backup created: {result}",
+                data={"backup_path": result}
+            )
         else:
             raise HTTPException(status_code=500, detail="Failed to create backup")
     except Exception as e:

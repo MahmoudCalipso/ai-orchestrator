@@ -14,29 +14,17 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from platform_core.auth.schemas import (
-    PasswordChange,
-    ForgotPasswordRequest,
-    PasswordReset,
-    TokenResponse,
-    UserRegister,
-    UserLogin,
-    TokenRefresh,
-    MeResponse,
-    UserResponse,
-    APIKeyResponse,
-    APIKeyCreate,
-    ExternalAccountResponse,
-    TenantResponse
-)
-from platform_core.auth.models import User, APIKey, ExternalAccount, PasswordResetToken
-from platform_core.auth.jwt_manager import JWTManager
-from platform_core.auth.dependencies import get_db, get_current_active_user, get_current_tenant
-from platform_core.auth.rbac import Role, RBACManager
-from platform_core.auth.oauth_service import oauth_service
-from platform_core.auth.encryption import encryption_service
-from platform_core.auth.email_service import email_service
 from platform_core.tenancy.models import Tenant
+from dto.common.base_response import BaseResponse
+from dto.v1.requests.auth import (
+    UserRegisterRequest, UserLoginRequest, TokenRefreshRequest,
+    APIKeyCreateRequest, PasswordChangeRequest, ForgotPasswordRequest,
+    PasswordResetRequest, OAuthConnectRequest
+)
+from dto.v1.responses.auth import (
+    TokenResponseDTO, UserResponseDTO, TenantResponseDTO,
+    APIKeyResponseDTO, ExternalAccountResponseDTO, MeResponseDTO
+)
 import json
 
 logger = logging.getLogger(__name__)
@@ -45,9 +33,9 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 jwt_manager = JWTManager()
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=BaseResponse[TokenResponseDTO], status_code=status.HTTP_201_CREATED)
 async def register(
-    user_data: UserRegister,
+    user_data: UserRegisterRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -100,16 +88,21 @@ async def register(
     
     refresh_token = jwt_manager.create_refresh_token(user.id, tenant_id)
     
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=jwt_manager.access_token_expire * 60
+    return BaseResponse(
+        status="success",
+        code="USER_REGISTERED",
+        message="User registered successfully",
+        data=TokenResponseDTO(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=jwt_manager.access_token_expire * 60
+        )
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=BaseResponse[TokenResponseDTO])
 async def login(
-    credentials: UserLogin,
+    credentials: UserLoginRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -145,14 +138,19 @@ async def login(
     
     refresh_token = jwt_manager.create_refresh_token(user.id, user.tenant_id)
     
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=jwt_manager.access_token_expire * 60
+    return BaseResponse(
+        status="success",
+        code="LOGIN_SUCCESS",
+        message="Login successful",
+        data=TokenResponseDTO(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=jwt_manager.access_token_expire * 60
+        )
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=BaseResponse[TokenResponseDTO])
 async def refresh_token(
     token_data: TokenRefresh,
     db: Session = Depends(get_db)
@@ -182,10 +180,15 @@ async def refresh_token(
             "tenant_id": tenant_id
         })
         
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=token_data.refresh_token,
-            expires_in=jwt_manager.access_token_expire * 60
+        return BaseResponse(
+            status="success",
+            code="TOKEN_REFRESHED",
+            message="Token refreshed successfully",
+            data=TokenResponseDTO(
+                access_token=access_token,
+                refresh_token=token_data.refresh_token,
+                expires_in=jwt_manager.access_token_expire * 60
+            )
         )
         
     except Exception as e:
@@ -195,7 +198,7 @@ async def refresh_token(
         )
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=BaseResponse)
 async def logout(
     current_user: User = Depends(get_current_active_user)
 ):
@@ -203,10 +206,10 @@ async def logout(
     Logout current user
     """
     jwt_manager.revoke_token(current_user.id)
-    return {"message": "Successfully logged out"}
+    return BaseResponse(status="success", code="LOGOUT_SUCCESS", message="Successfully logged out")
 
 
-@router.get("/me", response_model=MeResponse)
+@router.get("/me", response_model=BaseResponse[MeResponseDTO])
 async def get_me(
     current_user: User = Depends(get_current_active_user),
     tenant: Tenant = Depends(get_current_tenant),
@@ -222,22 +225,15 @@ async def get_me(
     # Get external accounts
     external_accounts = db.query(ExternalAccount).filter(ExternalAccount.user_id == current_user.id).all()
     
-    return MeResponse(
-        user=UserResponse.from_attributes(current_user),
-        tenant=TenantResponse(
-            id=tenant.id,
-            name=tenant.name,
-            plan=tenant.plan,
-            storage_quota_gb=tenant.storage_quota_gb,
-            storage_used_gb=tenant.storage_used_gb,
-            storage_usage_percent=tenant.storage_usage_percent,
-            workbench_quota=tenant.workbench_quota,
-            api_rate_limit=tenant.api_rate_limit,
-            is_active=tenant.is_active,
-            created_at=tenant.created_at
-        ),
-        permissions=permissions,
-        external_accounts=[ExternalAccountResponse.from_attributes(acc) for acc in external_accounts]
+    return BaseResponse(
+        status="success",
+        code="ME_RETRIEVED",
+        data=MeResponseDTO(
+            user=UserResponseDTO.model_validate(current_user),
+            tenant=TenantResponseDTO.model_validate(tenant),
+            permissions=permissions,
+            external_accounts=[ExternalAccountResponseDTO.model_validate(acc) for acc in external_accounts]
+        )
     )
 
 
@@ -250,7 +246,11 @@ async def connect_external_account(
     state = secrets.token_urlsafe(32)
     redirect_uri = f"{os.getenv('FRONTEND_URL')}/auth/callback/{provider}"
     auth_url = oauth_service.get_auth_url(provider, redirect_uri, state)
-    return {"auth_url": auth_url, "state": state}
+    return BaseResponse(
+        status="success",
+        code="OAUTH_CONNECT_URL",
+        data={"auth_url": auth_url, "state": state}
+    )
 
 
 @router.get("/external/callback/{provider}")
@@ -320,16 +320,20 @@ async def external_callback(
             db.add(current_user)
             
         db.commit()
-        return {"status": "success", "message": f"Connected to {provider} successfully"}
+        return BaseResponse(
+            status="success",
+            code="OAUTH_ACCOUNT_LINKED",
+            message=f"Connected to {provider} successfully"
+        )
         
     except Exception as e:
         logger.error(f"OAuth callback failed for {provider}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/api-keys", response_model=BaseResponse[APIKeyResponseDTO], status_code=status.HTTP_201_CREATED)
 async def create_api_key(
-    key_data: APIKeyCreate,
+    key_data: APIKeyCreateRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -359,44 +363,47 @@ async def create_api_key(
     db.commit()
     db.refresh(api_key_record)
     
-    return APIKeyResponse(
-        id=api_key_record.id,
-        name=api_key_record.name,
-        key=api_key,
-        created_at=api_key_record.created_at,
-        expires_at=api_key_record.expires_at,
-        last_used=None,
-        usage_count=0,
-        is_active=True
+    return BaseResponse(
+        status="success",
+        code="API_KEY_CREATED",
+        message=f"API key '{api_key_record.name}' created",
+        data=APIKeyResponseDTO.model_validate({
+            "id": api_key_record.id,
+            "name": api_key_record.name,
+            "key": api_key,
+            "created_at": api_key_record.created_at,
+            "expires_at": api_key_record.expires_at,
+            "usage_count": 0,
+            "is_active": True
+        })
     )
 
 
-@router.get("/api-keys", response_model=List[APIKeyResponse])
+@router.get("/api-keys", response_model=BaseResponse[List[APIKeyResponseDTO]])
 async def list_api_keys(
+    search: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    List all API keys for current user
+    List all API keys for current user with search
     """
-    api_keys = db.query(APIKey).filter(APIKey.user_id == current_user.id).all()
+    query = db.query(APIKey).filter(APIKey.user_id == current_user.id)
+    if search:
+        query = query.filter(APIKey.name.ilike(f"%{search}%"))
     
-    return [
-        APIKeyResponse(
-            id=key.id,
-            name=key.name,
-            key=None,
-            created_at=key.created_at,
-            expires_at=key.expires_at,
-            last_used=key.last_used,
-            usage_count=key.usage_count,
-            is_active=key.is_active
-        )
-        for key in api_keys
-    ]
+    api_keys = query.all()
+    
+    return BaseResponse(
+        status="success",
+        code="API_KEYS_RETRIEVED",
+        message=f"Retrieved {len(api_keys)} API keys",
+        data=[APIKeyResponseDTO.model_validate(key) for key in api_keys],
+        meta={"search": search}
+    )
 
 
-@router.delete("/api-keys/{key_id}")
+@router.delete("/api-keys/{key_id}", response_model=BaseResponse[Dict[str, str]])
 async def revoke_api_key(
     key_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -419,10 +426,15 @@ async def revoke_api_key(
     api_key.is_active = False
     db.commit()
     
-    return {"message": "API key revoked successfully"}
+    return BaseResponse(
+        status="success",
+        code="API_KEY_REVOKED",
+        message="API key revoked successfully",
+        data={"key_id": key_id}
+    )
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=BaseResponse)
 async def change_password(
     password_data: PasswordChange,
     current_user: User = Depends(get_current_active_user),
@@ -442,10 +454,14 @@ async def change_password(
     current_user.hashed_password = jwt_manager.hash_password(password_data.new_password)
     db.commit()
     
-    return {"message": "Password changed successfully. Please login again."}
+    return BaseResponse(
+        status="success",
+        code="PASSWORD_CHANGED",
+        message="Password changed successfully. Please login again."
+    )
 
 
-@router.post("/accept-credentials")
+@router.post("/accept-credentials", response_model=BaseResponse)
 async def accept_credentials(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -456,10 +472,10 @@ async def accept_credentials(
     current_user.credentials_accepted = True
     current_user.updated_at = datetime.utcnow()
     db.commit()
-    return {"message": "Credentials accepted successfully"}
+    return BaseResponse(status="success", code="CREDENTIALS_ACCEPTED", message="Credentials accepted successfully")
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", response_model=BaseResponse)
 async def forgot_password(
     data: ForgotPasswordRequest,
     db: Session = Depends(get_db)
@@ -469,7 +485,11 @@ async def forgot_password(
     """
     user = db.query(User).filter(User.email == data.email).first()
     if not user:
-        return {"message": "If this email is registered, you will receive a reset link shortly."}
+        return BaseResponse(
+            status="success",
+            code="FORGOT_PASSWORD_SENT",
+            message="If this email is registered, you will receive a reset link shortly."
+        )
     
     # Generate token
     token = secrets.token_urlsafe(32)
@@ -487,14 +507,18 @@ async def forgot_password(
     db.commit()
     
     # Send email
-    email_service.send_password_reset_email(user.email, token)
+    await email_service.send_password_reset_email(user.email, token)
     
-    return {"message": "If this email is registered, you will receive a reset link shortly."}
+    return BaseResponse(
+        status="success",
+        code="FORGOT_PASSWORD_SENT",
+        message="If this email is registered, you will receive a reset link shortly."
+    )
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", response_model=BaseResponse)
 async def reset_password(
-    data: PasswordReset,
+    data: PasswordResetRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -526,4 +550,8 @@ async def reset_password(
     # Revoke all tokens
     jwt_manager.revoke_token(user.id)
     
-    return {"message": "Password reset successfully. Please login with your new password."}
+    return BaseResponse(
+        status="success",
+        code="PASSWORD_RESET_SUCCESS",
+        message="Password reset successfully. Please login with your new password."
+    )

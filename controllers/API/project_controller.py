@@ -7,11 +7,14 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key, SecurityManager, Role
 from core.container import container
-from schemas.api_spec import StandardResponse
 import logging
+import os
 from sqlalchemy.orm import Session
 from platform_core.auth.dependencies import get_db
 from platform_core.auth.models import User
+from dto.common.base_response import BaseResponse
+from dto.v1.responses.project import ProjectResponseDTO, ProjectListResponseDTO
+from dto.v1.requests.generation import GenerationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +47,21 @@ def check_access(user_info: dict, target_user_id: str, db: Session):
     
     return False
 
-@router.get("/user/{user_id}/projects")
+@router.get("/user/{user_id}/projects", response_model=BaseResponse[List[ProjectResponseDTO]])
 async def list_user_projects(
     user_id: str,
+    search: Optional[str] = None,
     status: Optional[str] = None,
+    name: Optional[str] = None,
+    framework: Optional[str] = None,
+    language: Optional[str] = None,
+    solution_id: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     api_key: str = Depends(verify_api_key),
     db: Session = Depends(get_db)
 ):
-    """List all projects belonging to a user (RBAC Enforced)"""
+    """List all projects belonging to a user (RBAC Enforced) with search and filtration"""
     sm = SecurityManager()
     user_info = sm.get_user_info(api_key, db)
     
@@ -65,18 +73,34 @@ async def list_user_projects(
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
-    result = container.project_manager.get_user_projects(user_id, status, page, page_size)
-    return {
-        "projects": result["projects"],
-        "pagination": {
-            "page": result["page"],
-            "page_size": result["page_size"],
-            "total": result["total"],
-            "total_pages": result["total_pages"]
-        }
+    filters = {
+        "name": search or name,
+        "framework": framework,
+        "language": language,
+        "solution_id": solution_id
     }
+    
+    result = container.project_manager.get_user_projects(user_id, status, page, page_size, filters)
+    
+    projects = [ProjectResponseDTO.model_validate(p) for p in result["projects"]]
+    
+    return BaseResponse(
+        status="success",
+        code="PROJECTS_RETRIEVED",
+        message=f"Retrieved {len(projects)} projects for user {user_id}",
+        data=projects,
+        meta={
+            "pagination": {
+                "page": result["page"],
+                "page_size": result["page_size"],
+                "total": result["total"],
+                "total_pages": result["total_pages"]
+            },
+            "filters": filters
+        }
+    )
 
-@router.get("/user/{user_id}/projects/{project_id}")
+@router.get("/user/{user_id}/projects/{project_id}", response_model=BaseResponse[ProjectResponseDTO])
 async def get_user_project(
     project_id: str, 
     user_id: str, 
@@ -96,7 +120,13 @@ async def get_user_project(
     project = container.project_manager.get_project(project_id)
     if not project or project["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project
+        
+    return BaseResponse(
+        status="success",
+        code="PROJECT_DETAILS_RETRIEVED",
+        message="Project details retrieved successfully",
+        data=ProjectResponseDTO.model_validate(project)
+    )
 
 @router.post("/user/{user_id}/projects")
 async def create_user_project(
@@ -114,13 +144,20 @@ async def create_user_project(
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
-    return container.project_manager.create_project(
+    project = container.project_manager.create_project(
         user_id=user_id,
         project_name=request.get("project_name", "New Project"),
         description=request.get("description", ""),
         git_repo_url=request.get("git_repo_url", ""),
         language=request.get("language", ""),
         framework=request.get("framework", "")
+    )
+    
+    return BaseResponse(
+        status="success",
+        code="PROJECT_CREATED",
+        message="Project created successfully",
+        data=project
     )
 
 @router.delete("/user/{user_id}/projects/{project_id}")
@@ -148,7 +185,13 @@ async def delete_user_project(
     success = container.project_manager.delete_project(project_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Project not found or unauthorized")
-    return {"status": "success", "message": "Project deleted"}
+        
+    return BaseResponse(
+        status="success",
+        code="PROJECT_DELETED",
+        message="Project deleted successfully",
+        data={"project_id": project_id}
+    )
 
 @router.post("/projects/{project_id}/open")
 async def open_user_project(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
@@ -183,11 +226,14 @@ async def open_user_project(project_id: str, request: Dict[str, Any], api_key: s
     # Create IDE workspace
     workspace = await container.editor_service.create_workspace(project["project_name"], local_path)
     
-    return {
-        "status": "success",
-        "workspace_id": workspace.id,
-        "project": project
-    }
+    return BaseResponse(
+        status="success",
+        code="PROJECT_OPENED",
+        data={
+            "workspace_id": workspace.id,
+            "project": project
+        }
+    )
 
 @router.post("/projects/{project_id}/sync")
 async def sync_user_project(project_id: str, api_key: str = Depends(verify_api_key)):
@@ -203,7 +249,11 @@ async def sync_user_project(project_id: str, api_key: str = Depends(verify_api_k
     if not res["success"]:
         raise HTTPException(status_code=500, detail=res["error"])
         
-    return {"status": "success", "commit": res["commit_hash"]}
+    return BaseResponse(
+        status="success",
+        code="PROJECT_VERSION_CHECKED",
+        data={"commit": res["commit_hash"]}
+    )
 
 @router.post("/projects/{project_id}/ai-update")
 async def ai_update_project(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
@@ -249,7 +299,7 @@ async def ai_inline_update(project_id: str, file_path: str, request: Dict[str, A
         
     return res
 
-@router.post("/projects/{project_id}/workflow")
+@router.post("/projects/{project_id}/workflow", response_model=BaseResponse[Dict[str, Any]])
 async def execute_project_workflow(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
     """Execute a complete project workflow"""
     if not container.project_manager or not container.workflow_engine:
@@ -266,11 +316,15 @@ async def execute_project_workflow(project_id: str, request: Dict[str, Any], api
         config=request
     )
     
-    return {
-        "status": "started",
-        "workflow_id": workflow_id,
-        "message": f"Workflow {workflow_id} started in background"
-    }
+    return BaseResponse(
+        status="success",
+        code="WORKFLOW_STARTED",
+        message="Workflow execution initialized",
+        data={
+            "workflow_id": workflow_id,
+            "message": f"Workflow {workflow_id} started in background"
+        }
+    )
 
 @router.get("/projects/{project_id}/workflow/{workflow_id}")
 async def get_workflow_status(project_id: str, workflow_id: str, api_key: str = Depends(verify_api_key)):
@@ -303,9 +357,10 @@ async def build_project(
             config=request
         )
         
-        return StandardResponse(
+        return BaseResponse(
             status="success" if result["success"] else "failed",
-            result=result
+            code="PROJECT_BUILD_RESULT",
+            data=result
         )
     except Exception as e:
         logger.error(f"Build failed: {e}")
@@ -336,9 +391,10 @@ async def run_project(
             env_vars=env
         )
         
-        return StandardResponse(
+        return BaseResponse(
             status="success" if result["success"] else "failed",
-            result=result
+            code="PROJECT_RUN_RESULT",
+            data=result
         )
     except Exception as e:
         logger.error(f"Run failed: {e}")
@@ -356,9 +412,10 @@ async def stop_project(
     try:
         result = await container.runtime_service.stop_project(project_id)
         
-        return StandardResponse(
+        return BaseResponse(
             status="success" if result["success"] else "failed",
-            result=result
+            code="PROJECT_STOP_RESULT",
+            data=result
         )
     except Exception as e:
         logger.error(f"Stop failed: {e}")
@@ -377,11 +434,14 @@ async def get_project_logs(
     try:
         logs = await container.runtime_service.get_logs(project_id, lines)
         
-        return {
-            "status": "success",
-            "project_id": project_id,
-            "logs": logs
-        }
+        return BaseResponse(
+            status="success",
+            code="PROJECT_LOGS_RETRIEVED",
+            data={
+                "project_id": project_id,
+                "logs": logs
+            }
+        )
     except Exception as e:
         logger.error(f"Get logs failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

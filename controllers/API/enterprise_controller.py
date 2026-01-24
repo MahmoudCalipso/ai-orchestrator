@@ -14,21 +14,14 @@ from platform_core.auth.jwt_manager import JWTManager
 
 from core.security import verify_api_key, require_role, Role, SecurityManager
 from core.container import container
+from dto.common.base_response import BaseResponse
+from dto.v1.requests.enterprise import CreateOrgUserRequest, ProjectProtectionRequest
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Enterprise"])
 
-class CreateOrgUserRequest(BaseModel):
-    email: str
-    full_name: str
-    password: str
-    role: str = "developer"
-
-class ProjectProtectionRequest(BaseModel):
-    enabled: bool
-    allowed_users: Optional[List[str]] = None
 
 @router.post("/enterprise/users")
 async def add_organization_user(
@@ -61,29 +54,43 @@ async def add_organization_user(
     db.commit()
     db.refresh(new_user)
     
-    return {
-        "status":"success", 
-        "message": f"User {request.email} added to organization",
-        "user_id": new_user.id,
-        "role": new_user.role
-    }
+    return BaseResponse(
+        status="success",
+        code="USER_CREATED",
+        message=f"User {request.email} added to organization",
+        data={
+            "user_id": new_user.id,
+            "role": new_user.role
+        }
+    )
 
 @router.get("/enterprise/users")
 async def list_organization_users(
+    search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
     db: Session = Depends(get_db)
 ):
-    """List all users in the organization with pagination."""
+    """List all users in the organization with search and pagination."""
     tenant_id = user_info.get("tenant_id")
     
     query = db.query(User).filter(User.tenant_id == tenant_id)
+    if search:
+        search_query = f"%{search}%"
+        query = query.filter(
+            (User.email.ilike(search_query)) | 
+            (User.full_name.ilike(search_query))
+        )
+        
     total = query.count()
     users = query.offset((page - 1) * page_size).limit(page_size).all()
     
-    return {
-        "users": [
+    return BaseResponse(
+        status="success",
+        code="USERS_RETRIEVED",
+        message=f"Retrieved {len(users)} organization users",
+        data=[
             {
                 "id": u.id, 
                 "email": u.email, 
@@ -93,13 +100,16 @@ async def list_organization_users(
                 "created_at": u.created_at.isoformat() if u.created_at else None
             } for u in users
         ],
-        "pagination": {
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-            "total_pages": (total + page_size - 1) // page_size
+        meta={
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": (total + page_size - 1) // page_size
+            },
+            "search": search
         }
-    }
+    )
 
 @router.delete("/enterprise/users/{user_id}")
 async def remove_organization_user(
@@ -119,22 +129,28 @@ async def remove_organization_user(
     user.is_active = False # Safe default
     db.commit()
     
-    return {"status": "success", "message": f"User {user_id} deactivated"}
+    return BaseResponse(
+        status="success",
+        code="USER_DEACTIVATED",
+        message=f"User {user_id} deactivated",
+        data={"user_id": user_id}
+    )
 
 @router.get("/enterprise/projects")
 async def list_organization_projects(
+    search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
     db: Session = Depends(get_db)
 ):
-    """List all projects in the organization with pagination."""
+    """List all projects in the organization with search and pagination."""
     if not container.project_manager:
         raise HTTPException(503, "Project Manager unavailable")
         
     tenant_id = user_info.get("tenant_id")
     
-    # Get all users in tenant to filter projects (ProjectManager is file-based)
+    # Get all users in tenant to filter projects
     org_users = db.query(User.id).filter(User.tenant_id == tenant_id).all()
     org_user_ids = [u.id for u in org_users]
     
@@ -143,6 +159,11 @@ async def list_organization_projects(
          all_projects = list(all_projects.values())
          
     org_projects = [p for p in all_projects if p.get("user_id") in org_user_ids]
+    
+    if search:
+        search = search.lower()
+        org_projects = [p for p in org_projects if search in p.get("project_name", "").lower()]
+        
     total = len(org_projects)
     
     # Manual pagination
@@ -150,15 +171,21 @@ async def list_organization_projects(
     end = start + page_size
     paginated_projects = org_projects[start:end]
     
-    return {
-        "projects": paginated_projects,
-        "pagination": {
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-            "total_pages": (total + page_size - 1) // page_size
+    return BaseResponse(
+        status="success",
+        code="ORCHESTRATOR_PROJECTS_RETRIEVED",
+        message=f"Retrieved {len(paginated_projects)} organization projects",
+        data=paginated_projects,
+        meta={
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": (total + page_size - 1) // page_size
+            },
+            "search": search
         }
-    }
+    )
 
 
 @router.post("/enterprise/projects/{project_id}/protect")
@@ -170,8 +197,12 @@ async def set_project_protection(
     """Enable/Disable protection for a project (cannot be disabled by developers)."""
     # Logic to update project metadata with protection flag
     
-    return {
-        "status": "success", 
-        "project_id": project_id, 
-        "protection": request.enabled
-    }
+    return BaseResponse(
+        status="success",
+        code="PROJECT_PROTECTION_UPDATED",
+        message="Protection settings updated",
+        data={
+            "project_id": project_id, 
+            "protection": request.enabled
+        }
+    )

@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session
 
 from platform_core.auth.dependencies import get_db, get_current_active_user, require_git_account
 from platform_core.auth.models import User
+from dto.common.base_response import BaseResponse
 from services.database.explorer import DatabaseExplorerService
 from services.database.connection_manager import (
     DatabaseConnectionManager
 )
-from schemas.generation_spec import DatabaseConfig
+from dto.v1.requests.generation import DatabaseConfig
 
 router = APIRouter(prefix="/database-explorer", tags=["Database Explorer"])
 
@@ -24,12 +25,23 @@ explorer_service = DatabaseExplorerService(db_manager)
 @router.post("/tables")
 async def list_tables(
     config: DatabaseConfig,
+    search: Optional[str] = None,
     user: User = Depends(require_git_account)
 ):
-    """List all tables in the project database"""
+    """List all tables in the project database with search"""
     try:
         tables = await explorer_service.list_tables(config)
-        return {"status": "success", "tables": tables}
+        if search:
+            search = search.lower()
+            tables = [t for t in tables if search in t.lower()]
+            
+        return BaseResponse(
+            status="success",
+            code="DB_TABLES_RETRIEVED",
+            message=f"Discovered {len(tables)} tables in database",
+            data=tables,
+            meta={"search": search}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -42,7 +54,11 @@ async def get_schema(
     """Get schema for a specific table"""
     try:
         schema = await explorer_service.get_table_schema(config, table_name)
-        return {"status": "success", "schema": schema}
+        return BaseResponse(
+            status="success",
+            code="DB_SCHEMA_RETRIEVED",
+            data={"schema": schema}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -57,7 +73,11 @@ async def get_data(
     """Get sample data from a table"""
     try:
         data = await explorer_service.get_table_data(config, table_name, limit, offset)
-        return {"status": "success", "data": data}
+        return BaseResponse(
+            status="success",
+            code="DB_DATA_RETRIEVED",
+            data={"data": data}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -70,7 +90,13 @@ async def execute_custom_query(
     """Execute a custom SQL SELECT query"""
     try:
         result = await explorer_service.execute_query(config, query)
-        return {"status": "success", "result": result}
+        return BaseResponse(
+            status="success",
+            code="DB_QUERY_EXECUTED",
+            message="Custom query executed successfully",
+            data=result,
+            meta={"query": query}
+        )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:

@@ -30,7 +30,14 @@ class OrchestratorCLI:
             url = f"{self.base_url}{endpoint}"
             response = requests.request(method, url, headers=self.headers, **kwargs)
             response.raise_for_status()
-            return response.json()
+            res_json = response.json()
+            # Handle new BaseResponse format
+            if isinstance(res_json, dict) and "status" in res_json and "data" in res_json:
+                return res_json # Return full envelope for now or just data? 
+                # Better to return full envelope and fix commands, or return data?
+                # Most commands expect the legacy flat structure.
+                # If I return res_json['data'], it might fix 80% of commands.
+            return res_json
         except requests.exceptions.ConnectionError:
             console.print("[red]✗ Could not connect to orchestrator[/red]")
             console.print(f"Make sure the service is running at {self.base_url}")
@@ -59,15 +66,17 @@ def cli(ctx, url, api_key):
 @click.pass_obj
 def health(cli_obj):
     """Check orchestrator health"""
-    response = cli_obj._request('GET', '/health')
+    response_wrapper = cli_obj._request('GET', '/health')
+    response = response_wrapper.get('data', {})
     
-    status_color = "green" if response['status'] == 'healthy' else "red"
+    status_val = response.get('status', 'unknown')
+    status_color = "green" if status_val == 'healthy' else "red"
     
     console.print(Panel(
-        f"[{status_color}]Status: {response['status']}[/{status_color}]\n"
-        f"Uptime: {response['uptime']:.2f}s\n"
-        f"Models Loaded: {response['models_loaded']}\n"
-        f"Runtimes: {', '.join(response['runtimes_available'])}",
+        f"[{status_color}]Status: {status_val}[/{status_color}]\n"
+        f"Uptime: {response.get('uptime', 0):.2f}s\n"
+        f"Models Loaded: {response.get('models_loaded', 0)}\n"
+        f"Runtimes: {', '.join(response.get('runtimes_available', []))}",
         title="[bold]Health Check[/bold]",
         border_style=status_color
     ))
@@ -77,19 +86,20 @@ def health(cli_obj):
 @click.pass_obj
 def status(cli_obj):
     """Get detailed system status"""
-    response = cli_obj._request('GET', '/status')
+    response_wrapper = cli_obj._request('GET', '/status')
+    response = response_wrapper.get('data', {})
     
     # System info
     console.print("\n[bold cyan]System Status[/bold cyan]")
-    console.print(f"Status: [green]{response['status']}[/green]")
-    console.print(f"Uptime: {response['uptime']:.2f}s")
+    console.print(f"Status: [green]{response.get('status', 'success')}[/green]")
+    console.print(f"Uptime: {response.get('uptime', 0):.2f}s")
     
     # Resources
-    resources = response['resources']
+    resources = response.get('resources', {})
     console.print("\n[bold cyan]Resources[/bold cyan]")
-    console.print(f"CPU: {resources['cpu_percent']:.1f}%")
-    console.print(f"Memory: {resources['memory_percent']:.1f}%")
-    console.print(f"Disk: {resources['disk_percent']:.1f}%")
+    console.print(f"CPU: {resources.get('cpu_percent', 0):.1f}%")
+    console.print(f"Memory: {resources.get('memory_percent', 0):.1f}%")
+    console.print(f"Disk: {resources.get('disk_percent', 0):.1f}%")
     
     # GPUs
     if resources.get('gpus'):
@@ -112,7 +122,8 @@ def status(cli_obj):
 @click.pass_obj
 def models(cli_obj):
     """List available models"""
-    response = cli_obj._request('GET', '/models')
+    response_wrapper = cli_obj._request('GET', '/models')
+    response = response_wrapper.get('data', [])
     
     table = Table(title="Available Models")
     table.add_column("Name", style="cyan")
@@ -123,11 +134,11 @@ def models(cli_obj):
     
     for model in response:
         table.add_row(
-            model['name'],
-            model['family'],
-            model['size'],
-            model['specialization'],
-            model['status']
+            model.get('name', 'N/A'),
+            model.get('family', 'N/A'),
+            model.get('size', 'N/A'),
+            model.get('specialization', 'N/A'),
+            model.get('status', 'N/A')
         )
     
     console.print(table)
@@ -138,17 +149,18 @@ def models(cli_obj):
 @click.pass_obj
 def model_info(cli_obj, model_name):
     """Get detailed model information"""
-    response = cli_obj._request('GET', f'/models/{model_name}')
+    response_wrapper = cli_obj._request('GET', f'/models/{model_name}')
+    response = response_wrapper.get('data', {})
     
     console.print(Panel(
-        f"[bold]Name:[/bold] {response['name']}\n"
-        f"[bold]Family:[/bold] {response['family']}\n"
-        f"[bold]Size:[/bold] {response['size']}\n"
-        f"[bold]Context Length:[/bold] {response['context_length']}\n"
-        f"[bold]Capabilities:[/bold] {', '.join(response['capabilities'])}\n"
-        f"[bold]Specialization:[/bold] {response['specialization']}\n"
-        f"[bold]Memory Requirement:[/bold] {response['memory_requirement']}\n"
-        f"[bold]Status:[/bold] {response['status']}",
+        f"[bold]Name:[/bold] {response.get('name', 'N/A')}\n"
+        f"[bold]Family:[/bold] {response.get('family', 'N/A')}\n"
+        f"[bold]Size:[/bold] {response.get('size', 'N/A')}\n"
+        f"[bold]Context Length:[/bold] {response.get('context_length', 'N/A')}\n"
+        f"[bold]Capabilities:[/bold] {', '.join(response.get('capabilities', []))}\n"
+        f"[bold]Specialization:[/bold] {response.get('specialization', 'N/A')}\n"
+        f"[bold]Memory Requirement:[/bold] {response.get('memory_requirement', 'N/A')}\n"
+        f"[bold]Status:[/bold] {response.get('status', 'N/A')}",
         title=f"[bold]{model_name}[/bold]",
         border_style="cyan"
     ))
@@ -200,18 +212,19 @@ def infer(cli_obj, prompt, model, task, temperature, max_tokens, stream):
         with Progress() as progress:
             task_id = progress.add_task("[cyan]Generating...", total=None)
             
-            response = cli_obj._request('POST', '/inference', json=payload)
+            response_wrapper = cli_obj._request('POST', '/inference', json=payload)
+            response = response_wrapper.get('data', {})
             
             progress.update(task_id, completed=True)
         
         console.print(Panel(
-            response['output'],
-            title=f"[bold]Response from {response['model']}[/bold]",
+            response.get('output', 'No output'),
+            title=f"[bold]Response from {response.get('model', 'Unknown')}[/bold]",
             border_style="green"
         ))
         
-        console.print(f"\n[dim]Tokens: {response['tokens_used']} | "
-                     f"Time: {response['processing_time']:.2f}s[/dim]")
+        console.print(f"\n[dim]Tokens: {response.get('tokens_used', 0)} | "
+                     f"Time: {response.get('processing_time', 0):.2f}s[/dim]")
 
 
 @cli.command()
@@ -240,18 +253,19 @@ def unload(cli_obj, model_name):
 @click.pass_obj
 def metrics(cli_obj):
     """Show system metrics"""
-    response = cli_obj._request('GET', '/metrics')
+    response_wrapper = cli_obj._request('GET', '/metrics')
+    response = response_wrapper.get('data', {})
     
     table = Table(title="System Metrics")
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
     
-    table.add_row("Total Requests", str(response['total_requests']))
-    table.add_row("Successful Requests", str(response['successful_requests']))
-    table.add_row("Failed Requests", str(response['failed_requests']))
-    table.add_row("Success Rate", f"{response['success_rate']:.2%}")
-    table.add_row("Avg Processing Time", f"{response['average_processing_time']:.2f}s")
-    table.add_row("Total Tokens", str(response['total_tokens']))
+    table.add_row("Total Requests", str(response.get('total_requests', 0)))
+    table.add_row("Successful Requests", str(response.get('successful_requests', 0)))
+    table.add_row("Failed Requests", str(response.get('failed_requests', 0)))
+    table.add_row("Success Rate", f"{response.get('success_rate', 0):.2%}")
+    table.add_row("Avg Processing Time", f"{response.get('average_processing_time', 0):.2f}s")
+    table.add_row("Total Tokens", str(response.get('total_tokens', 0)))
     
     console.print(table)
 

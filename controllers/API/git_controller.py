@@ -2,14 +2,14 @@
 Git Controller
 Handles Git repository operations, configuration, and credentials.
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from schemas.api_spec import (
-    StandardResponse, GitConfigUpdate, GitRepoInit,
-    GitRemoteCreate, GitBranchCreate, GitCommitRequest,
-    GitConflictResolve, GitMergeRequest
+from dto.common.base_response import BaseResponse
+from dto.v1.requests.git import (
+    GitConfigUpdate, GitRepoInit, GitRemoteCreate,
+    GitBranchCreate, GitCommitRequest, GitConflictResolve, GitMergeRequest
 )
 import logging
 
@@ -17,18 +17,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Git"])
 
-@router.post("/git/config/{provider}", response_model=StandardResponse)
+@router.post("/git/config/{provider}", response_model=BaseResponse)
 async def set_git_config(provider: str, request: GitConfigUpdate, api_key: str = Depends(verify_api_key)):
     """Update or set credentials (token, SSH key) for a specific Git provider."""
     try:
         if not container.git_credentials:
-            raise HTTPException(status_code=53, detail="Git Credentials service not ready")
+            raise HTTPException(status_code=503, detail="Git Credentials service not ready")
             
         credentials = request.model_dump(exclude_none=True)
         success = container.git_credentials.set_credentials(provider, credentials)
         
         if success:
-            return StandardResponse(status="success", message=f"Credentials set for {provider}")
+            return BaseResponse(status="success", code="GIT_CONFIG_UPDATED", message=f"Credentials set for {provider}")
         else:
             raise HTTPException(status_code=500, detail="Failed to set credentials")
     except Exception as e:
@@ -44,7 +44,12 @@ async def delete_git_config(provider: str, api_key: str = Depends(verify_api_key
             
         success = container.git_credentials.set_credentials(provider, {})
         if success:
-            return {"status": "success", "provider": provider, "message": f"Credentials deleted for {provider}"}
+            return BaseResponse(
+                status="success",
+                code="GIT_CONFIG_DELETED",
+                message=f"Credentials deleted for {provider}",
+                data={"provider": provider}
+            )
         else:
             raise HTTPException(status_code=500, detail="Failed to delete credentials")
     except Exception as e:
@@ -59,11 +64,15 @@ async def validate_git_credentials(provider: str, api_key: str = Depends(verify_
              raise HTTPException(status_code=503, detail="Git Credentials service not ready")
              
         is_valid = container.git_credentials.validate_credentials(provider)
-        return {
-            "valid": is_valid,
-            "provider": provider,
-            "message": "Credentials are valid" if is_valid else "Credentials are invalid or missing"
-        }
+        return BaseResponse(
+            status="success" if is_valid else "error",
+            code="GIT_CREDENTIALS_VALIDATED",
+            message="Credentials are valid" if is_valid else "Credentials are invalid or missing",
+            data={
+                "valid": is_valid,
+                "provider": provider
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to validate Git credentials for {provider}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -76,12 +85,16 @@ async def get_general_git_config(api_key: str = Depends(verify_api_key)):
              raise HTTPException(status_code=503, detail="Git Credentials service not ready")
              
         config = container.git_credentials.get_git_config()
-        return {"config": config}
+        return BaseResponse(
+            status="success",
+            code="GIT_CONFIG_RETRIEVED",
+            data={"config": config}
+        )
     except Exception as e:
         logger.error(f"Failed to get Git config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/init", response_model=StandardResponse)
+@router.post("/git/repositories/init", response_model=BaseResponse[Dict[str, Any]])
 async def init_repository(
     request: GitRepoInit,
     api_key: str = Depends(verify_api_key)
@@ -92,12 +105,17 @@ async def init_repository(
              raise HTTPException(status_code=503, detail="Repo Manager not ready")
              
         success = container.repo_manager.init_repository(request.path)
-        return StandardResponse(status="success" if success else "failed", result={"path": request.path})
+        return BaseResponse(
+            status="success" if success else "error",
+            code="GIT_REPO_INIT",
+            message="Repository initialized" if success else "Failed to initialize repository",
+            data={"path": request.path}
+        )
     except Exception as e:
         logger.error(f"Git init failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/clone", response_model=StandardResponse)
+@router.post("/git/repositories/clone", response_model=BaseResponse[Dict[str, Any]])
 async def clone_repository(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
@@ -120,14 +138,19 @@ async def clone_repository(
         )
         
         if result["success"]:
-            return StandardResponse(status="success", result=result)
+            return BaseResponse(
+                status="success",
+                code="GIT_CLONE_SUCCESS",
+                message="Repository cloned successfully",
+                data=result
+            )
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Clone failed"))
     except Exception as e:
         logger.error(f"Git clone failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/push", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/push", response_model=BaseResponse[Dict[str, Any]])
 async def push_repository(
     repo_id: str,
     request: GitCommitRequest,
@@ -145,14 +168,19 @@ async def push_repository(
         )
         
         if result["success"]:
-            return StandardResponse(status="success", result=result)
+            return BaseResponse(
+                status="success",
+                code="GIT_PUSH_SUCCESS",
+                message="Changes pushed successfully",
+                data=result
+            )
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Push failed"))
     except Exception as e:
         logger.error(f"Git push failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/pull", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/pull", response_model=BaseResponse[Dict[str, Any]])
 async def pull_repository(
     repo_id: str,
     request: Dict[str, Any],
@@ -168,7 +196,12 @@ async def pull_repository(
         result = await container.git_sync_service.pull_latest(local_path)
         
         if result["success"]:
-            return StandardResponse(status="success", result=result)
+            return BaseResponse(
+                status="success",
+                code="GIT_PULL_SUCCESS",
+                message="Latest changes pulled",
+                data=result
+            )
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Pull failed"))
     except Exception as e:
@@ -186,7 +219,13 @@ async def get_repository_status(
         if not container.git_sync_service:
              raise HTTPException(status_code=503, detail="Git Sync service not ready")
              
-        return await container.git_sync_service.get_status(local_path)
+        status = await container.git_sync_service.get_status(local_path)
+        return BaseResponse(
+            status="success",
+            code="GIT_STATUS_RETRIEVED",
+            message="Repository status retrieved",
+            data=status
+        )
     except Exception as e:
         logger.error(f"Git status failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -195,11 +234,12 @@ async def get_repository_status(
 async def list_branches(
     repo_id: str,
     local_path: str,
+    search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     api_key: str = Depends(verify_api_key)
 ):
-    """List all branches in repository with pagination."""
+    """List all branches in repository with search and pagination."""
     try:
         import subprocess
         
@@ -221,28 +261,38 @@ async def list_branches(
             elif line:
                 branches.append({"name": line, "current": False})
         
+        if search:
+            search = search.lower()
+            branches = [b for b in branches if search in b["name"].lower()]
+            
         total = len(branches)
         start = (page - 1) * page_size
         end = start + page_size
         paginated_branches = branches[start:end]
         
-        return {
-            "status": "success",
-            "repo_id": repo_id,
-            "current_branch": current_branch,
-            "branches": paginated_branches,
-            "pagination": {
-                "page": page,
-                "page_size": page_size,
-                "total": total,
-                "total_pages": (total + page_size - 1) // page_size
+        return BaseResponse(
+            status="success",
+            code="GIT_BRANCHES_RETRIEVED",
+            message=f"Retrieved {len(paginated_branches)} branches for repository {repo_id}",
+            data={
+                "current_branch": current_branch,
+                "branches": paginated_branches
+            },
+            meta={
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total": total,
+                    "total_pages": (total + page_size - 1) // page_size
+                },
+                "search": search
             }
-        }
+        )
     except Exception as e:
         logger.error(f"Git branches failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/checkout", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/checkout", response_model=BaseResponse[Dict[str, Any]])
 async def checkout_branch(
     repo_id: str,
     request: GitBranchCreate,
@@ -274,9 +324,11 @@ async def checkout_branch(
         )
         
         if result.returncode == 0:
-            return StandardResponse(
+            return BaseResponse(
                 status="success",
-                result={"branch": branch, "message": f"Switched to branch '{branch}'"}
+                code="GIT_CHECKOUT_SUCCESS",
+                message=f"Switched to branch '{branch}'",
+                data={"branch": branch}
             )
         else:
             raise HTTPException(status_code=500, detail=result.stderr)
@@ -314,7 +366,7 @@ async def get_repo_diff(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/fetch", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/fetch", response_model=BaseResponse[Dict[str, Any]])
 async def fetch_repo(
     repo_id: str,
     local_path: str,
@@ -325,11 +377,15 @@ async def fetch_repo(
         if not container.git_sync_service:
             raise HTTPException(status_code=503, detail="Git Sync service not ready")
         result = await container.git_sync_service.fetch_remote(local_path)
-        return StandardResponse(status="success" if result["success"] else "failed", result=result)
+        return BaseResponse(
+            status="success" if result["success"] else "failed",
+            code="GIT_FETCH_RESULT",
+            data=result
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/merge", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/merge", response_model=BaseResponse[Dict[str, Any]])
 async def merge_branches(
     repo_id: str,
     request: GitMergeRequest,
@@ -347,13 +403,22 @@ async def merge_branches(
         result = subprocess.run(["git", "merge", request.source_branch], cwd=request.local_path, capture_output=True, text=True)
         
         if result.returncode == 0:
-            return StandardResponse(status="success", message=f"Merged {request.source_branch} into {request.target_branch}")
+            return BaseResponse(
+                status="success",
+                code="GIT_MERGE_SUCCESS",
+                message=f"Merged {request.source_branch} into {request.target_branch}"
+            )
         else:
-            return StandardResponse(status="conflict", message="Merge conflict detected", result=result.stderr)
+            return BaseResponse(
+                status="conflict",
+                code="GIT_MERGE_CONFLICT",
+                message="Merge conflict detected",
+                data={"error": result.stderr}
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/remote", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/remote", response_model=BaseResponse[Dict[str, Any]])
 async def create_remote_repo(
     repo_id: str,
     request: GitRemoteCreate,
@@ -372,13 +437,17 @@ async def create_remote_repo(
         )
         
         if clone_url:
-            return StandardResponse(status="success", result={"clone_url": clone_url})
+            return BaseResponse(
+                status="success",
+                code="GIT_REMOTE_CREATED",
+                data={"clone_url": clone_url}
+            )
         else:
             raise HTTPException(status_code=500, detail="Failed to create remote repository")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/resolve", response_model=StandardResponse)
+@router.post("/git/repositories/{repo_id}/resolve", response_model=BaseResponse[Dict[str, Any]])
 async def resolve_conflict_ai(
     repo_id: str,
     request: GitConflictResolve,
@@ -396,7 +465,11 @@ async def resolve_conflict_ai(
         )
         
         if success:
-            return StandardResponse(status="success", message=f"Conflict resolved for {request.file_path}")
+            return BaseResponse(
+                status="success",
+                code="GIT_CONFLICT_RESOLVED",
+                message=f"Conflict resolved for {request.file_path}"
+            )
         else:
             raise HTTPException(status_code=500, detail="AI failed to resolve conflict")
     except Exception as e:

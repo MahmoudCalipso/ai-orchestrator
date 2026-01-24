@@ -2,6 +2,7 @@
 Comprehensive API Schemas for the AI Orchestrator
 """
 from typing import Optional, Dict, Any, List, Union
+from datetime import datetime
 from pydantic import BaseModel, Field
 from schemas.generation_spec import LanguageConfig, EntityDefinition, GitActionConfig, DatabaseType
 
@@ -170,10 +171,32 @@ class WorkspaceInviteRequest(BaseModel):
 # --- Generic Response Schemas ---
 
 class StandardResponse(BaseModel):
-    """Standard API response"""
+    """Legacy Standard API response"""
     status: str = "success"
     message: Optional[str] = None
     result: Optional[Any] = None
+
+class PowerfulResponse(BaseModel):
+    """The 'Magic' Response Schema for 2026+ Orchestrator"""
+    status: str = Field("success", description="Status of the operation (success, error, warning)")
+    code: int = Field(200, description="Internal or HTTP status code")
+    message: str = Field("Operation completed successfully", description="Human-readable message")
+    data: Optional[Any] = Field(None, description="The primary payload (result object or list)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Pagination, search info, or system telemetry")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp of the response")
+
+class PowerfulError(BaseModel):
+    """Structured Error details"""
+    code: str
+    detail: str
+    field: Optional[str] = None
+
+class PowerfulErrorResponse(PowerfulResponse):
+    """Standardized Error response"""
+    status: str = "error"
+    code: int = 400
+    message: str = "An error occurred"
+    errors: Optional[List[PowerfulError]] = None
 
 class SwarmResponse(BaseModel):
     """Response from a swarm-powered operation"""

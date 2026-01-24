@@ -66,18 +66,44 @@ class ProjectManager:
         user_id: str,
         status: Optional[str] = None,
         page: int = 1,
-        page_size: int = 20
+        page_size: int = 20,
+        filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Get all projects for a user"""
+        """Get all projects for a user with advanced filtering"""
         user_projects = [
             p for p in self.projects_db.values()
             if p["user_id"] == user_id
         ]
         
-        # Filter by status if provided
+        # Apply filters
         if status:
             user_projects = [p for p in user_projects if p["status"] == status]
-        
+            
+        if filters:
+            if filters.get("name"):
+                name_query = filters["name"].lower()
+                user_projects = [p for p in user_projects if name_query in p["project_name"].lower()]
+            
+            if filters.get("framework"):
+                target = filters["framework"]
+                if isinstance(target, list):
+                    user_projects = [p for p in user_projects if p.get("framework") in target]
+                else:
+                    user_projects = [p for p in user_projects if p.get("framework") == target]
+                    
+            if filters.get("language"):
+                target = filters["language"]
+                if isinstance(target, list):
+                    user_projects = [p for p in user_projects if p.get("language") in target]
+                else:
+                    user_projects = [p for p in user_projects if p.get("language") == target]
+            
+            if filters.get("solution_id"):
+                # This would typically be a DB join, but for in-memory:
+                # We need to check if solution_id is in project metadata or a separate mapping
+                sol_id = filters["solution_id"]
+                user_projects = [p for p in user_projects if p.get("metadata", {}).get("solution_id") == sol_id]
+
         # Sort by last_opened_at or updated_at
         user_projects.sort(
             key=lambda x: x.get("last_opened_at") or x.get("updated_at", ""),

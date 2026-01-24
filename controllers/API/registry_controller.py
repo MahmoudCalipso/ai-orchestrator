@@ -2,15 +2,33 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import Dict, Any, List, Optional
 from services.registry.framework_registry import framework_registry
 from platform_core.auth.dependencies import require_admin
+from dto.common.base_response import BaseResponse
 import logging
 
 router = APIRouter(tags=["Registry Management"])
 logger = logging.getLogger(__name__)
 
 @router.get("/registry/frameworks")
-async def get_frameworks():
-    """Get all frameworks and their metadata"""
-    return framework_registry.get_all_frameworks()
+async def get_frameworks(search: Optional[str] = None):
+    """Get all frameworks and their metadata with optional search"""
+    all_fw = framework_registry.get_all_frameworks()
+    if not search:
+        return all_fw
+        
+    search = search.lower()
+    filtered = {}
+    for lang, frameworks in all_fw.items():
+        matched = {fw: data for fw, data in frameworks.items() if search in fw.lower() or search in lang.lower()}
+        if matched:
+            filtered[lang] = matched
+            
+    return BaseResponse(
+        status="success",
+        code="FRAMEWORKS_SEARCHED",
+        message=f"Found {sum(len(v) for v in filtered.values())} frameworks matching '{search}'",
+        data=filtered,
+        meta={"search": search}
+    )
 
 @router.get("/registry/frameworks/{language}")
 async def get_language_frameworks(language: str):
@@ -19,7 +37,11 @@ async def get_language_frameworks(language: str):
     all_fw = framework_registry.get_all_frameworks()
     if lang not in all_fw:
         raise HTTPException(status_code=404, detail=f"Language '{language}' not found in registry")
-    return all_fw[lang]
+    return BaseResponse(
+        status="success",
+        code="LANGUAGE_FRAMEWORKS_RETRIEVED",
+        data=all_fw[lang]
+    )
 
 @router.post("/registry/frameworks/{language}/{framework}")
 async def add_or_update_framework(
@@ -31,7 +53,12 @@ async def add_or_update_framework(
     """Add or update a framework in the registry (Admin only)"""
     try:
         framework_registry.update_framework(language, framework, data)
-        return {"status": "success", "message": f"Framework {language}/{framework} updated"}
+        return BaseResponse(
+            status="success",
+            code="FRAMEWORK_UPDATED",
+            message=f"Framework {language}/{framework} updated",
+            data={"language": language, "framework": framework}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -39,14 +66,40 @@ async def add_or_update_framework(
 async def trigger_sync(background_tasks: BackgroundTasks, user=Depends(require_admin)):
     """Trigger an immediate version sync from external registries (Admin only)"""
     background_tasks.add_task(framework_registry.check_for_updates, apply=True)
-    return {"status": "success", "message": "Version sync started in background"}
+    return BaseResponse(
+        status="success",
+        code="SYNC_STARTED",
+        message="Version sync started in background"
+    )
 
 @router.get("/registry/languages")
-async def get_languages():
-    """Get all supported languages"""
-    return framework_registry.languages
+async def get_languages(search: Optional[str] = None):
+    """Get all supported languages with optional search"""
+    langs = framework_registry.languages
+    if search:
+        search = search.lower()
+        langs = [l for l in langs if search in l.lower()]
+        
+    return BaseResponse(
+        status="success",
+        code="LANGUAGES_RETRIEVED",
+        message=f"Retrieved {len(langs)} supported languages",
+        data=langs,
+        meta={"search": search}
+    )
 
 @router.get("/registry/databases")
-async def get_databases():
-    """Get all supported databases"""
-    return framework_registry.databases
+async def get_databases(search: Optional[str] = None):
+    """Get all supported databases with optional search"""
+    dbs = framework_registry.databases
+    if search:
+        search = search.lower()
+        dbs = [d for d in dbs if search in d.lower()]
+        
+    return BaseResponse(
+        status="success",
+        code="DATABASES_RETRIEVED",
+        message=f"Retrieved {len(dbs)} supported databases",
+        data=dbs,
+        meta={"search": search}
+    )

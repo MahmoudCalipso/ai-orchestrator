@@ -5,20 +5,25 @@ Refactored to use modular Controllers and Service Container.
 import logging
 import asyncio
 import os
+from datetime import datetime
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Core Imports
 from core.orchestrator import Orchestrator
 from core.container import container
 from middleware.rate_limit import RateLimitMiddleware
+from dto.errors.error_response import ErrorResponse, ErrorDetail
 
 # Platform Components
 from services.git import GitCredentialManager, RepositoryManager
@@ -70,6 +75,7 @@ from controllers.API.auth_controller import router as auth_controller
 from controllers.API.db_explorer_controller import router as db_explorer_controller
 from controllers.API.tools_controller import router as tools_router
 from controllers.API.registry_controller import router as registry_router
+from controllers.API.emulator_controller import router as emulator_router
 from controllers.WS.websocket_controller import router as ws_router
 
 # Configure logging
@@ -260,6 +266,52 @@ app.add_middleware(
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)
 
+# --- Global Exception Handler (Magic JSON Errors) ---
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(
+            status="error",
+            code=f"HTTP_{exc.status_code}",
+            message=str(exc.detail),
+            details={"path": request.url.path}
+        ).model_dump()
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [
+        ErrorDetail(field=".".join(map(str, err["loc"])), message=err["msg"], code=err["type"])
+        for err in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(
+            status="error",
+            code="VALIDATION_ERROR",
+            message="Input validation failed",
+            errors=errors,
+            details={"path": request.url.path}
+        ).model_dump()
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled Exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(
+            status="error",
+            code="INTERNAL_SERVER_ERROR",
+            message="An unexpected server error occurred",
+            details={
+                "error_type": exc.__class__.__name__,
+                "debug": str(exc) if os.getenv("DEBUG") == "true" else "Hidden in production"
+            }
+        ).model_dump()
+    )
+
 # Include Controllers
 app.include_router(system_router) # Root /
 app.include_router(ai_router, prefix="") # /models, /inference (kept root-level for compat or add /api prefix?) 
@@ -327,6 +379,9 @@ app.include_router(tools_router)
 
 # Registry Controller
 app.include_router(registry_router, prefix="/api")
+
+# Emulator Controller
+app.include_router(emulator_router, prefix="/api")
 
 # WebSocket Controller
 # Original: /api/ide/terminal..., /api/monitoring/stream...

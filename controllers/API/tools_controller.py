@@ -6,8 +6,9 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from schemas.api_spec import (
-    StandardResponse, FigmaAnalyzeRequest, SecurityScanRequest
+from dto.common.base_response import BaseResponse
+from dto.v1.requests.git import ( # Placeholder or actual tools schemas if migrated
+    FigmaAnalyzeRequest, SecurityScanRequest
 )
 import logging
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Tools"])
 
-@router.post("/api/figma/analyze", response_model=StandardResponse)
+@router.post("/api/figma/analyze", response_model=BaseResponse[Dict[str, Any]])
 async def analyze_figma_design(
     request: FigmaAnalyzeRequest,
     api_key: str = Depends(verify_api_key)
@@ -26,12 +27,17 @@ async def analyze_figma_design(
         # Use orchestrator from container for AI power
         analyzer = FigmaAnalyzer(orchestrator=container.orchestrator)
         result = await analyzer.analyze_file(request.file_data)
-        return StandardResponse(status="success", result=result)
+        return BaseResponse(
+            status="success",
+            code="FIGMA_ANALYSIS_COMPLETE",
+            message="Figma design analyzed successfully",
+            data=result
+        )
     except Exception as e:
         logger.error(f"Figma analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/kubernetes/generate", response_model=StandardResponse)
+@router.post("/api/kubernetes/generate", response_model=BaseResponse[Dict[str, Any]])
 async def generate_kubernetes_config(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
@@ -45,12 +51,16 @@ async def generate_kubernetes_config(
             request.get("image"), 
             request.get("config")
         )
-        return StandardResponse(status="success", result=result)
+        return BaseResponse(
+            status="success",
+            code="K8S_CONFIG_GENERATED",
+            data={"manifests": result}
+        )
     except Exception as e:
         logger.error(f"K8s generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/security/scan", response_model=StandardResponse)
+@router.post("/api/security/scan", response_model=BaseResponse[Dict[str, Any]])
 async def security_scan(
     request: SecurityScanRequest,
     api_key: str = Depends(verify_api_key)
@@ -60,12 +70,16 @@ async def security_scan(
         from services.security.vulnerability_scanner import VulnerabilityScanner
         scanner = VulnerabilityScanner(orchestrator=container.orchestrator)
         result = await scanner.scan_code(request.project_path, request.language)
-        return StandardResponse(status="success", result=result)
+        return BaseResponse(
+            status="success",
+            code="SECURITY_SCAN_COMPLETE",
+            data={"vulnerabilities": result}
+        )
     except Exception as e:
         logger.error(f"Security scan failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/lifecycle/execute")
+@router.post("/api/lifecycle/execute", response_model=BaseResponse[Dict[str, Any]])
 async def execute_lifecycle(
     project_id: str,
     stack: str,
@@ -88,7 +102,11 @@ async def execute_lifecycle(
                 f"Finalize project {project_id} for the user.",
                 context
             )
-            return result
+            return BaseResponse(
+                status="success",
+                code="LIFECYCLE_EXECUTED",
+                data=result
+            )
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
     except Exception as e:
         logger.error(f"Lifecycle execution failed: {e}")
