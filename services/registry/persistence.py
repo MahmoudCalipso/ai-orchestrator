@@ -45,9 +45,14 @@ class FrameworkMetadata(Base):
     class Config:
         unique_constraints = ["language", "framework"]
 
-# Create tables
+# Create tables (Force Recreate for Dev Session Stability)
 try:
+    # Drop existing to ensure column sync (Extreme Power 2026 Dev Mode)
+    LanguageMetadata.__table__.drop(bind=engine, checkfirst=True)
+    DatabaseMetadata.__table__.drop(bind=engine, checkfirst=True)
+    FrameworkMetadata.__table__.drop(bind=engine, checkfirst=True)
     Base.metadata.create_all(bind=engine)
 except Exception as e:
     import logging
     logging.getLogger(__name__).error(f"Failed to create registry tables: {e}")
+

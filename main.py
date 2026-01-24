@@ -276,7 +276,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             code=f"HTTP_{exc.status_code}",
             message=str(exc.detail),
             details={"path": request.url.path}
-        ).model_dump()
+        ).model_dump(mode="json")
     )
 
 @app.exception_handler(RequestValidationError)
@@ -293,7 +293,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             message="Input validation failed",
             errors=errors,
             details={"path": request.url.path}
-        ).model_dump()
+        ).model_dump(mode="json")
     )
 
 @app.exception_handler(Exception)
@@ -309,7 +309,7 @@ async def general_exception_handler(request: Request, exc: Exception):
                 "error_type": exc.__class__.__name__,
                 "debug": str(exc) if os.getenv("DEBUG") == "true" else "Hidden in production"
             }
-        ).model_dump()
+        ).model_dump(mode="json")
     )
 
 # Include Controllers

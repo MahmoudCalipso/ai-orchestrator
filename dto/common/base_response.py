@@ -13,7 +13,7 @@ class BaseResponse(BaseModel, Generic[T]):
     message: Optional[str] = Field(None, description="Human readable description")
     data: Optional[T] = Field(None, description="The main payload (business data)")
     meta: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Metadata including pagination, traces, and metrics")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Standard ISO timestamp of response")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Standard ISO timestamp of response")
 
     class Config:
         json_schema_extra = {
