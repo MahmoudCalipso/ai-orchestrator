@@ -7,9 +7,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
 from dto.common.base_response import BaseResponse
-from dto.v1.requests.git import ( # Placeholder or actual tools schemas if migrated
-    FigmaAnalyzeRequest, SecurityScanRequest
+from dto.v1.requests.git import (
+    GitConfigUpdate, GitRepoInit, GitRemoteCreate,
+    GitBranchCreate, GitCommitRequest, GitConflictResolve,
+    GitMergeRequest
 )
+from dto.v1.requests.generation import FigmaAnalyzeRequest, SecurityScanRequest
 import logging
 
 logger = logging.getLogger(__name__)

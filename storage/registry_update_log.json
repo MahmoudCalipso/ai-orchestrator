@@ -316,5 +316,48 @@
         }
       ]
     }
+  },
+  {
+    "timestamp": "2026-01-24T13:26:09.168541",
+    "updates": {
+      "ruby": {
+        "devise": {
+          "old": "4.9.4",
+          "new": "5.0.0"
+        }
+      },
+      "frameworks": [
+        {
+          "type": "framework",
+          "language": "python",
+          "package": "fastapi",
+          "latest_version": "0.128.0"
+        },
+        {
+          "type": "framework",
+          "language": "typescript",
+          "package": "angular",
+          "latest_version": "21.1.1"
+        },
+        {
+          "type": "framework",
+          "language": "java",
+          "package": "spring_boot",
+          "latest_version": "3.5.3"
+        },
+        {
+          "type": "language",
+          "language": null,
+          "package": "typescript",
+          "latest_version": "5.9.3"
+        },
+        {
+          "type": "language",
+          "language": null,
+          "package": "java",
+          "latest_version": "3.5.3"
+        }
+      ]
+    }
   }
 ]

@@ -9,12 +9,16 @@ import secrets
 import hashlib
 import os
 import logging
+from core.security import verify_api_key, SecurityManager, Role, JWTManager
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from platform_core.auth.dependencies import get_db, get_current_active_user, get_current_tenant
+from platform_core.auth import email_service
 
 from platform_core.tenancy.models import Tenant
+from platform_core.auth.models import User, APIKey, ExternalAccount, PasswordResetToken
 from dto.common.base_response import BaseResponse
 from dto.v1.requests.auth import (
     UserRegisterRequest, UserLoginRequest, TokenRefreshRequest,
@@ -152,7 +156,7 @@ async def login(
 
 @router.post("/refresh", response_model=BaseResponse[TokenResponseDTO])
 async def refresh_token(
-    token_data: TokenRefresh,
+    token_data: TokenRefreshRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -436,7 +440,7 @@ async def revoke_api_key(
 
 @router.post("/change-password", response_model=BaseResponse)
 async def change_password(
-    password_data: PasswordChange,
+    password_data: PasswordChangeRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):

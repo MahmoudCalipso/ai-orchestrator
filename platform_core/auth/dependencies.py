@@ -235,6 +235,20 @@ def require_role(required_role: Role):
     return role_checker
 
 
+def require_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """
+    Dependency to require admin role
+    """
+    if Role(current_user.role) != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return current_user
+
+
 async def get_current_tenant(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)

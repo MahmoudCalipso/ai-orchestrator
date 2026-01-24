@@ -3,6 +3,7 @@ System Controller
 Handles system-level endpoints like health checks, status, and root.
 """
 from typing import Dict
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container

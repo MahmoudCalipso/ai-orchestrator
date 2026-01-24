@@ -1,6 +1,6 @@
 from typing import Any, Optional, Dict
 from pydantic import BaseModel, Field
-from .base_response import BaseResponse
+from dto.common.base_response import BaseResponse
 
 class ErrorDetail(BaseModel):
     field: Optional[str] = None

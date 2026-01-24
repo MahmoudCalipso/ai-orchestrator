@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StorageManager:
@@ -32,7 +35,7 @@ class StorageManager:
             with open(config_path, 'r') as f:
                 return yaml.safe_load(f)
         except Exception as e:
-            print(f"Warning: Could not load config from {config_path}: {e}")
+            logger.warning(f"Could not load config from {config_path}: {e}")
             return {}
     
     def _ensure_directories(self):

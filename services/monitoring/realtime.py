@@ -144,7 +144,7 @@ class RealtimeMonitoringService:
                 
                 await asyncio.sleep(5)  # Collect every 5 seconds
             except Exception as e:
-                print(f"Error collecting metrics: {e}")
+                logger.error(f"Error collecting metrics: {e}")
                 await asyncio.sleep(5)
     
     async def _broadcast_metrics(self, metrics: MonitoringMetrics):

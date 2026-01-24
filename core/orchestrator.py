@@ -186,94 +186,23 @@ class Orchestrator:
             self.metrics["successful_requests"] += 1
             self.metrics["total_processing_time"] += processing_time
             
-            return {
-                "request_id": request_id,
-                "status": "success",
-                "swarm_output": swarm_result,
-                "processing_time": processing_time
-            }
-
-            # LEGACY PATH (Disabled for Swarm transition - unreachable code removed)
-            # The following code is commented out as it's unreachable after the return above
-            # If you need to re-enable the legacy path, remove the return statement above
-            
-            # Create execution plan
-            # plan = await self.planner.create_plan(
-            #     task_type=task_type,
-            #     model=model,
-            #     context=context
-            # )
-            
-            # Route to appropriate model and runtime
-            routing_decision = await self.router.route(
-                task_type=task_type,
-                model=model or plan.get("recommended_model"),
-                context=context
-            )
-            
-            selected_model = routing_decision["model"]
-            selected_runtime = routing_decision["runtime"]
-            
-            # Get runtime instance
-            runtime = self.runtimes.get(selected_runtime)
-            if not runtime:
-                raise RuntimeError(f"Runtime '{selected_runtime}' not available")
-                
-            # Check if runtime is healthy
-            if not await runtime.health_check():
-                # Try fallback
-                fallback = await self.router.get_fallback(selected_model, selected_runtime)
-                selected_model = fallback["model"]
-                selected_runtime = fallback["runtime"]
-                runtime = self.runtimes.get(selected_runtime)
-                
-            # Load model if needed
-            if not await runtime.is_model_loaded(selected_model):
-                await runtime.load_model(selected_model)
-                
-            # Prepare parameters
-            params = parameters or {}
-            
-            # Run inference
-            logger.info(f"Running inference: model={selected_model}, runtime={selected_runtime}")
-            
-            result = await runtime.generate(
-                model=selected_model,
-                prompt=prompt,
-                **params
-            )
-            
-            # Process result
-            processing_time = time.time() - start_time
-            
-            # Update metrics
-            self.metrics["successful_requests"] += 1
-            self.metrics["total_tokens"] += result.get("tokens", 0)
-            self.metrics["total_processing_time"] += processing_time
-            
             # Store in memory if needed
             if context and context.get("save_to_memory"):
                 await self.memory.store(
                     key=request_id,
                     value={
                         "prompt": prompt,
-                        "output": result.get("output"),
-                        "model": selected_model,
+                        "output": swarm_result.get("solution") if isinstance(swarm_result, dict) else swarm_result,
+                        "model": "swarm",
                         "timestamp": time.time()
                     }
                 )
             
             return {
                 "request_id": request_id,
-                "model": selected_model,
-                "runtime": selected_runtime,
-                "output": result.get("output", ""),
-                "tokens_used": result.get("tokens", 0),
-                "processing_time": processing_time,
-                "metadata": {
-                    "plan": plan,
-                    "routing": routing_decision
-                }
+                "status": "success",
+                "swarm_output": swarm_result,
+                "processing_time": processing_time
             }
             
         except Exception as e:

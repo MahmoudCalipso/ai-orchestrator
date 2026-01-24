@@ -149,8 +149,8 @@ class TerminalService:
         try:
             await asyncio.gather(read_task, write_task)
         except Exception as e:
-            print(f"Terminal WebSocket error: {e}")
-        finally:
+            logger.error(f"Terminal WebSocket error: {e}")
+            await websocket.close()
             read_task.cancel()
             write_task.cancel()
     
@@ -163,7 +163,7 @@ class TerminalService:
                     await websocket.send_text(data.decode('utf-8', errors='ignore'))
                 await asyncio.sleep(0.01)  # Small delay to prevent busy loop
             except Exception as e:
-                print(f"Error reading from terminal: {e}")
+                logger.error(f"Error reading from terminal: {e}")
                 break
     
     async def _write_to_terminal(self, session: TerminalSession, websocket: WebSocket):
@@ -197,7 +197,7 @@ class TerminalService:
                 
                 await session.write(data)
             except Exception as e:
-                print(f"Error writing to terminal: {e}")
+                logger.error(f"Error writing to terminal: {e}")
                 break
     
     async def execute_command(

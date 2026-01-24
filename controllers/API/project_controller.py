@@ -3,7 +3,7 @@ Project Controller
 Handles project lifecycle, git sync, AI updates, and workflows.
 Enforces Role-Based Access Control (RBAC).
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key, SecurityManager, Role
 from core.container import container

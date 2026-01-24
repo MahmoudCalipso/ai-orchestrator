@@ -13,6 +13,7 @@ from dto.v1.requests.ai import (
     OptimizeCodeRequest, DocumentCodeRequest, ReviewCodeRequest,
     ExplainCodeRequest, RefactorCodeRequest
 )
+from dto.v1.responses.swarm import SwarmResponse
 from dto.v1.responses.ai import InferenceResponseDTO, ModelInfoDTO, SwarmResponseDTO
 import logging
 

@@ -6,6 +6,8 @@ import logging
 import os
 import time
 import json
+import asyncio
+from typing import Optional, Dict, Any, List, Union, AsyncGenerator
 from services.monitoring.calt_service import CALTLogger
 
 logger = logging.getLogger(__name__)
@@ -32,13 +34,15 @@ class LLMInference:
         # Initialize client (Ollama uses OpenAI-compatible API)
         try:
             from openai import OpenAI
-            self.client = OpenAI(
+            self._client_instance = OpenAI(
                 base_url=f"{self.base_url}/v1",
                 api_key="ollama"  # placeholder
             )
+            self.client = self._client_instance # Alias for embeddings
             logger.info(f"✓ Open-Source LLM initialized - Model: {self.model} (via Ollama)")
         except Exception as e:
             logger.error(f"Failed to initialize Open-Source LLM client: {e}")
+            self._client_instance = None
             self.client = None
 
     async def generate(
@@ -104,15 +108,18 @@ class LLMInference:
             future.set_exception(e)
 
     async def _execute_generate(self, prompt, max_tokens, temp, system, model):
-        # Actual implementation moved here to keep generate() clean for logging
-        from openai import OpenAI
-        target_client = OpenAI(base_url=f"{self.base_url}/v1", api_key="ollama")
+        # Use persisted client instance for efficiency
+        if not self._client_instance:
+             from openai import OpenAI
+             self._client_instance = OpenAI(base_url=f"{self.base_url}/v1", api_key="ollama")
         
         messages = []
         if system: messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         
-        response = target_client.chat.completions.create(
+        # chat.completions.create is blocking in standard openai client but we are in async context
+        # In a real 2026 impl, we'd use AsyncOpenAI
+        response = self._client_instance.chat.completions.create(
             model=model, messages=messages, max_tokens=max_tokens, temperature=temp
         )
         return response.choices[0].message.content

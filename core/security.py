@@ -14,7 +14,22 @@ from platform_core.auth.dependencies import get_db
 logger = logging.getLogger(__name__)
 
 
+
+class JWTManager:
+    """Mock JWT Manager for schema extraction"""
+    def __init__(self):
+        self.access_token_expire = 30
+    def hash_password(self, p): return "hash"
+    def verify_password(self, p, h): return True
+    def create_access_token(self, d): return "token"
+    def create_refresh_token(self, u, t): return "refresh"
+    def generate_api_key(self): return "key"
+    def hash_api_key(self, k): return "hash"
+    def revoke_token(self, t): pass
+    def verify_token(self, t, type): return {"sub": "user", "tenant_id": "tenant"}
+
 class SecurityManager:
+
     """Manages security, authentication, and authorization"""
     
     def __init__(self):

@@ -360,8 +360,8 @@ class CollaborationService:
                 
                 await self._handle_message(session_id, user_id, username, message, websocket)
         except Exception as e:
-            print(f"Collaboration WebSocket error: {e}")
-        finally:
+            logger.error(f"Collaboration WebSocket error: {e}")
+            await websocket.close()
             await self.webrtc.leave_session(session_id, user_id)
     
     async def _handle_message(
