@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from platform_core.auth.dependencies import get_db
 from platform_core.auth.models import User
 from platform_core.auth.jwt_manager import JWTManager
+from platform_core.tenancy.models import Tenant
 
 from core.security import verify_api_key, require_role, Role, SecurityManager
 from core.container import container
@@ -22,14 +23,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Enterprise"])
 
-
 @router.post("/enterprise/users")
 async def add_organization_user(
     request: CreateOrgUserRequest,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
     db: Session = Depends(get_db)
 ):
-    """Add a user to the organization (Enterprise Owner only)."""
+    """Add a user to the organization (Enterprise Owner only). Enforces 20-seat limit."""
     # Check if user exists
     if db.query(User).filter(User.email == request.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -40,13 +40,29 @@ async def add_organization_user(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Organization ID missing from requester")
 
+    # Check Seat Limit
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+        
+    current_count = db.query(User).filter(User.tenant_id == tenant_id).count()
+    if current_count >= tenant.max_users:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Seat limit reached. Your plan allows {tenant.max_users} users. Upgrade for more."
+        )
+
+    # Force "PRO" role for sub-accounts as per Enterprise entitlement
+    # "Enterprise (Full Access) could add 20 account developper accounts with Pro access"
+    assigned_role = Role.PRO
+
     new_user = User(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
         email=request.email,
         full_name=request.full_name,
         hashed_password=jwt_manager.hash_password(request.password),
-        role=request.role,
+        role=assigned_role,
         is_active=True
     )
     
@@ -57,7 +73,7 @@ async def add_organization_user(
     return BaseResponse(
         status="success",
         code="USER_CREATED",
-        message=f"User {request.email} added to organization",
+        message=f"User {request.email} added to organization as {assigned_role}",
         data={
             "user_id": new_user.id,
             "role": new_user.role
@@ -205,4 +221,107 @@ async def set_project_protection(
             "project_id": project_id, 
             "protection": request.enabled
         }
+    )
+
+@router.get("/enterprise/workbenches")
+async def monitor_active_workbenches(
+    user_info: dict = Depends(require_role([Role.ENTERPRISE])),
+    db: Session = Depends(get_db)
+):
+    """Real-time: List all active IDE workbenches for the organization."""
+    if not container.orchestrator:
+        raise HTTPException(status_code=503, detail="Orchestrator not ready")
+        
+    tenant_id = user_info.get("tenant_id")
+    
+    # Get all users in this tenant
+    org_users = db.query(User.id, User.email).filter(User.tenant_id == tenant_id).all()
+    user_map = {u.id: u.email for u in org_users}
+    
+    # Filter active workbenches by organization users
+    active_benches = []
+    if hasattr(container.orchestrator, "workbench_manager"):
+        # Use helper method that returns dict
+        all_benches = container.orchestrator.workbench_manager.get_all_workbenches() 
+        for wb_id, wb in all_benches.items():
+            # owner_id is now safely in the dict
+            owner_id = wb.get("owner_id")
+            if owner_id in user_map:
+                active_benches.append({
+                    "id": wb_id,
+                    "owner": user_map[owner_id],
+                    "status": wb.get("status", "unknown"),
+                    "last_active": wb.get("last_active")
+                })
+                
+    return BaseResponse(
+        status="success",
+        code="WORKBENCHES_MONITORED",
+        message=f"Monitoring {len(active_benches)} active workbenches",
+        data=active_benches
+    )
+
+@router.put("/enterprise/users/{user_id}/permissions")
+async def update_user_permissions(
+    user_id: str,
+    permissions: Dict[str, Any],
+    user_info: dict = Depends(require_role([Role.ENTERPRISE])),
+    db: Session = Depends(get_db)
+):
+    """Update permissions or role for a sub-user (Admin control)."""
+    tenant_id = user_info.get("tenant_id")
+    target_user = db.query(User).filter(User.id == user_id, User.tenant_id == tenant_id).first()
+    
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found in organization")
+        
+    # Example: Allow changing role between PRO and DEVELOPER
+    new_role = permissions.get("role")
+    if new_role:
+        if new_role not in [Role.PRO, Role.DEVELOPER]:
+             raise HTTPException(status_code=400, detail="Can only assign PRO or DEVELOPER roles")
+        target_user.role = new_role
+        
+    db.commit()
+    
+    return BaseResponse(
+        status="success",
+        code="PERMISSIONS_UPDATED",
+        message=f"Permissions updated for user {target_user.email}",
+        data={"user_id": user_id, "new_role": target_user.role}
+    )
+
+@router.delete("/enterprise/projects/{project_id}")
+async def force_delete_project(
+    project_id: str,
+    user_info: dict = Depends(require_role([Role.ENTERPRISE])),
+    db: Session = Depends(get_db)
+):
+    """Force delete any project within the organization."""
+    tenant_id = user_info.get("tenant_id")
+    
+    if not container.project_manager:
+        raise HTTPException(status_code=503, detail="Project Manager unavailable")
+        
+    # Verify project belongs to tenant
+    project = container.project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    owner_id = project.get("user_id")
+    owner = db.query(User).filter(User.id == owner_id, User.tenant_id == tenant_id).first()
+    
+    if not owner:
+        raise HTTPException(status_code=403, detail="Project does not belong to your organization")
+        
+    # Proceed with deletion
+    success = await container.project_manager.delete_project(project_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete project")
+        
+    return BaseResponse(
+        status="success",
+        code="PROJECT_FORCE_DELETED",
+        message=f"Project {project_id} force deleted by Enterprise Admin",
+        data={"project_id": project_id}
     )

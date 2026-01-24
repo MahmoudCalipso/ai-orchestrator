@@ -22,7 +22,7 @@ router = APIRouter(prefix="/database-explorer", tags=["Database Explorer"])
 db_manager = DatabaseConnectionManager()
 explorer_service = DatabaseExplorerService(db_manager)
 
-@router.post("/tables")
+@router.post("/tables", response_model=BaseResponse[List[str]])
 async def list_tables(
     config: DatabaseConfig,
     search: Optional[str] = None,
@@ -45,7 +45,7 @@ async def list_tables(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/table/{table_name}/schema")
+@router.post("/table/{table_name}/schema", response_model=BaseResponse[Dict[str, Any]])
 async def get_schema(
     table_name: str,
     config: DatabaseConfig,
@@ -62,7 +62,7 @@ async def get_schema(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/table/{table_name}/data")
+@router.post("/table/{table_name}/data", response_model=BaseResponse[Dict[str, Any]])
 async def get_data(
     table_name: str,
     config: DatabaseConfig,
@@ -81,7 +81,7 @@ async def get_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/query")
+@router.post("/query", response_model=BaseResponse[Dict[str, Any]])
 async def execute_custom_query(
     config: DatabaseConfig,
     query: str = Query(...),

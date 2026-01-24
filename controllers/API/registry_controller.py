@@ -12,8 +12,14 @@ logger = logging.getLogger(__name__)
 async def get_frameworks(search: Optional[str] = None):
     """Get all frameworks and their metadata with optional search"""
     all_fw = framework_registry.get_all_frameworks()
+    all_fw = framework_registry.get_all_frameworks()
     if not search:
-        return all_fw
+        return BaseResponse(
+            status="success",
+            code="FRAMEWORKS_RETRIEVED",
+            message=f"Retrieved {sum(len(v) for v in all_fw.values())} frameworks",
+            data=all_fw
+        )
         
     search = search.lower()
     filtered = {}

@@ -207,3 +207,16 @@ CMD ["tail", "-f", "/dev/null"]
         """Cleanup all workbenches"""
         for workbench_id in list(self.workbenches.keys()):
             await self.destroy_workbench(workbench_id)
+
+    def get_all_workbenches(self) -> Dict[str, Any]:
+        """Get raw workbenches dictionary (For Enterprise monitoring)"""
+        return {
+            wb_id: {
+                "id": wb.id,
+                "stack": wb.stack,
+                "status": wb.status,
+                "owner_id": getattr(wb, "owner_id", None), # Safe access
+                "last_active": getattr(wb, "last_active", None)
+            }
+            for wb_id, wb in self.workbenches.items()
+        }

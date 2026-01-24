@@ -9,10 +9,11 @@ from typing import List, Set
 
 class Role(str, Enum):
     """User roles aligned with subscription tiers"""
-    ADMIN = "admin"
-    PRO = "pro"
-    DEVELOPER = "developer"
-    FREE = "free"
+    ADMIN = "admin"          # Super User (Owner)
+    ENTERPRISE = "enterprise" # Full Access + Sub-accounts
+    PRO = "pro"              # Unlimited Projects, IDE, Build/Run
+    DEVELOPER = "developer"  # Standard Access
+
 
 
 class Permission(str, Enum):
@@ -63,25 +64,15 @@ class Permission(str, Enum):
 
 # Role to permissions mapping
 ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
-    Role.FREE: {
-        Permission.PROJECT_CREATE,
-        Permission.PROJECT_READ,
-        Permission.CODE_GENERATE,
-        Permission.TEMPLATE_USE,
-    },
-    
     Role.DEVELOPER: {
         Permission.PROJECT_CREATE,
         Permission.PROJECT_READ,
         Permission.PROJECT_UPDATE,
         Permission.PROJECT_DELETE,
-        Permission.WORKBENCH_CREATE,
         Permission.CODE_GENERATE,
         Permission.CODE_MIGRATE,
         Permission.CODE_ANALYZE,
         Permission.CODE_FIX,
-        Permission.FIGMA_INTEGRATION,
-        Permission.DATABASE_REVERSE_ENGINEER,
         Permission.TEMPLATE_USE,
         Permission.TEMPLATE_PURCHASE,
     },
@@ -112,6 +103,21 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.COLLAB_SCREEN_SHARE,
     },
     
+    Role.ENTERPRISE: {
+        # Inherits everything from PRO
+        Permission.PROJECT_CREATE, Permission.PROJECT_READ, Permission.PROJECT_UPDATE, Permission.PROJECT_DELETE,
+        Permission.PROJECT_SHARE, Permission.WORKBENCH_CREATE, Permission.WORKBENCH_UNLIMITED, Permission.WORKBENCH_SHARE,
+        Permission.SWARM_AGENTS, Permission.KUBERNETES_DEPLOY, Permission.FIGMA_INTEGRATION,
+        Permission.DATABASE_REVERSE_ENGINEER, Permission.CODE_GENERATE, Permission.CODE_MIGRATE,
+        Permission.CODE_ANALYZE, Permission.CODE_FIX, Permission.CODE_OPTIMIZE, Permission.CODE_REVIEW,
+        Permission.TEMPLATE_USE, Permission.TEMPLATE_SUBMIT, Permission.TEMPLATE_PURCHASE,
+        Permission.COLLAB_REALTIME, Permission.COLLAB_SCREEN_SHARE,
+        # Enterprise Specific
+        Permission.ADMIN_USERS,   # Can manage sub-users
+        Permission.ADMIN_BILLING, # Can view billing
+        Permission.ADMIN_ANALYTICS,
+    },
+
     Role.ADMIN: set(Permission),  # All permissions
 }
 

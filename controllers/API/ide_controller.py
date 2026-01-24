@@ -69,7 +69,7 @@ async def create_ide_workspace(
         logger.error(f"Failed to create IDE workspace: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/ide/files/{workspace_id}/{path:path}")
+@router.get("/ide/files/{workspace_id}/{path:path}", response_model=BaseResponse[Dict[str, Any]])
 async def read_file(
     workspace_id: str,
     path: str,
@@ -81,7 +81,11 @@ async def read_file(
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
         result = await container.editor_service.read_file(workspace_id, path)
-        return result
+        return BaseResponse(
+            status="success",
+            code="FILE_READ",
+            data=result
+        )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
@@ -113,7 +117,7 @@ async def write_file(
         logger.error(f"Failed to write file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/ide/files/{workspace_id}/{path:path}")
+@router.delete("/ide/files/{workspace_id}/{path:path}", response_model=BaseResponse[Dict[str, Any]])
 async def delete_file(
     workspace_id: str,
     path: str,
@@ -125,7 +129,12 @@ async def delete_file(
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
         result = await container.editor_service.delete_file(workspace_id, path)
-        return result
+        return BaseResponse(
+            status="success",
+            code="FILE_DELETED",
+            message=f"File {path} deleted",
+            data=result
+        )
     except Exception as e:
         logger.error(f"Failed to delete file: {e}")
         raise HTTPException(status_code=500, detail=str(e))

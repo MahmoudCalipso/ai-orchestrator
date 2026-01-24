@@ -26,6 +26,9 @@ class Tenant(Base):
     # API rate limits (requests per minute)
     api_rate_limit = Column(Integer, default=100)  # -1 for unlimited
     
+    # User Account Limits (RBAC)
+    max_users = Column(Integer, default=1) # Default: 1 (Individual), Enterprise: 20
+    
     # Billing
     stripe_customer_id = Column(String, index=True)
     stripe_subscription_id = Column(String, index=True)

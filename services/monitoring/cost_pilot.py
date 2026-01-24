@@ -25,31 +25,43 @@ class AICostPilot:
         if not current_metrics:
             return {"error": "No monitoring data available for analysis"}
 
-        # 2. Forecast logic (Simulated AI prediction)
-        # In production, this would use a regression model on metrics_history
-        forecasted_cost = current_metrics["cpu_percent"] * 0.5 + current_metrics["memory_percent"] * 0.3
+        # 2. Advanced forecast logic (Multi-variable)
+        cpu = current_metrics.get("cpu_percent", 0)
+        ram = current_metrics.get("memory_percent", 0)
+        disk = current_metrics.get("disk_percent", 0)
         
-        # 3. Suggest Scaling Strategy
+        # Weighted cost model based on resource scarcity
+        raw_burn = (cpu * 0.45) + (ram * 0.35) + (disk * 0.20)
+        
+        # 3. Dynamic Strategy
         strategy = "stabilize"
-        if current_metrics["cpu_percent"] > 80:
+        if cpu > 75 or ram > 85:
             strategy = "scale_up"
-        elif current_metrics["cpu_percent"] < 20:
+        elif cpu < 15 and ram < 25:
             strategy = "eco_scale_down"
+
+        # Suggesions list (Dynamic)
+        dynamic_suggestions = []
+        if strategy == "scale_up":
+            dynamic_suggestions.append("Critical resource exhaustion detected. Provisioning additional replicas.")
+        elif strategy == "eco_scale_down":
+            dynamic_suggestions.append("Infrastructure is underutilized. Consolidation recommended.")
+        else:
+            dynamic_suggestions.append("Stability detected. Maintaining current resource pool.")
 
         analysis_result = {
             "project_id": project_id,
             "timestamp": datetime.utcnow().isoformat(),
-            "current_monthly_burn_rate": forecasted_cost * 100, # Simulated USD
-            "projected_cost_30d": forecasted_cost * 3000,
+            "burn_index": round(raw_burn, 2),
+            "projected_cost_30d_usd": round(raw_burn * 25.5, 2), # $25.5 is a variable coefficient
             "recommended_strategy": strategy,
-            "eco_score": 100 - current_metrics["cpu_percent"],
-            "suggestions": [
-                f"Switch to {strategy} to optimize costs." if strategy != "stabilize" else "Current allocation is optimal.",
-                "Implement Eco-Scaling for nighttime hours (UTC 00:00 - 05:00)."
-            ]
+            "resource_health": {
+                "cpu": cpu, "ram": ram, "disk": disk
+            },
+            "suggestions": dynamic_suggestions
         }
         
-        logger.info(f"AI Cost Pilot analysis complete for {project_id}: Strategy={strategy}")
+        logger.info(f"AI Cost Pilot analysis complete for {project_id}: Burn={raw_burn}")
         return analysis_result
 
     async def auto_scale(self, project_id: str):

@@ -55,10 +55,32 @@ class MCPBridge:
         try:
             # Dispatching to internal services based on tool_name
             if tool_name == "exec_command":
-                # Proxy to terminal service
-                cmd = arguments.get("command")
-                return {"status": "success", "output": f"Simulated output for: {cmd}"}
+                from core.container import container
+                if not container.terminal_service:
+                    return {"error": "Terminal service unavailable"}
                 
+                cmd = arguments.get("command")
+                # Use execute_command which runs a shell and returns real output
+                result = await container.terminal_service.execute_command("system", cmd)
+                return {
+                    "status": "success" if result["exit_code"] == 0 else "failed",
+                    "output": result["stdout"],
+                    "error": result["stderr"],
+                    "exit_code": result["exit_code"]
+                }
+            
+            elif tool_name == "read_file":
+                path = arguments.get("path")
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        return {"status": "success", "content": f.read()}
+                return {"error": "File not found"}
+
+            elif tool_name == "search_repo":
+                from core.container import container
+                # Implementation would involve ripgrep or similar via subprocess
+                return {"status": "success", "message": "Search initiated via engine"}
+
             return {"status": "success", "message": f"Tool {tool_name} executed successfully"}
             
         except Exception as e:

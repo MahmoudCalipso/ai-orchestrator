@@ -142,26 +142,127 @@ async def update_user_role(
     )
 
 @router.get("/admin/system/metrics")
-async def get_system_wide_metrics(user_info: dict = Depends(require_role([Role.ADMIN]))):
+async def get_system_wide_metrics(
+    user_info: dict = Depends(require_role([Role.ADMIN])),
+    db: Session = Depends(get_db)
+):
     """Get system-wide metrics (SuperUser only)"""
     sm = SecurityManager()
+    from core.container import container
+    from platform_core.auth.audit_model import AuditLog
+    import time
     
     active_workbenches = 0
+    uptime_seconds = 0
+    
     if container.orchestrator:
          active_workbenches = len(container.orchestrator.workbench_manager.workbenches)
+         # Orchestrator start_time is timestamp
+         uptime_seconds = time.time() - container.orchestrator.start_time
          
     total_projects = 0
     if container.project_manager:
          total_projects = len(container.project_manager.projects_db)
 
+    # Estimate API calls from Audit Log count (or monitoring service if available)
+    # Using audit log as proxy for significant actions for now
+    activity_count = db.query(AuditLog).count()
+
+    # Calculate uptime string
+    days = int(uptime_seconds // 86400)
+    hours = int((uptime_seconds % 86400) // 3600)
+    uptime_str = f"{days}d {hours}h" if days > 0 else f"{hours}h {int((uptime_seconds % 3600) // 60)}m"
+
     return BaseResponse(
         status="success",
         code="SYSTEM_METRICS_RETRIEVED",
         data={
-            "uptime": "99.99%",
+            "uptime": uptime_str,
             "total_projects": total_projects,
-            "total_users": len(sm.api_keys),
+            "total_users": len(sm.api_keys), # API Keys as proxy for active integrations
             "active_workbenches": active_workbenches,
-            "api_calls_24h": 12503
+            "recorded_activities": activity_count
         }
+    )
+
+@router.get("/admin/tenants")
+async def list_tenants(
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    user_info: dict = Depends(require_role([Role.ADMIN])),
+    db: Session = Depends(get_db)
+):
+    """List all Tenants (Enterprises)."""
+    from platform_core.tenancy.models import Tenant
+    query = db.query(Tenant)
+    if search:
+        query = query.filter(Tenant.name.ilike(f"%{search}%"))
+        
+    total = query.count()
+    tenants = query.offset((page - 1) * page_size).limit(page_size).all()
+    
+    return BaseResponse(
+        status="success",
+        code="TENANTS_RETRIEVED",
+        message=f"Retrieved {len(tenants)} tenants",
+        data=[{
+            "id": t.id, "name": t.name, "plan": t.plan, 
+            "max_users": t.max_users, "is_active": t.is_active
+        } for t in tenants],
+        meta={"pagination": {"page": page, "total": total}}
+    )
+
+@router.get("/admin/tenants/{tenant_id}/projects")
+async def list_tenant_projects(
+    tenant_id: str,
+    user_info: dict = Depends(require_role([Role.ADMIN])),
+    db: Session = Depends(get_db)
+):
+    """Deep-dive: List all projects for a specific Tenant."""
+    # Find all users in this tenant
+    from platform_core.auth.models import User
+    tenant_users = db.query(User.id).filter(User.tenant_id == tenant_id).all()
+    user_ids = [u.id for u in tenant_users]
+    
+    if not container.project_manager:
+        return BaseResponse(status="success", code="NO_PROCESSOR", data=[])
+
+    all_projects = list(container.project_manager.projects_db.values())
+    tenant_projects = [p for p in all_projects if p.get("user_id") in user_ids]
+    
+    return BaseResponse(
+        status="success",
+        code="TENANT_PROJECTS_RETRIEVED",
+        message=f"Found {len(tenant_projects)} projects for tenant {tenant_id}",
+        data=tenant_projects
+    )
+
+@router.get("/admin/audit")
+async def get_audit_log(
+    limit: int = 50,
+    action: Optional[str] = None,
+    user_id: Optional[str] = None,
+    user_info: dict = Depends(require_role([Role.ADMIN])),
+    db: Session = Depends(get_db)
+):
+    """Get system-wide Audit Log (Real-time)."""
+    from services.audit_service import AuditService
+    
+    audit_service = AuditService(db)
+    logs = audit_service.get_logs(limit=limit, user_id=user_id, action=action)
+    
+    return BaseResponse(
+        status="success",
+        code="AUDIT_LOG_RETRIEVED",
+        message=f"Retrieved {len(logs)} audit entries",
+        data=[{
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat(),
+            "user_id": log.user_id,
+            "tenant_id": log.tenant_id,
+            "action": log.action,
+            "details": log.details,
+            "ip_address": log.ip_address
+        } for log in logs]
     )
