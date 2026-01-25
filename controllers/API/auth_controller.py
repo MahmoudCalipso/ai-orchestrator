@@ -58,7 +58,7 @@ async def register(
     tenant = Tenant(
         id=tenant_id,
         name=user_data.tenant_name,
-        plan="free",
+        plan="developer",
         storage_quota_gb=10,
         workbench_quota=3,
         api_rate_limit=100

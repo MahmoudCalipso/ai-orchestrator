@@ -22,7 +22,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
-    role = Column(String, default="developer", index=True)  # admin, pro, developer, free
+    role = Column(String, default="developer", index=True)  # admin, enterprise, pro_developer, developer
     is_active = Column(Boolean, default=True, index=True)
     is_verified = Column(Boolean, default=False, index=True)
     credentials_accepted = Column(Boolean, default=False)

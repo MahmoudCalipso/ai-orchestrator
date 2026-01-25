@@ -48,7 +48,7 @@ class Orchestrator:
         self.memory = NeuralMemoryManager()
         self.security = SecurityManager()
         
-        # LLM Engine (Default to free local Ollama)
+        # LLM Engine (Default to local/optimized models)
         self.edge_mode = os.getenv("EDGE_MODE", "auto")
         self.llm = LLMInference(
             provider=os.getenv("LLM_PROVIDER", "ollama"),

@@ -193,7 +193,8 @@ from enum import Enum
 
 class Role(str, Enum):
     ADMIN = "admin"
-    ENTERPRISE = "enterprises"
+    ENTERPRISE = "enterprise"
+    PRO_DEVELOPER = "pro_developer"
     DEVELOPER = "developer"
 
 def require_role(allowed_roles: list[Role]):

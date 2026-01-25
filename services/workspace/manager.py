@@ -9,11 +9,11 @@ from enum import Enum
 
 
 class WorkspaceRole(str, Enum):
-    """Workspace roles"""
-    OWNER = "owner"
+    """Workspace roles aligned with global tiers"""
     ADMIN = "admin"
+    ENTERPRISE = "enterprise"
+    PRO_DEVELOPER = "pro_developer"
     DEVELOPER = "developer"
-    VIEWER = "viewer"
 
 
 class Permission(str, Enum):
@@ -25,26 +25,26 @@ class Permission(str, Enum):
     MANAGE_SETTINGS = "manage_settings"
 
 
-# Role permissions mapping
+# Role permissions mapping (Hierarchical)
 ROLE_PERMISSIONS = {
-    WorkspaceRole.OWNER: [
+    WorkspaceRole.ADMIN: [
         Permission.READ,
         Permission.WRITE,
         Permission.DELETE,
         Permission.MANAGE_MEMBERS,
         Permission.MANAGE_SETTINGS
     ],
-    WorkspaceRole.ADMIN: [
+    WorkspaceRole.ENTERPRISE: [
         Permission.READ,
         Permission.WRITE,
         Permission.DELETE,
         Permission.MANAGE_MEMBERS
     ],
-    WorkspaceRole.DEVELOPER: [
+    WorkspaceRole.PRO_DEVELOPER: [
         Permission.READ,
         Permission.WRITE
     ],
-    WorkspaceRole.VIEWER: [
+    WorkspaceRole.DEVELOPER: [
         Permission.READ
     ]
 }

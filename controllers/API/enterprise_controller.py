@@ -52,9 +52,9 @@ async def add_organization_user(
             detail=f"Seat limit reached. Your plan allows {tenant.max_users} users. Upgrade for more."
         )
 
-    # Force "PRO" role for sub-accounts as per Enterprise entitlement
-    # "Enterprise (Full Access) could add 20 account developper accounts with Pro access"
-    assigned_role = Role.PRO
+    # Force "PRO_DEVELOPER" role for sub-accounts as per Enterprise entitlement
+    # "Enterprise (Full Access) could add 20 account developper accounts with Pro-Developer access"
+    assigned_role = Role.PRO_DEVELOPER
 
     new_user = User(
         id=str(uuid.uuid4()),
@@ -275,11 +275,11 @@ async def update_user_permissions(
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found in organization")
         
-    # Example: Allow changing role between PRO and DEVELOPER
+    # Example: Allow changing role between PRO_DEVELOPER and DEVELOPER
     new_role = permissions.get("role")
     if new_role:
-        if new_role not in [Role.PRO, Role.DEVELOPER]:
-             raise HTTPException(status_code=400, detail="Can only assign PRO or DEVELOPER roles")
+        if new_role not in [Role.PRO_DEVELOPER, Role.DEVELOPER]:
+             raise HTTPException(status_code=400, detail="Can only assign PRO_DEVELOPER or DEVELOPER roles")
         target_user.role = new_role
         
     db.commit()

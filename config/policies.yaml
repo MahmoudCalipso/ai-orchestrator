@@ -190,11 +190,13 @@ policies:
       role_based: true
       roles:
         admin:
-          can: [create, read, update, delete, configure]
+          can: [full_control, owner, configure_system, manage_all]
+        enterprise:
+          can: [multi_account, billing_access, analytics, manage_sub_users]
+        pro_developer:
+          can: [unlimited_projects, full_ide_access, build_run, swarm_agents]
         developer:
-          can: [create, read, update]
-        user:
-          can: [create, read]
+          can: [project_creation, code_generation, code_migration, standard_access]
           
     input_validation:
       max_input_length: 32768
@@ -217,7 +219,7 @@ policies:
     quantization_preference: q4_k_m
     
     cost_tiers:
-      free:
+      developer:
         models: [phi3:3.8b, mistral:7b]
         max_tokens: 2048
         rate_limit: 10

@@ -9,10 +9,10 @@ from typing import List, Set
 
 class Role(str, Enum):
     """User roles aligned with subscription tiers"""
-    ADMIN = "admin"          # Super User (Owner)
-    ENTERPRISE = "enterprise" # Full Access + Sub-accounts
-    PRO = "pro"              # Unlimited Projects, IDE, Build/Run
-    DEVELOPER = "developer"  # Standard Access
+    ADMIN = "admin"                    # Super User (Owner) - All permissions
+    ENTERPRISE = "enterprise"          # Full Access + Sub-accounts, Billing/Analytics
+    PRO_DEVELOPER = "pro_developer"    # Unlimited Projects, IDE, Build/Run, Swarm Agents
+    DEVELOPER = "developer"            # Standard Access (Creation, Generation, Migration)
 
 
 
@@ -77,7 +77,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.TEMPLATE_PURCHASE,
     },
     
-    Role.PRO: {
+    Role.PRO_DEVELOPER: {
         Permission.PROJECT_CREATE,
         Permission.PROJECT_READ,
         Permission.PROJECT_UPDATE,
@@ -104,7 +104,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
     },
     
     Role.ENTERPRISE: {
-        # Inherits everything from PRO
+        # Inherits everything from PRO_DEVELOPER
         Permission.PROJECT_CREATE, Permission.PROJECT_READ, Permission.PROJECT_UPDATE, Permission.PROJECT_DELETE,
         Permission.PROJECT_SHARE, Permission.WORKBENCH_CREATE, Permission.WORKBENCH_UNLIMITED, Permission.WORKBENCH_SHARE,
         Permission.SWARM_AGENTS, Permission.KUBERNETES_DEPLOY, Permission.FIGMA_INTEGRATION,

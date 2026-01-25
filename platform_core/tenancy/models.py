@@ -14,7 +14,7 @@ class Tenant(Base):
     
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    plan = Column(String, default="free", index=True)  # free, developer, pro, enterprise
+    plan = Column(String, default="developer", index=True)  # developer, pro_developer, enterprise, admin
     
     # Storage quotas
     storage_quota_gb = Column(Integer, default=10)

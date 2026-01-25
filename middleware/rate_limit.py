@@ -13,10 +13,10 @@ from core.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
 
-# Default rate limits (requests per minute)
+# Default rate limits (requests per minute) aligned with User Roles
 TIERS = {
-    "free": 10,
-    "pro": 100,
+    "developer": 10,
+    "pro_developer": 100,
     "enterprise": 1000,
     "internal": 10000
 }
@@ -79,14 +79,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if api_key.startswith("sk_ent_"):
                 return f"apikey:{api_key}", "enterprise"
             elif api_key.startswith("sk_pro_"):
-                return f"apikey:{api_key}", "pro"
+                return f"apikey:{api_key}", "pro_developer"
             elif api_key.startswith("sk_test_"):
                 return f"apikey:{api_key}", "internal"
-            return f"apikey:{api_key}", "free"
+            return f"apikey:{api_key}", "developer"
             
         # 2. Fallback to IP
         ip = request.client.host
-        return f"ip:{ip}", "free"
+        return f"ip:{ip}", "developer"
 
     async def _check_rate_limit(self, client_id: str, tier: str) -> Tuple[bool, int, float]:
         """
