@@ -155,14 +155,17 @@ class DebuggerService:
         
         if command == "setBreakpoints":
             return await self._handle_set_breakpoints(session, message.get("arguments", {}))
-        elif command == "continue":
-            return {"success": True} # Placeholder
-        elif command == "next":
-            return {"success": True} # Placeholder
-        elif command == "stepIn":
-            return {"success": True} # Placeholder
+        elif command in ["continue", "next", "stepIn", "stepOut", "pause", "stackTrace", "scopes", "variables"]:
+            # These require deeper implementation of the specific debugger bridge.
+            # For now, we return a more structural response to avoid crashes.
+            logger.info(f"DAP Command {command} received but not fully implemented for {session.language}")
+            return {
+                "success": False, 
+                "message": f"Command '{command}' is currently in technical preview and not fully implemented.",
+                "command": command
+            }
             
-        return {"error": "Command not supported"}
+        return {"error": f"Command '{command}' not supported"}
 
     async def _handle_set_breakpoints(self, session: DebugSession, args: Dict[str, Any]):
         """Set breakpoints for a file"""

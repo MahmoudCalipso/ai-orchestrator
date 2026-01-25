@@ -1,9 +1,12 @@
 import os
 import sys
 import logging
-import argparse
 from sqlalchemy import text, create_engine
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 # Add project root to path
 sys.path.append(os.getcwd())
@@ -17,14 +20,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def setup_postgres(args):
+    # Support both command line override and .env variable
     db_url = os.getenv("DATABASE_URL")
     
     if args.host:
+        # Command line override construction
         db_url = f"postgresql://{args.user}:{args.password}@{args.host}:{args.port}/{args.dbname}"
-    elif not db_url:
-        db_url = "postgresql://postgres:postgres@localhost:5432/ai_orchestrator"
+    
+    if not db_url:
+        print("ERROR: DATABASE_URL not set in environment and no CLI overrides provided.")
+        sys.exit(1)
         
-    print(f"Connecting to PostgreSQL at {db_url}...")
+    print(f"Connecting to PostgreSQL using DATABASE_URL configuration...")
     
     try:
         # Create temporary engine for initialization

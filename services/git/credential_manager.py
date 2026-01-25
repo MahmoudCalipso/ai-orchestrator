@@ -23,6 +23,9 @@ class GitCredentialManager:
         self.config = self._load_config()
         self.encryption_key = self._get_encryption_key()
         self.cipher = Fernet(self.encryption_key) if self.encryption_key else None
+        
+        # Auto-sync from environment variables
+        self.sync_from_env()
     
     def _load_config(self) -> Dict[str, Any]:
         """Load Git configuration from YAML file"""
@@ -55,26 +58,27 @@ class GitCredentialManager:
         }
     
     def _get_encryption_key(self) -> Optional[bytes]:
-        """Get or generate encryption key"""
+        """Get encryption key from environment"""
         key_env = self.config.get("security", {}).get("encryption_key_env", "GIT_ENCRYPTION_KEY")
         key = os.getenv(key_env)
         
         if key:
+            # Pad or truncate to 32 bytes for Fernet-compatible key generation via base64
+            # Actually Fernet needs exactly 32 bytes URL-safe base64 encoded.
+            # If the user provides a raw string, we process it.
+            try:
+                # Check if it's already a valid Fernet key
+                base64.urlsafe_b64decode(key.encode())
+                if len(base64.urlsafe_b64decode(key.encode())) == 32:
+                    return key.encode()
+            except:
+                pass
+            
+            # If not a valid Fernet key, derive one
             return base64.urlsafe_b64encode(key.encode().ljust(32)[:32])
         
-        # Check for key file
-        key_file = Path(".git_encryption_key")
-        if key_file.exists():
-            with open(key_file, 'rb') as f:
-                return f.read().strip()
-
-        # Generate new key if not found
         if self.config.get("security", {}).get("encrypt_credentials", True):
-            logger.warning("No encryption key found, generating new one and saving to .git_encryption_key")
-            new_key = Fernet.generate_key()
-            with open(key_file, 'wb') as f:
-                f.write(new_key)
-            return new_key
+            logger.warning("No encryption key found in environment (GIT_ENCRYPTION_KEY). Encryption will be disabled.")
         
         return None
     
@@ -141,7 +145,7 @@ class GitCredentialManager:
         
         elif provider == "bitbucket":
             username = credentials.get("username", "")
-            app_password = os.getenv("BITBUCKET_APP_PASSWORD") or credentials.get("app_password", "")
+            app_password = os.getenv("BITBUCKET_TOKEN") or os.getenv("BITBUCKET_APP_PASSWORD") or credentials.get("app_password", "")
             return {
                 "type": auth_type,
                 "username": username,
@@ -160,6 +164,74 @@ class GitCredentialManager:
         
         else:
             raise ValueError(f"Unknown provider: {provider}")
+    
+    def sync_from_env(self):
+        """Sync credentials from environment variables to config file"""
+        env_map = {
+            "github": {
+                "token": "GITHUB_TOKEN",
+                "username": "GITHUB_USERNAME"
+            },
+            "gitlab": {
+                "token": "GITLAB_TOKEN",
+                "username": "GITLAB_USERNAME"
+            },
+            "bitbucket": {
+                "app_password": ["BITBUCKET_TOKEN", "BITBUCKET_APP_PASSWORD"],
+                "username": "BITBUCKET_USERNAME"
+            }
+        }
+        
+        changed = False
+        for provider, mapping in env_map.items():
+            if provider not in self.config:
+                self.config[provider] = {"enabled": True, "auth_type": "token", "credentials": {}}
+            
+            if "credentials" not in self.config[provider]:
+                self.config[provider]["credentials"] = {}
+            
+            for config_key, env_key in mapping.items():
+                env_vals = []
+                if isinstance(env_key, list):
+                    for k in env_key:
+                        val = os.getenv(k)
+                        if val: env_vals.append(val)
+                else:
+                    val = os.getenv(env_key)
+                    if val: env_vals.append(val)
+                
+                if env_vals:
+                    # Sensitive values should be encrypted
+                    val_to_store = env_vals[0]
+                    
+                    # Check if it needs encryption
+                    should_encrypt = self.config.get("security", {}).get("encrypt_credentials", True)
+                    sensitive_fields = ["token", "app_password", "client_secret", "ssh_passphrase", "personal_access_token"]
+                    
+                    if should_encrypt and config_key in sensitive_fields and self.cipher:
+                        encrypted_val = self.cipher.encrypt(val_to_store.encode()).decode()
+                        if self.config[provider]["credentials"].get(config_key) != encrypted_val:
+                            # Also check if the current value in config is the decrypted version of what we have
+                            current_encrypted = self.config[provider]["credentials"].get(config_key)
+                            already_correct = False
+                            if current_encrypted:
+                                try:
+                                    if self.cipher.decrypt(current_encrypted.encode()).decode() == val_to_store:
+                                        already_correct = True
+                                except:
+                                    pass
+                            
+                            if not already_correct:
+                                self.config[provider]["credentials"][config_key] = encrypted_val
+                                changed = True
+                    else:
+                        if self.config[provider]["credentials"].get(config_key) != val_to_store:
+                            self.config[provider]["credentials"][config_key] = val_to_store
+                            changed = True
+        
+        if changed:
+            logger.info("Syncing Git credentials from environment to config")
+            self._save_config()
     
     def set_credentials(self, provider: str, credentials: Dict[str, Any]) -> bool:
         """

@@ -9,27 +9,13 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 import yaml
 import getpass
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 
-def generate_encryption_key():
-    """Generate a new Fernet encryption key"""
-    return Fernet.generate_key()
-
-
-def save_encryption_key(key: bytes, key_file: Path):
-    """Save encryption key to file"""
-    key_file.write_bytes(key)
-    print(f"Encryption key saved to {key_file}")
-
-
-def load_encryption_key(key_file: Path) -> bytes:
-    """Load encryption key from file"""
-    if not key_file.exists():
-        print(f"Encryption key not found at {key_file}")
-        key = generate_encryption_key()
-        save_encryption_key(key, key_file)
-        return key
-    return key_file.read_bytes()
+# Removed file-based encryption logic as it is now environment-based.
 
 
 def encrypt_value(value: str, key: bytes) -> str:
@@ -108,6 +94,8 @@ def main():
     parser.add_argument("--github-user", help="GitHub username")
     parser.add_argument("--gitlab-token", help="GitLab Personal Access Token")
     parser.add_argument("--gitlab-user", help="GitLab username")
+    parser.add_argument("--bitbucket-token", help="Bitbucket App Password")
+    parser.add_argument("--bitbucket-user", help="Bitbucket username")
     parser.add_argument("--non-interactive", action="store_true", help="Run without asking for input")
     
     args = parser.parse_args()
@@ -120,16 +108,17 @@ def main():
     # Get project root
     project_root = Path(__file__).parent.parent
     env_file = project_root / ".env"
-    key_file = project_root / ".git_encryption_key"
-    
-    # Load or generate encryption key
-    print("Setting up encryption...")
-    encryption_key = load_encryption_key(key_file)
-    print()
-    
     # Collect Git configuration
     env_updates = {}
-    env_updates["GIT_ENCRYPTION_KEY"] = encryption_key.decode()
+    
+    # Use existing key from environment or generate a new one for .env
+    existing_key = os.getenv("GIT_ENCRYPTION_KEY")
+    if not existing_key:
+        print("Generating new encryption key for .env...")
+        encryption_key = Fernet.generate_key().decode()
+        env_updates["GIT_ENCRYPTION_KEY"] = encryption_key
+    else:
+        print("Using existing encryption key from environment.")
     
     if args.non_interactive:
         env_updates["GIT_USER_NAME"] = args.name or "AI Orchestrator"
@@ -140,6 +129,9 @@ def main():
         if args.gitlab_token:
             env_updates["GITLAB_TOKEN"] = args.gitlab_token
             env_updates["GITLAB_USERNAME"] = args.gitlab_user or ""
+        if args.bitbucket_token:
+            env_updates["BITBUCKET_TOKEN"] = args.bitbucket_token
+            env_updates["BITBUCKET_USERNAME"] = args.bitbucket_user or ""
     else:
         print("Git User Configuration")
         print("-" * 60)
@@ -177,6 +169,20 @@ def main():
                 test_gitlab_token(gitlab_token)
                 env_updates["GITLAB_TOKEN"] = gitlab_token
                 env_updates["GITLAB_USERNAME"] = gitlab_username
+        print()
+        
+        # Bitbucket configuration
+        print("Bitbucket Configuration")
+        print("-" * 60)
+        setup_bitbucket = 'y' if args.bitbucket_token else (input("Configure Bitbucket? (y/n) [n]: ").strip().lower() or 'n')
+        if setup_bitbucket == 'y':
+            bitbucket_token = args.bitbucket_token or getpass.getpass("Enter your Bitbucket App Password: ").strip()
+            bitbucket_username = args.bitbucket_user or input("Enter your Bitbucket username: ").strip()
+            
+            if bitbucket_token:
+                # Validation omitted for now as there's no test_bitbucket_token function defined yet
+                env_updates["BITBUCKET_TOKEN"] = bitbucket_token
+                env_updates["BITBUCKET_USERNAME"] = bitbucket_username
         print()
     
     # Save configuration

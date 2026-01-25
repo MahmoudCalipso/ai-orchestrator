@@ -20,7 +20,7 @@ max_attempts=30
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -sf "$OLLAMA_HOST/api/tags" > /dev/null 2>&1; then
+    if ollama list > /dev/null 2>&1; then
         echo "✓ Ollama is ready!"
         break
     fi
@@ -71,15 +71,18 @@ current=0
 
 for model in $SELECTED_MODELS; do
     current=$((current + 1))
-    echo "[$current/$total] Downloading $model..."
+    echo "------------------------------------------"
+    echo "[$current/$total] 📥 STARTING: $model"
+    echo "------------------------------------------"
     
-    if curl -sf -X POST "$OLLAMA_HOST/api/pull" \
-        -H "Content-Type: application/json" \
-        -d "{\"name\": \"$model\"}" > /dev/null 2>&1; then
-        echo "  ✓ $model downloaded successfully"
+    # Use ollama pull. The TTY=true in compose should help with the progress bar.
+    if ollama pull "$model"; then
+        echo ""
+        echo "✅ SUCCESS: $model downloaded and verified"
         downloaded=$((downloaded + 1))
     else
-        echo "  ✗ Failed to download $model"
+        echo ""
+        echo "❌ FAILURE: Failed to download $model"
         failed=$((failed + 1))
     fi
     echo ""
@@ -97,7 +100,7 @@ if [ $downloaded -gt 0 ]; then
     echo "✅ Models ready to use!"
     echo ""
     echo "Available models:"
-    curl -s "$OLLAMA_HOST/api/tags" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 || echo "  (Unable to list models)"
+    ollama list
 else
     echo "⚠️  No models were downloaded successfully"
     exit 1

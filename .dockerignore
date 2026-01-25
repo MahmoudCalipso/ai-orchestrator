@@ -2,6 +2,7 @@
 .git
 .gitignore
 .gitattributes
+.github
 
 # Python
 __pycache__
@@ -15,53 +16,90 @@ __pycache__
 dist
 build
 
-# Virtual Environment
+# Virtual Environment - CRITICAL: Exclude these large directories
 venv/
+.venv/
 env/
 ENV/
+.env/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.iml
+*.code-workspace
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
+tests/
 
 # Documentation
 *.md
 !README.md
 docs/
 
-# Logs
+# Logs - CRITICAL: Exclude log directories
 logs/
 *.log
 
-# Cache
+# Cache - CRITICAL: Exclude cache
 cache/
+*.cache
 
-# Models (build separately if needed)
-models/*.gguf
-models/*.bin
-models/*.safetensors
+# Models - CRITICAL: Don't copy models, download them in container
+models/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+
+# Storage - CRITICAL: Exclude storage directories
+storage/
+backups/
+data/
+reports/
 
 # Environment
 .env
-.env
+.env.local
+.env.*.local
+.git_encryption_key
 
 # Temporary
 *.tmp
 tmp/
+.temp/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Docker
+# Docker - Don't copy Docker files into image
 Dockerfile
-docker-compose.yml
+Dockerfile.*
+docker-compose*.yml
 .dockerignore
+
+# Windows
+download_models.ps1
+setup.ps1
+start.ps1
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+dump.rdb
+
+# Kubernetes
+*.yaml
+!requirements.txt
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb

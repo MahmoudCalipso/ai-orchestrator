@@ -7,6 +7,10 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple
 import importlib.util
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 
 class HealthChecker:
@@ -89,21 +93,24 @@ class HealthChecker:
         """Check Ollama service"""
         try:
             import requests
-            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            response = requests.get(f"{ollama_url}/api/tags", timeout=5)
             if response.status_code == 200:
                 models = response.json().get('models', [])
-                return True, f"[+] Ollama running ({len(models)} models available)"
-            return False, "[!] Ollama not responding"
+                return True, f"[+] Ollama running at {ollama_url} ({len(models)} models available)"
+            return False, f"[!] Ollama not responding at {ollama_url}"
         except:
-            return False, "[!] Ollama not accessible (optional)"
+            return False, f"[!] Ollama not accessible at {ollama_url} (optional)"
     
     def check_database(self) -> Tuple[bool, str]:
-        """Check database file"""
-        db_file = self.project_root / "sql_app.db"
-        if db_file.exists():
-            size_kb = db_file.stat().st_size / 1024
-            return True, f"[+] Database exists ({size_kb:.1f} KB)"
-        return False, "[!] Database not initialized (will be created on first run)"
+        """Check database reachability"""
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+             return False, "[!] DATABASE_URL not set in environment (Required)"
+             
+        # Simple parsing for display
+        display_url = db_url.split('@')[-1] if '@' in db_url else db_url
+        return True, f"[+] Database configured via DATABASE_URL ({display_url})"
     
     def run_all_checks(self):
         """Run all health checks"""

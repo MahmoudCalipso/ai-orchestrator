@@ -1,85 +1,60 @@
-# Git Configuration
-# Store your Git provider credentials here
-
-# GitHub Configuration
-github:
-  enabled: true
-  api_url: "https://api.github.com"
-  auth_type: "token"  # token, oauth, ssh
-  credentials:
-    # Personal Access Token (recommended)
-    token: ""  # Set via environment variable: GITHUB_TOKEN
-    # OR OAuth (for web apps)
-    client_id: ""
-    client_secret: ""
-    # OR SSH Key
-    ssh_key_path: ""
-    ssh_passphrase: ""
-
-# GitLab Configuration
-gitlab:
-  enabled: true
-  api_url: "https://gitlab.com/api/v4"  # For self-hosted: https://your-gitlab.com/api/v4
-  auth_type: "token"  # token, oauth, ssh
-  credentials:
-    # Personal Access Token
-    token: ""  # Set via environment variable: GITLAB_TOKEN
-    # OR OAuth
-    client_id: ""
-    client_secret: ""
-    # OR SSH Key
-    ssh_key_path: ""
-    ssh_passphrase: ""
-
-# Bitbucket Configuration
-bitbucket:
-  enabled: true
-  api_url: "https://api.bitbucket.org/2.0"
-  auth_type: "token"  # token, oauth, ssh
-  credentials:
-    # App Password (recommended)
-    username: ""
-    app_password: ""  # Set via environment variable: BITBUCKET_APP_PASSWORD
-    # OR OAuth
-    client_id: ""
-    client_secret: ""
-    # OR SSH Key
-    ssh_key_path: ""
-    ssh_passphrase: ""
-
-# Azure DevOps Configuration
 azure_devops:
-  enabled: false
-  organization: ""  # Your Azure DevOps organization
-  api_url: "https://dev.azure.com"
-  auth_type: "token"
+  api_url: https://dev.azure.com
+  auth_type: token
   credentials:
-    personal_access_token: ""  # Set via environment variable: AZURE_DEVOPS_TOKEN
-
-# General Git Settings
-git:
-  default_branch: "main"
-  auto_commit: true
-  commit_message_template: "AI Orchestrator: {action} - {timestamp}"
-  user:
-    name: "AI Orchestrator"
-    email: "ai-orchestrator@example.com"
-
-# Security Settings
-security:
-  encrypt_credentials: true
-  credential_storage: "encrypted_file"  # encrypted_file, database, vault
-  encryption_key_env: "GIT_ENCRYPTION_KEY"  # Environment variable for encryption key
-
-# Clone Settings
+    personal_access_token: ''
+  enabled: false
+  organization: ''
+bitbucket:
+  api_url: https://api.bitbucket.org/2.0
+  auth_type: token
+  credentials:
+    app_password: gAAAAABpdS0GdB4AUVYA0qk8v5u1IPmmWDQs4LqCBfZVeFhqkCwv1fCTsyZEP_WAx-ud9fsg60PiXHizfjQTfzc1PHC6Y84IHAze1UG_Mv_TzDwvBwUT7b22vk-E7YDa_FY9GoPEQH_qfpHS3b016v0zBtogcHjBuzLsLc8iltrfNX5PzQRd4h2k3CDkElKPNqvkI82bVzR6vqVK3863wrypDSf_WIoKMV0_yn3BjmAU2RRUN_jkTEUxWUjktOeX7MOHQjutQKLZntBHsWsLMijBW7OtlBZs24je5-oOliFDMsVIKV6sG4hxKi9NWOymofk4AY_H64S7mX0pmMGdMDT19WV4nSpsmw==
+    client_id: ''
+    client_secret: ''
+    ssh_key_path: ''
+    ssh_passphrase: ''
+    username: ammarmahmoud1996
+  enabled: true
 clone:
-  default_directory: "./projects"
+  default_directory: ./projects
+  depth: 0
   shallow_clone: false
-  depth: 0  # 0 = full history, >0 = shallow clone
-  timeout: 300  # seconds
-
-# Webhook Settings (for automatic updates)
+  timeout: 300
+git:
+  auto_commit: true
+  commit_message_template: 'AI Orchestrator: {action} - {timestamp}'
+  default_branch: main
+  user:
+    email: ai-orchestrator@example.com
+    name: AI Orchestrator
+github:
+  api_url: https://api.github.com
+  auth_type: token
+  credentials:
+    client_id: ''
+    client_secret: ''
+    ssh_key_path: ''
+    ssh_passphrase: ''
+    token: gAAAAABpdS0G_cEhO_9OCkhg0fHkSUGXnyGmodZSI-_YLugnZkakuJ2Jpe2R08nrvkK6oD4zfpFn26mPWEM4BwwiDJCCLn36tctAdrbELKD93g8C7oHk7kHrhYJyuMtmON11eDuktNvC
+    username: calipso_777
+  enabled: true
+gitlab:
+  api_url: https://gitlab.com/api/v4
+  auth_type: token
+  credentials:
+    client_id: ''
+    client_secret: ''
+    ssh_key_path: ''
+    ssh_passphrase: ''
+    token: gAAAAABpdS0G2Y3wfHoWAxkGYUlswQWcOdmPhDhcBVGb-PvTYRXhK8-136vXG7-aCMYrXkX9kTWgJ2fZTDMQsROKek_bNpMPAfY_0WLEkRMJIIpvpWpl6T5ntHO1KO7aAqqMEf67Me_HaeW5IDJ2thEqqDja_FzD7A==
+    username: ammarmahmoud1996
+  enabled: true
+security:
+  credential_storage: encrypted_file
+  encrypt_credentials: true
+  encryption_key_env: GIT_ENCRYPTION_KEY
 webhooks:
   enabled: false
   port: 9000
-  secret: ""  # Set via environment variable: WEBHOOK_SECRET
+  secret: ''

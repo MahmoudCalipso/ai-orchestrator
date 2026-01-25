@@ -15,8 +15,8 @@ class EmailService:
         self.orchestrator = orchestrator
         self.smtp_host = os.getenv("SMTP_HOST")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("SMTP_USER")
-        self.smtp_pass = os.getenv("SMTP_PASS")
+        self.smtp_user = os.getenv("SMTP_USERNAME") or os.getenv("SMTP_USER")
+        self.smtp_pass = os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS")
         self.from_email = os.getenv("FROM_EMAIL", "noreply@ai-orchestrator.com")
 
     async def send_email(self, to_email: str, subject: str, body: str):

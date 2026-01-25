@@ -5,6 +5,10 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy import create_engine
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 # SECURITY: No default credentials - must be set via environment
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")

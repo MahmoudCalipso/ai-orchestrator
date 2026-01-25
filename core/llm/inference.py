@@ -21,8 +21,9 @@ class LLMInference:
     def __init__(self, provider: str = "ollama", model: str = None, api_key: str = None):
         # ... existing config ...
         self.provider = "ollama"
-        self.base_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-        self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+        self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        # Use OLLAMA_DEFAULT_MODEL from .env.example or fallback to OLLAMA_MODEL
+        self.model = model or os.getenv("OLLAMA_DEFAULT_MODEL") or os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
         self.calt = CALTLogger()
         
         # Batching Engine (2026 Polish)

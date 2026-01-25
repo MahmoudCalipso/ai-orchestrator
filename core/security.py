@@ -5,11 +5,17 @@ import logging
 import hashlib
 import secrets
 import os
+import time
 from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import HTTPException, Header, Depends
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 from sqlalchemy.orm import Session
 from platform_core.auth.dependencies import get_db
+from core.database.manager import unified_db
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +127,42 @@ class SecurityManager:
                 
         return False
 
-    def check_rate_limit(self, api_key: str) -> bool:
-        """Check if request is within rate limits"""
-        # Placeholder implementation
-        return True
+    async def check_rate_limit(self, api_key: str, limit: int = 1000, window_seconds: int = 3600) -> bool:
+        """
+        Check if request is within rate limits using a sliding window algorithm in Redis.
+        Default: 1000 requests per hour.
+        """
+        if not unified_db.redis:
+            logger.warning("Redis not available for rate limiting. Bypassing check.")
+            return True
+
+        try:
+            # Get user info for custom limits
+            user_info = self.api_keys.get(api_key)
+            if user_info:
+                limit = user_info.get("rate_limit", limit)
+
+            key = f"rate_limit:{api_key}"
+            now = time.time()
+            
+            async with unified_db.redis.pipeline(transaction=True) as pipe:
+                # Remove older records outside the window
+                pipe.zremrangebyscore(key, 0, now - window_seconds)
+                # Count remaining records
+                pipe.zcard(key)
+                # Add current request
+                pipe.zadd(key, {str(now): now})
+                # Set expiration to clean up the set eventually
+                pipe.expire(key, window_seconds)
+                
+                results = await pipe.execute()
+                current_count = results[1]
+
+            return current_count < limit
+
+        except Exception as e:
+            logger.error(f"Rate limiting check failed: {e}")
+            return True # Fail-open in production for continuity
         
 
 # Dependency for FastAPI

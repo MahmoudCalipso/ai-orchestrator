@@ -112,6 +112,7 @@ class Workspace:
         self.settings = WorkspaceSettings()
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
+        self.activities: List[Dict[str, Any]] = []
         
         # Add owner as member
         self.members[owner_id] = WorkspaceMember(
@@ -119,6 +120,19 @@ class Workspace:
             owner_name,
             WorkspaceRole.OWNER
         )
+        self.log_activity("workspace_created", f"Workspace '{name}' created by {owner_name}")
+
+    def log_activity(self, activity_type: str, message: str, user_id: Optional[str] = None):
+        """Record a workspace activity"""
+        self.activities.insert(0, {
+            "type": activity_type,
+            "timestamp": datetime.utcnow().isoformat(),
+            "message": message,
+            "user_id": user_id
+        })
+        # Keep only last 100 activities
+        if len(self.activities) > 100:
+            self.activities = self.activities[:100]
     
     def add_member(self, user_id: str, username: str, role: WorkspaceRole) -> bool:
         """Add member to workspace"""
@@ -127,6 +141,7 @@ class Workspace:
         
         self.members[user_id] = WorkspaceMember(user_id, username, role)
         self.updated_at = datetime.utcnow()
+        self.log_activity("member_added", f"User {username} added as {role.value}", user_id)
         return True
     
     def remove_member(self, user_id: str) -> bool:
@@ -346,12 +361,8 @@ class WorkspaceManager:
         limit: int = 50
     ) -> List[Dict[str, Any]]:
         """Get workspace activity feed"""
-        # This would track and return workspace activities
-        # For now, return placeholder
-        return [
-            {
-                "type": "workspace_created",
-                "timestamp": datetime.utcnow().isoformat(),
-                "message": "Workspace created"
-            }
-        ]
+        workspace = self.workspaces.get(workspace_id)
+        if not workspace:
+            return []
+            
+        return workspace.activities[:limit]

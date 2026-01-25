@@ -8,12 +8,20 @@ import sys
 import os
 from datetime import datetime
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 
 class OrchestratorMonitor:
     """Monitor for AI Orchestrator"""
     
-    def __init__(self, base_url: str = "http://localhost:8080", api_key: str = None):
+    def __init__(self, base_url: str = None, api_key: str = None):
+        if not base_url:
+            port = os.getenv("API_PORT", "8000")
+            base_url = f"http://localhost:{port}"
+            
         self.base_url = base_url
         # Require API key from parameter or environment
         if not api_key:
@@ -158,8 +166,8 @@ def main():
     parser = argparse.ArgumentParser(description="AI Orchestrator Monitor")
     parser.add_argument(
         "--url",
-        default="http://localhost:8080",
-        help="Orchestrator URL"
+        default=None,
+        help="Orchestrator URL (defaults to http://localhost:{API_PORT})"
     )
     parser.add_argument(
         "--api-key",

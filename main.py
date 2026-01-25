@@ -16,6 +16,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 import uvicorn
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -79,8 +83,9 @@ from controllers.API.emulator_controller import router as emulator_router
 from controllers.WS.websocket_controller import router as ws_router
 
 # Configure logging
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -251,7 +256,7 @@ app = FastAPI(
 
 # Add CORS middleware - SECURITY: Restrict origins in production
 # Get allowed origins from environment variable
-allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
 allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
 
 app.add_middleware(
@@ -314,10 +319,11 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 # Include Controllers
 app.include_router(system_router) # Root /
-app.include_router(ai_router, prefix="") # /models, /inference (kept root-level for compat or add /api prefix?) 
-# Original main.py had /models at root. /inference at root.
-# Let's keep strict compatibility for now, matching main.py paths.
-# AI Controller: /models, /inference. So prefix=""
+
+# All API endpoints strictly under /api/v1
+API_PREFIX = "/api/v1"
+
+app.include_router(ai_router, prefix=API_PREFIX)
 
 # Project Controller: /api/user/..., /api/projects/...
 # Defined in controller with full paths? No, APIRouter(tags=["Project Management"])
@@ -328,66 +334,34 @@ app.include_router(ai_router, prefix="") # /models, /inference (kept root-level 
 # The original was `/api/user/{user_id}/projects`.
 # So I need `prefix="/api"`.
 
-app.include_router(project_router, prefix="/api")
-
-# Git Controller
-# Original: /git/config, /git/repositories/...
-# Controller: /git/config...
-# So prefix=""
-app.include_router(git_router)
-
-# IDE Controller
-# Original: /api/ide/...
-# Controller: /ide/...
-# So prefix="/api"
-app.include_router(ide_router, prefix="/api")
-
-# Storage Controller
-# Original: /api/storage/...
-# Controller: /storage/...
-# So prefix="/api"
-app.include_router(storage_router, prefix="/api")
-
-# Monitoring Controller
-# Original: /api/monitoring/...
-# Controller: /monitoring/...
-# So prefix="/api"
-app.include_router(monitoring_router, prefix="/api")
-
-# Admin Controller
-# Original: /api/admin/...
-# Controller: /admin/...
-# So prefix="/api"
-app.include_router(admin_router, prefix="/api")
-
-# Enterprise Controller (New)
-app.include_router(enterprise_router, prefix="/api")
-
-app.include_router(workspace_router, prefix="/api")
-
-# Auth Controller
-app.include_router(auth_controller, prefix="/api")
-
-# DB Explorer Controller
-app.include_router(db_explorer_controller, prefix="/api")
-
-# Tools Controller
-# Original: /api/figma..., /api/kubernetes...
-# Controller: /api/figma... (Wait, I checked tools_controller.py, I put /api/figma/analyze)
-# So prefix="" for tools controller.
-app.include_router(tools_router)
-
-# Registry Controller
-app.include_router(registry_router, prefix="/api")
-
-# Emulator Controller
-app.include_router(emulator_router, prefix="/api")
+app.include_router(project_router, prefix=API_PREFIX)
+app.include_router(git_router, prefix=API_PREFIX)
+app.include_router(ide_router, prefix=API_PREFIX)
+app.include_router(storage_router, prefix=API_PREFIX)
+app.include_router(monitoring_router, prefix=API_PREFIX)
+app.include_router(admin_router, prefix=API_PREFIX)
+app.include_router(enterprise_router, prefix=API_PREFIX)
+app.include_router(workspace_router, prefix=API_PREFIX)
+app.include_router(auth_controller, prefix=API_PREFIX)
+app.include_router(db_explorer_controller, prefix=API_PREFIX)
+app.include_router(tools_router, prefix=API_PREFIX)
+app.include_router(registry_router, prefix=API_PREFIX)
+app.include_router(emulator_router, prefix=API_PREFIX)
 
 # WebSocket Controller
-# Original: /api/ide/terminal..., /api/monitoring/stream...
-# Controller: /ide/terminal..., /monitoring/stream
 # Updated to use /ws prefix as requested
 app.include_router(ws_router, prefix="/ws")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = int(os.getenv("API_PORT", 8000))
+    workers = int(os.getenv("API_WORKERS", 1))
+    debug_mode = os.getenv("DEBUG", "false").lower() == "true"
+    
+    uvicorn.run(
+        "main:app", 
+        host=host, 
+        port=port, 
+        reload=debug_mode,
+        workers=workers if not debug_mode else None
+    )

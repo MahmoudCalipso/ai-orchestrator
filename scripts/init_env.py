@@ -31,10 +31,15 @@ if __name__ == "__main__":
         "JWT_SECRET_KEY": secrets.token_urlsafe(32),
         "JWT_ALGORITHM": "HS256",
         "ACCESS_TOKEN_EXPIRE_MINUTES": "60",
+        "DEFAULT_API_KEY": f"dev-key-{secrets.token_hex(8)}",
+        "MASTER_ENCRYPTION_KEY": secrets.token_urlsafe(32),
         "REDIS_HOST": "localhost",
         "REDIS_PORT": "6379",
+        "DATABASE_URL": f"postgresql://orchestrator:{secrets.token_urlsafe(16)}@localhost:5432/ai_orchestrator",
         "LLM_PROVIDER": "ollama",
-        "LLM_MODEL": "qwen2.5-coder:7b"
+        "LLM_MODEL": "qwen2.5-coder:7b",
+        "MODEL_TIER": "minimal",
+        "API_PORT": "8000"
     }
     
     update_env_file(env_file, updates)

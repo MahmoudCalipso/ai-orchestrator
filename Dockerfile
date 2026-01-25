@@ -1,10 +1,10 @@
 # =============================================================================
-# IA-ORCHESTRATOR 2026 - ENTERPRISE DOCKER IMAGE
-# Multi-stage build for security, performance, and automatic model downloading
+# IA-ORCHESTRATOR 2026 - PRODUCTION DOCKER IMAGE
+# Multi-stage build for optimized image size and security
 # =============================================================================
 
 # =============================================================================
-# Stage 1: Builder - Compile dependencies
+# Stage 1: Builder - Compile Python dependencies
 # =============================================================================
 FROM python:3.11-slim AS builder
 
@@ -17,10 +17,6 @@ WORKDIR /build
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    cmake \
-    git \
-    curl \
-    wget \
     libpq-dev \
     libssl-dev \
     pkg-config \
@@ -32,13 +28,13 @@ RUN pip install --user --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --user --no-cache-dir -r requirements.txt
 
 # =============================================================================
-# Stage 2: Runtime - Minimal secure image
+# Stage 2: Runtime - Production image
 # =============================================================================
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies and security tools
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     wget \
@@ -46,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     git \
     tini \
+    bash \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -53,38 +50,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
-# Create non-root user for security
+# Create non-root user and directories
 RUN groupadd -r orchestrator && \
     useradd -r -g orchestrator -u 1000 -m -s /bin/bash orchestrator && \
-    mkdir -p /app /app/models /app/logs /app/cache /app/data && \
+    mkdir -p /app/models /app/logs /app/cache /app/data /app/storage /app/scripts && \
     chown -R orchestrator:orchestrator /app
 
-# Copy application code
+# Copy application code (excluding large dirs via .dockerignore)
 COPY --chown=orchestrator:orchestrator . .
 
-# Copy model download script
+# Copy model download script (only the one used by docker-compose)
 COPY --chown=orchestrator:orchestrator scripts/download_models.sh /app/scripts/
 RUN chmod +x /app/scripts/download_models.sh
 
-# Security: Remove unnecessary files
+# Security: Remove Windows-specific files
+RUN rm -f /app/download_models.ps1
+
+# Security: Clean up Python cache
 RUN find /app -name "*.pyc" -delete && \
-    find /app -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
-    rm -rf /app/setup.ps1 /app/start.ps1 /app/download_models.ps1 /app/.git
+    find /app -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Switch to non-root user
 USER orchestrator
 
-# Environment variables for security and performance
+# Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=random \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    MALLOC_ARENA_MAX=2 \
-    MALLOC_MMAP_THRESHOLD_=131072 \
-    MALLOC_TRIM_THRESHOLD_=131072 \
-    MALLOC_TOP_PAD_=131072 \
-    MALLOC_MMAP_MAX_=65536
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Expose port
 EXPOSE 8000
@@ -96,5 +90,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Use tini as init system for proper signal handling
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
-# Start application with uvicorn for production
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools"]
+# Start application with uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

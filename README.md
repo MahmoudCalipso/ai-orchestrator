@@ -139,13 +139,38 @@ Seamlessly integrate with frontend teams and design workflows using our built-in
 ## 🚀 Deployment
 
 ### 1. Launch with Docker (Recommended)
+
+#### 🐧 Linux / macOS (Bash)
 ```bash
-docker-compose up -d --build
+# Minimal stack
+docker-compose up -d
+
+# Full AI stack
+MODEL_TIER=minimal docker-compose --profile ai up -d
 ```
 
-### 2. Supported AI Engines
+#### 🪟 Windows (PowerShell)
+```powershell
+# Minimal stack
+docker-compose up -d
+
+# Full AI stack
+$env:MODEL_TIER="minimal"; docker-compose --profile ai up -d
+```
+
+### 2. Local Development
+```bash
+# Install dependencies
+make install
+
+# Run the app
+make run
+```
+
+### 3. Supported AI Engines
 - **Ollama:** Primary high-speed local engine.
 - **Models:** `qwen2.5-coder:7b` (Logic), `nomic-embed-text` (Memory).
+- **Storage:** All models are persisted in the `ollama-data` volume.
 
 ---
 

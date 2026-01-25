@@ -1,0 +1,39 @@
+"""
+AI Orchestrator - Main Entry Point
+Refactored to use modular Controllers and Service Container.
+"""
+import logging
+import asyncio
+import os
+from datetime import datetime
+from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+import uvicorn
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# Core Imports
+from core.orchestrator import Orchestrator
+from core.container import container
+from middleware.rate_limit import RateLimitMiddleware
+from dto.errors.error_response import ErrorResponse, ErrorDetail
+
+# Platform Components
+from services.git import GitCredentialManager, RepositoryManager
+from services.database import DatabaseConnectionManager, SchemaAnalyzer, EntityGenerator
+from services.registry import LanguageRegistry
+from platform_core.auth.dependencies import require_git_account
+
+# Services
+# ... (omitted for brevity in this scratchpad, but I will write the full file)

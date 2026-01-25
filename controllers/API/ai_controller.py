@@ -178,7 +178,7 @@ async def unload_model(
     except Exception as e:
         logger.error(f"Failed to unload model: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-@router.post("/api/generate", response_model=SwarmResponse)
+@router.post("/generate", response_model=SwarmResponse)
 async def generate_project(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
@@ -201,7 +201,7 @@ async def generate_project(
         logger.error(f"Generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/migrate", response_model=SwarmResponse)
+@router.post("/migrate", response_model=SwarmResponse)
 async def migrate_project(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
@@ -224,7 +224,7 @@ async def migrate_project(
         logger.error(f"Migration failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/fix", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/fix", response_model=BaseResponse[Dict[str, Any]])
 async def fix_code(
     request: FixCodeRequest,
     api_key: str = Depends(verify_api_key)
@@ -242,7 +242,7 @@ async def fix_code(
         logger.error(f"Fix failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/analyze", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/analyze", response_model=BaseResponse[Dict[str, Any]])
 async def analyze_code(
     request: AnalyzeCodeRequest,
     api_key: str = Depends(verify_api_key)
@@ -260,7 +260,7 @@ async def analyze_code(
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/test", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/test", response_model=BaseResponse[Dict[str, Any]])
 async def generate_tests(
     request: TestCodeRequest,
     api_key: str = Depends(verify_api_key)
@@ -278,7 +278,7 @@ async def generate_tests(
         logger.error(f"Test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/optimize", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/optimize", response_model=BaseResponse[Dict[str, Any]])
 async def optimize_code(
     request: OptimizeCodeRequest,
     api_key: str = Depends(verify_api_key)
@@ -296,7 +296,7 @@ async def optimize_code(
         logger.error(f"Optimization failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/refactor", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/refactor", response_model=BaseResponse[Dict[str, Any]])
 async def refactor_code(
     request: RefactorCodeRequest,
     api_key: str = Depends(verify_api_key)
@@ -314,7 +314,7 @@ async def refactor_code(
         logger.error(f"Refactor failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/explain", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/explain", response_model=BaseResponse[Dict[str, Any]])
 async def explain_code(
     request: ExplainCodeRequest,
     api_key: str = Depends(verify_api_key)

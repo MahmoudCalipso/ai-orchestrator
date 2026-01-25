@@ -30,18 +30,17 @@ install:
 
 setup:
 	@echo "Running setup..."
-	chmod +x setup.sh
-	./setup.sh
+	python scripts/init_env.py
+	python scripts/setup_postgres.py
+	@echo "Setup complete. Please verify your .env file."
 
 run:
 	@echo "Starting orchestrator..."
-	chmod +x run.sh
-	./run.sh
+	python main.py
 
 run-dev:
 	@echo "Starting orchestrator in development mode..."
-	chmod +x run.sh
-	./run.sh --reload
+	uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 test:
 	@echo "Running tests..."
@@ -93,9 +92,8 @@ clean:
 
 clean-all: clean
 	@echo "Cleaning everything..."
-	rm -rf venv
-	rm -rf logs/*
-	rm -rf cache/*
+	@python -c "import shutil; import os; [shutil.rmtree(d) for d in ['venv', '.venv'] if os.path.exists(d)]"
+	@python -c "import os; [os.makedirs(d, exist_ok=True) for d in ['logs', 'cache']]"
 
 init-dirs:
 	@echo "Creating directories..."
@@ -107,9 +105,7 @@ check-ollama:
 
 pull-models:
 	@echo "Pulling models..."
-	ollama pull mistral
-	ollama pull phi3
-	@echo "Models pulled successfully"
+	@python -c "import os; os.system('powershell ./download_models.ps1') if os.name == 'nt' else os.system('bash scripts/download_models.sh')"
 
 health:
 	@echo "Checking health..."
