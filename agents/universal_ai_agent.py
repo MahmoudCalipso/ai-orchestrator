@@ -4,7 +4,9 @@ Language-agnostic AI agent powered by LLM intelligence
 Works with ANY programming language, framework, or technology
 """
 import logging
-from typing import Dict, Any
+import re
+import ast
+from typing import Dict, Any, List, Optional
 from agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)

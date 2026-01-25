@@ -16,6 +16,7 @@ load_dotenv()
 from sqlalchemy.orm import Session
 from platform_core.auth.dependencies import get_db
 from core.database.manager import unified_db
+from platform_core.auth.rbac import Role
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,15 @@ class JWTManager:
     def hash_api_key(self, k): return "hash"
     def revoke_token(self, t): pass
     def verify_token(self, t, type): return {"sub": "user", "tenant_id": "tenant"}
+
+# Global instances for optimization
+_security_manager = None
+
+def get_security_manager():
+    global _security_manager
+    if _security_manager is None:
+        _security_manager = SecurityManager()
+    return _security_manager
 
 class SecurityManager:
 
@@ -177,7 +187,7 @@ async def verify_api_key(
             detail="API key required. Provide X-API-Key header."
         )
 
-    security_manager = SecurityManager()
+    security_manager = get_security_manager()
     
     if not security_manager.verify_api_key(x_api_key, db=db):
         raise HTTPException(
@@ -189,13 +199,6 @@ async def verify_api_key(
 
 
 # RBAC System
-from enum import Enum
-
-class Role(str, Enum):
-    ADMIN = "admin"
-    ENTERPRISE = "enterprise"
-    PRO_DEVELOPER = "pro_developer"
-    DEVELOPER = "developer"
 
 def require_role(allowed_roles: list[Role]):
     """
@@ -207,7 +210,7 @@ def require_role(allowed_roles: list[Role]):
         api_key: str = Depends(verify_api_key),
         db: Session = Depends(get_db)
     ):
-        security_manager = SecurityManager()
+        security_manager = get_security_manager()
         user_info = security_manager.get_user_info(api_key, db)
         
         if not user_info:

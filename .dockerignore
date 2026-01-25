@@ -97,7 +97,7 @@ start.ps1
 dump.rdb
 
 # Kubernetes
-*.yaml
+# *.yaml
 !requirements.txt
 
 # Jupyter

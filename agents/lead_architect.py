@@ -5,7 +5,8 @@ import logging
 import json
 import re
 import asyncio
-from typing import List, Dict, Any
+import ast
+from typing import Dict, Any, List, Optional
 from agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -146,11 +147,20 @@ class LeadArchitectAgent(BaseAgent):
             ]
             
         # Dynamic decomposition fallback
+        # Use a direct LLM call instead of orchestrator.run_inference to avoid circular dependency
         prompt = f"Return a JSON list of subtasks (keys: domain, instruction, model) to solve: {task}"
-        response = await self.orchestrator.run_inference(prompt, model="smart")
+        
         try:
-            res_str = response.get("solution", "[]")
-            match = re.search(r'\[.*\]', res_str, re.DOTALL)
-            return json.loads(match.group(0)) if match else [{"domain": "general", "instruction": task, "model": "coder"}]
-        except:
+            if hasattr(self.orchestrator, 'llm') and self.orchestrator.llm:
+                response = await self.orchestrator.llm.generate(
+                    prompt=prompt,
+                    model="qwen2.5-coder:7b",
+                    max_tokens=2000
+                )
+                res_str = response if isinstance(response, str) else response.get("solution", "[]")
+                match = re.search(r'\[.*\]', res_str, re.DOTALL)
+                return json.loads(match.group(0)) if match else [{"domain": "general", "instruction": task, "model": "coder"}]
+            return [{"domain": "general", "instruction": task, "model": "coder"}]
+        except Exception as e:
+            logger.error(f"Dynamic decomposition failed: {e}")
             return [{"domain": "general", "instruction": task, "model": "coder"}]

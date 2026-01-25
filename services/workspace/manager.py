@@ -1,11 +1,17 @@
-"""
-Team Workspace Management
-Provides multi-user workspace management with role-based permissions
-"""
 import uuid
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from enum import Enum
+from sqlalchemy import select, delete, desc
+from platform_core.database import SessionLocal
+from models.workspace import (
+    Workspace as WorkspaceModel, 
+    WorkspaceMember as MemberModel, 
+    WorkspaceActivity as ActivityModel
+)
+
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceRole(str, Enum):
@@ -215,48 +221,87 @@ class Workspace:
 
 
 class WorkspaceManager:
-    """Workspace manager"""
+    """Workspace manager with Database Persistence"""
     
     def __init__(self):
-        self.workspaces: Dict[str, Workspace] = {}
-        self.user_workspaces: Dict[str, List[str]] = {}  # user_id -> workspace_ids
+        # We no longer need in-memory storage for persistence
+        pass
     
     def create_workspace(
         self,
         name: str,
         owner_id: str,
         owner_name: str
-    ) -> Workspace:
-        """Create new workspace"""
+    ) -> Dict[str, Any]:
+        """Create new workspace and persist to DB"""
         workspace_id = str(uuid.uuid4())
-        workspace = Workspace(workspace_id, name, owner_id, owner_name)
         
-        self.workspaces[workspace_id] = workspace
-        
-        # Track user workspaces
-        if owner_id not in self.user_workspaces:
-            self.user_workspaces[owner_id] = []
-        self.user_workspaces[owner_id].append(workspace_id)
-        
-        return workspace
+        with SessionLocal() as db:
+            # Create Workspace
+            db_workspace = WorkspaceModel(
+                id=workspace_id,
+                name=name,
+                owner_id=owner_id
+            )
+            db.add(db_workspace)
+            
+            # Add Owner as first member
+            db_member = MemberModel(
+                workspace_id=workspace_id,
+                user_id=owner_id,
+                username=owner_name,
+                role=WorkspaceRole.ADMIN.value # Owner is Admin
+            )
+            db.add(db_member)
+            
+            # Log Activity
+            db_activity = ActivityModel(
+                workspace_id=workspace_id,
+                user_id=owner_id,
+                activity_type="workspace_created",
+                message=f"Workspace '{name}' created by {owner_name}"
+            )
+            db.add(db_activity)
+            
+            db.commit()
+            return {
+                "id": workspace_id,
+                "name": name,
+                "owner_id": owner_id,
+                "status": "created"
+            }
     
-    def get_workspace(self, workspace_id: str) -> Optional[Workspace]:
-        """Get workspace by ID"""
-        return self.workspaces.get(workspace_id)
+    def get_workspace(self, workspace_id: str) -> Optional[Dict[str, Any]]:
+        """Get workspace by ID from DB"""
+        with SessionLocal() as db:
+            workspace = db.query(WorkspaceModel).filter(WorkspaceModel.id == workspace_id).first()
+            if not workspace:
+                return None
+                
+            # Convert to dict for API compatibility
+            return {
+                "id": workspace.id,
+                "name": workspace.name,
+                "owner_id": workspace.owner_id,
+                "settings": workspace.settings,
+                "created_at": workspace.created_at.isoformat(),
+                "members_count": db.query(MemberModel).filter(MemberModel.workspace_id == workspace_id).count()
+            }
     
     def delete_workspace(self, workspace_id: str, user_id: str) -> bool:
-        """Delete workspace (only owner can delete)"""
-        workspace = self.workspaces.get(workspace_id)
-        if not workspace or workspace.owner_id != user_id:
-            return False
-        
-        # Remove from all members' workspace lists
-        for member_id in workspace.members.keys():
-            if member_id in self.user_workspaces:
-                self.user_workspaces[member_id].remove(workspace_id)
-        
-        del self.workspaces[workspace_id]
-        return True
+        """Delete workspace from DB (only owner can delete)"""
+        with SessionLocal() as db:
+            workspace = db.query(WorkspaceModel).filter(
+                WorkspaceModel.id == workspace_id,
+                WorkspaceModel.owner_id == user_id
+            ).first()
+            
+            if not workspace:
+                return False
+            
+            db.delete(workspace)
+            db.commit()
+            return True
     
     def list_user_workspaces(
         self, 
@@ -264,22 +309,30 @@ class WorkspaceManager:
         page: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:
-        """List workspaces for user with pagination"""
-        workspace_ids = self.user_workspaces.get(user_id, [])
-        all_user_workspaces = [self.workspaces[wid] for wid in workspace_ids if wid in self.workspaces]
-        
-        total = len(all_user_workspaces)
-        start = (page - 1) * page_size
-        end = start + page_size
-        paginated_workspaces = all_user_workspaces[start:end]
-        
-        return {
-            "workspaces": paginated_workspaces,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "total_pages": (total + page_size - 1) // page_size
-        }
+        """List workspaces for user from DB with pagination"""
+        with SessionLocal() as db:
+            # Join with members table to find workspaces where user is a member
+            query = db.query(WorkspaceModel).join(MemberModel).filter(MemberModel.user_id == user_id)
+            
+            total = query.count()
+            results = query.offset((page - 1) * page_size).limit(page_size).all()
+            
+            workspaces = []
+            for w in results:
+                workspaces.append({
+                    "id": w.id,
+                    "name": w.name,
+                    "owner_id": w.owner_id,
+                    "created_at": w.created_at.isoformat()
+                })
+            
+            return {
+                "workspaces": workspaces,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size
+            }
     
     def invite_member(
         self,
@@ -289,24 +342,46 @@ class WorkspaceManager:
         username: str,
         role: WorkspaceRole = WorkspaceRole.DEVELOPER
     ) -> bool:
-        """Invite member to workspace"""
-        workspace = self.workspaces.get(workspace_id)
-        if not workspace:
-            return False
-        
-        # Check if inviter has permission
-        if not workspace.has_permission(inviter_id, Permission.MANAGE_MEMBERS):
-            return False
-        
-        # Add member
-        if workspace.add_member(user_id, username, role):
-            # Track user workspace
-            if user_id not in self.user_workspaces:
-                self.user_workspaces[user_id] = []
-            self.user_workspaces[user_id].append(workspace_id)
+        """Invite member to workspace in DB"""
+        with SessionLocal() as db:
+            # Check if inviter has permission (must be admin or enterprise in this workspace)
+            inviter = db.query(MemberModel).filter(
+                MemberModel.workspace_id == workspace_id,
+                MemberModel.user_id == inviter_id
+            ).first()
+            
+            if not inviter or inviter.role not in [WorkspaceRole.ADMIN.value, WorkspaceRole.ENTERPRISE.value]:
+                return False
+            
+            # Check if already member
+            existing = db.query(MemberModel).filter(
+                MemberModel.workspace_id == workspace_id,
+                MemberModel.user_id == user_id
+            ).first()
+            
+            if existing:
+                return False
+            
+            # Add member
+            db_member = MemberModel(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                username=username,
+                role=role.value
+            )
+            db.add(db_member)
+            
+            # Log Activity
+            db_activity = ActivityModel(
+                workspace_id=workspace_id,
+                user_id=inviter_id,
+                activity_type="member_added",
+                message=f"User {username} added as {role.value}"
+            )
+            db.add(db_activity)
+            
+            db.commit()
             return True
-        
-        return False
     
     def remove_member(
         self,
@@ -314,23 +389,42 @@ class WorkspaceManager:
         remover_id: str,
         user_id: str
     ) -> bool:
-        """Remove member from workspace"""
-        workspace = self.workspaces.get(workspace_id)
-        if not workspace:
+        """Remove member from workspace in DB"""
+        with SessionLocal() as db:
+            # Check permission
+            remover = db.query(MemberModel).filter(
+                MemberModel.workspace_id == workspace_id,
+                MemberModel.user_id == remover_id
+            ).first()
+            
+            if not remover or remover.role not in [WorkspaceRole.ADMIN.value, WorkspaceRole.ENTERPRISE.value]:
+                return False
+            
+            # Cannot remove owner
+            workspace = db.query(WorkspaceModel).get(workspace_id)
+            if not workspace or workspace.owner_id == user_id:
+                return False
+            
+            member = db.query(MemberModel).filter(
+                MemberModel.workspace_id == workspace_id,
+                MemberModel.user_id == user_id
+            ).first()
+            
+            if member:
+                db.delete(member)
+                
+                # Log Activity
+                db_activity = ActivityModel(
+                    workspace_id=workspace_id,
+                    user_id=remover_id,
+                    activity_type="member_removed",
+                    message=f"User {user_id} removed from workspace"
+                )
+                db.add(db_activity)
+                
+                db.commit()
+                return True
             return False
-        
-        # Check if remover has permission
-        if not workspace.has_permission(remover_id, Permission.MANAGE_MEMBERS):
-            return False
-        
-        # Remove member
-        if workspace.remove_member(user_id):
-            # Update user workspaces
-            if user_id in self.user_workspaces:
-                self.user_workspaces[user_id].remove(workspace_id)
-            return True
-        
-        return False
     
     def update_settings(
         self,
@@ -338,31 +432,44 @@ class WorkspaceManager:
         user_id: str,
         settings: Dict[str, Any]
     ) -> bool:
-        """Update workspace settings"""
-        workspace = self.workspaces.get(workspace_id)
-        if not workspace:
-            return False
-        
-        # Check if user has permission
-        if not workspace.has_permission(user_id, Permission.MANAGE_SETTINGS):
-            return False
-        
-        # Update settings
-        for key, value in settings.items():
-            if hasattr(workspace.settings, key):
-                setattr(workspace.settings, key, value)
-        
-        workspace.updated_at = datetime.utcnow()
-        return True
+        """Update workspace settings in DB"""
+        with SessionLocal() as db:
+            # Check permission (Admin only)
+            member = db.query(MemberModel).filter(
+                MemberModel.workspace_id == workspace_id,
+                MemberModel.user_id == user_id
+            ).first()
+            
+            if not member or member.role != WorkspaceRole.ADMIN.value:
+                return False
+            
+            workspace = db.query(WorkspaceModel).get(workspace_id)
+            if not workspace:
+                return False
+            
+            # Update settings (JSON merge)
+            current_settings = workspace.settings or {}
+            current_settings.update(settings)
+            workspace.settings = current_settings
+            
+            db.commit()
+            return True
     
     def get_activity_feed(
         self,
         workspace_id: str,
         limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """Get workspace activity feed"""
-        workspace = self.workspaces.get(workspace_id)
-        if not workspace:
-            return []
+        """Get workspace activity feed from DB"""
+        with SessionLocal() as db:
+            activities = db.query(ActivityModel).filter(
+                ActivityModel.workspace_id == workspace_id
+            ).order_by(desc(ActivityModel.timestamp)).limit(limit).all()
             
-        return workspace.activities[:limit]
+            return [{
+                "id": a.id,
+                "type": a.activity_type,
+                "message": a.message,
+                "user_id": a.user_id,
+                "timestamp": a.timestamp.isoformat()
+            } for a in activities]
