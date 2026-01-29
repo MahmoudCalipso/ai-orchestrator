@@ -39,7 +39,10 @@ if __name__ == "__main__":
         "LLM_PROVIDER": "ollama",
         "LLM_MODEL": "qwen2.5-coder:7b",
         "MODEL_TIER": "minimal",
-        "API_PORT": "8000"
+        "API_PORT": "8000",
+        "APP_ENV": "production",
+        "LOG_LEVEL": "INFO",
+        "ALLOWED_ORIGINS": "*"
     }
     
     update_env_file(env_file, updates)

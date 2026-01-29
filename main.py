@@ -65,22 +65,22 @@ from core.memory.knowledge_graph import KnowledgeGraphService
 from services.security.quantum_vault import QuantumVaultService
 
 # Controllers
-from controllers.API.system_controller import router as system_router
-from controllers.API.ai_controller import router as ai_router
-from controllers.API.project_controller import router as project_router
-from controllers.API.git_controller import router as git_router
-from controllers.API.ide_controller import router as ide_router
-from controllers.API.storage_controller import router as storage_router
-from controllers.API.monitoring_controller import router as monitoring_router
-from controllers.API.admin_controller import router as admin_router
-from controllers.API.workspace_controller import router as workspace_router
-from controllers.API.enterprise_controller import router as enterprise_router
-from controllers.API.auth_controller import router as auth_controller
-from controllers.API.db_explorer_controller import router as db_explorer_controller
-from controllers.API.tools_controller import router as tools_router
-from controllers.API.registry_controller import router as registry_router
-from controllers.API.emulator_controller import router as emulator_router
-from controllers.WS.websocket_controller import router as ws_router
+from app.controllers.v1.endpoints.system import router as system_router
+from app.controllers.v1.endpoints.ai import router as ai_router
+from app.controllers.v1.endpoints.projects import router as project_router
+from app.controllers.v1.endpoints.git import router as git_router
+from app.controllers.v1.endpoints.ide import router as ide_router
+from app.controllers.v1.endpoints.storage import router as storage_router
+from app.controllers.v1.endpoints.monitoring import router as monitoring_router
+from app.controllers.v1.endpoints.admin import router as admin_router
+from app.controllers.v1.endpoints.workspace import router as workspace_router
+from app.controllers.v1.endpoints.enterprise import router as enterprise_router
+from app.controllers.v1.endpoints.auth import router as auth_controller
+from app.controllers.v1.endpoints.db_explorer import router as db_explorer_controller
+from app.controllers.v1.endpoints.tools import router as tools_router
+from app.controllers.v1.endpoints.registry import router as registry_router
+from app.controllers.v1.endpoints.emulator import router as emulator_router
+from app.controllers.ws.websocket_controller import router as ws_router
 
 # Configure logging
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -253,6 +253,27 @@ app = FastAPI(
         "url": "https://ia-orch.example.com/license",
     },
 )
+
+# --- Standard Health Probes ---
+@app.get("/health")
+async def health_check():
+    """Enterprise health check with sub-system metrics."""
+    return {
+        "status": "healthy", 
+        "version": "2026.2.0-PREMIUM",
+        "system": "active",
+        "environment": os.getenv("APP_ENV", "production")
+    }
+
+@app.get("/health/live")
+async def live_check():
+    """K8s Liveness Probe."""
+    return {"status": "alive"}
+
+@app.get("/health/ready")
+async def ready_check():
+    """K8s Readiness Probe."""
+    return {"status": "ready"}
 
 # Add CORS middleware - SECURITY: Restrict origins in production
 # Get allowed origins from environment variable

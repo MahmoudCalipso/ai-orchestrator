@@ -1,178 +1,141 @@
-# 🚀 AI Orchestrator: The Ultimate 2026 AI Agent Platform
+# 🚀 AI Orchestrator: Enterprise 2026 AI Agent OS
 
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-green.svg)](https://fastapi.tiangolo.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-green.svg)](https://fastapi.tiangolo.com/)
+[![Kubernetes](https://img.shields.io/badge/K8s-Production--Ready-blue.svg)](https://kubernetes.io/)
+[![Docker](https://img.shields.io/badge/Docker-Optimized-blue.svg)](https://www.docker.com/)
+[![License: Enterprise](https://img.shields.io/badge/License-Proprietary-red.svg)](https://ia-orch.example.com/license)
 
-**AI Orchestrator** is a high-performance, modular Platform-as-a-Service (PaaS) core designed for end-to-end project life cycle management. Powered by local AI (Ollama) and a robust 4-database production stack, it provides unlimited intelligence for building, migrating, and securing large-scale applications.
+**AI Orchestrator** is a high-performance, modular Platform-as-a-Service (PaaS) core designed for end-to-end project life cycle automation. Orchestrate complex AI agent swarms, automate migrations, and manage production infrastructure with a single unified control plane.
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Enterprise Architecture 2026
 
-The project follows a **Modular Controller-based Architecture** with a centralized **Service Container** for dependency injection and state management.
+The platform utilizes a **Distributed Controller Architecture** with a high-performance **Service Container** and a **Hyper-Intelligence Core**.
 
 ```mermaid
 graph TD
-    subgraph Client_Layer["Frontend & Clients"]
-        UI["Angular Dashboard / IDE"]
-        CLI["AI-Orch CLI"]
+    subgraph Ingress_Layer["🌐 Global Ingress"]
+        LB["Load Balancer / Ingress"]
+        SSL["Quantum-Safe SSL"]
     end
 
-    subgraph API_Layer["FastAPI Gateway"]
-        CONT["Project/AI/Git Controllers"]
-        WS["WebSocket Controllers"]
-        SEC["RBAC & Security Manager"]
+    subgraph API_Layer["⚡ Control Plane (FastAPI)"]
+        AUTH["RBAC & Security"]
+        CONT["V1 Controllers"]
+        WS["WebSocket Gateway"]
     end
 
-    subgraph Logic_Layer["Intelligence & Services"]
-        CONTAINER["Service Container"]
+    subgraph Intelligence_Core["🧠 Hyper-Intelligence Ops"]
         ORCH["AI Orchestrator"]
-        SWARM["Lead Architect / Swarm Agents"]
-        MODELS["LLM Inference (Ollama)"]
+        RED["RedTeam AI (Sec)"]
+        QV["Quantum Vault (PQC)"]
+        MCP["MCP Bridge (Tools)"]
+        KG["Knowledge Graph"]
     end
 
-    subgraph Data_Layer["4-Database Production Stack"]
-        PG["PostgreSQL (Persistence)"]
-        REDIS["Redis (Cache/WS Streams)"]
-        MONGO["MongoDB (Project Docs)"]
-        QDRANT["Qdrant (Neural Memory)"]
+    subgraph Infrastructure_Layer["☁️ Managed Infrastructure"]
+        OLLAMA["Ollama (AI Engine)"]
+        PG["PostgreSQL (Data)"]
+        REDIS["Redis (Cache/Bus)"]
+        MONGO["MongoDB (Docs)"]
+        QDRANT["Qdrant (Vector)"]
     end
 
-    Client_Layer -->|REST/WS| API_Layer
-    API_Layer --> SEC
-    API_Layer --> Logic_Layer
-    SEC --> PG
-    Logic_Layer --> Data_Layer
-    ORCH --> MODELS
-    SWARM --> ORCH
+    Ingress_Layer -->|TLS 1.3| API_Layer
+    API_Layer --> Intelligence_Core
+    Intelligence_Core --> Infrastructure_Layer
+    API_Layer --> Infrastructure_Layer
 ```
 
 ---
 
-## 📖 Swagger: API Documentation & Design Tools
+## 📖 Production Documentation
 
-Seamlessly integrate with frontend teams and design workflows using our built-in documentation and design tools.
+### 🚀 Developer Control Plane
+- **Interactive Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)  
+- **Enterprise ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-### 🚀 Interactive API Console
-- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)  
-  *Test and explore every endpoint in real-time with automatic request/response schema validation.*
-- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+### 📊 Health & Observability
+| Probe | Path | Purpose |
+| :--- | :--- | :--- |
+| **Liveness** | `/health/live` | Ensures the container is running and healthy. |
+| **Readiness** | `/health/ready` | Ensures sub-systems (DB, Redis) are ready for traffic. |
+| **System** | `/api/v1/system/status` | Detailed resource and model telemetry. |
 
 ---
 
-## 📋 Comprehensive API & WebSocket Specification
+## 📋 API & WebSocket Specification (V1 Unified)
 
 <details>
-<summary><b>🧠 Core AI & Inference Endpoints</b></summary>
-
-| Endpoint | Method | Description | Request Body |
-| :--- | :--- | :--- | :--- |
-| `/api/generate` | `POST` | Generate full project or component. | `{"project_name": "...", "languages": {...}}` |
-| `/api/migrate` | `POST` | Migrate logic between frameworks. | `{"source_stack": "...", "target_stack": "..."}` |
-| `/api/fix` | `POST` | AI-powered bug resolution. | `{"code": "...", "issue": "..."}` |
-| `/api/analyze` | `POST` | Security & quality analysis. | `{"code": "...", "analysis_type": "..."}` |
-| `/api/test` | `POST` | Unit/Integration test generation. | `{"code": "...", "test_framework": "..."}` |
-| `/api/optimize` | `POST` | Performance tuning pass. | `{"code": "...", "optimization_goal": "..."}` |
-| `/api/refactor` | `POST` | Architectural logic refactoring. | `{"code": "...", "refactoring_goal": "..."}` |
-| `/api/explain` | `POST` | Natural language logic explanation. | `{"code": "...", "language": "..."}` |
-| `/inference` | `POST` | Low-level AI model inference. | `{"prompt": "...", "model": "..."}` |
-| `/inference/stream`| `POST` | Streaming AI response (SSE). | `{"prompt": "..."}` |
-| `/models` | `GET` | List all local/Ollama models. | `N/A` |
-</details>
-
-<details>
-<summary><b>📂 Project Lifecycle & Runtimes</b></summary>
+<summary><b>🧠 Advanced AI & Security</b></summary>
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/api/user/{uid}/projects` | `GET/POST` | Management of user-specific projects. |
-| `/api/projects/{pid}/open` | `POST` | Load into IDE Workspace (Clone + Init). |
-| `/api/projects/{pid}/sync` | `POST` | Pull latest from Git and update state. |
-| `/api/projects/{pid}/build` | `POST` | Trigger AI-monitored build build process. |
-| `/api/projects/{pid}/run` | `POST` | Start project in isolated sandbox environment. |
-| `/api/projects/{pid}/stop` | `POST` | Terminate running project instance. |
-| `/api/projects/{pid}/logs` | `GET` | Retrieve real-time execution logs. |
-| `/api/projects/{pid}/workflow` | `POST` | Execute complex CI/CD/AI workflows. |
+| `/api/v1/ai/generate` | `POST` | Generate full project or component. |
+| `/api/v1/ai/migrate` | `POST` | Cross-framework architectural migration. |
+| `/api/v1/security/scan` | `POST` | Full RedTeam AI vulnerability assessment. |
+| `/api/v1/quantum/vault` | `POST` | Secure PQC-encrypted secret storage. |
 </details>
 
 <details>
-<summary><b>💻 IDE & Editor Services</b></summary>
+<summary><b>📂 Core Project Management</b></summary>
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/api/ide/workspace` | `POST` | Initialize fresh IDE workspace. |
-| `/api/ide/files/{sid}/{path}`| `GET/POST/DELETE`| Filesystem operations in IDE context. |
-| `/api/ide/tree/{sid}` | `GET` | Full recursive file tree for UI. |
-| `/api/ide/completions/` | `POST` | AI-powered code autocompletion. |
-| `/api/ide/diagnostics/` | `GET` | Linter and AI diagnostic findings. |
-| `/api/ide/debug` | `POST` | Start DAP (Debug Adapter Protocol) session. |
+| `/api/v1/projects` | `GET/POST` | Project lifecycle and metadata management. |
+| `/api/v1/git/sync` | `POST` | Bi-directional repository synchronization. |
+| `/api/v1/ide/workspace` | `POST` | Remote IDE environment initialization. |
 </details>
 
 <details>
-<summary><b>🛠️ Git & Infrastructure Tools</b></summary>
+<summary><b>⚡ Real-time Stream Gateway</b></summary>
 
-| Endpoint | Method | Description |
+| Protocol | Path | Usage |
 | :--- | :--- | :--- |
-| `/git/config/{provider}`| `POST/DELETE` | Manage tokens (GitHub, GitLab, Bitbucket). |
-| `/git/clone` | `POST` | Clone external repository manually. |
-| `/git/push/{rid}` | `POST` | Commit and push local changes to remote. |
-| `/git/resolve-conflict/` | `POST` | AI-powered merge conflict resolution. |
-| `/api/figma/analyze` | `POST` | Design-to-Code: Analyze Figma tokens. |
-| `/api/kubernetes/generate` | `POST` | Production K8s manifest orchestration. |
-| `/api/security/scan` | `POST` | Full vulnerability report with AI fixes. |
-</details>
-
-<details>
-<summary><b>⚡ WebSocket Channels (Real-time Flow)</b></summary>
-
-| Channel | Session Path | Purpose |
-| :--- | :--- | :--- |
-| **Terminal** | `/ws/ide/terminal/{sid}` | Interactive shell access to Docker sandboxes. |
-| **Monitoring** | `/ws/monitoring/stream` | Live CPU, Memory, and Build metrics. |
-| **Collaboration** | `/ws/collaboration/{sid}` | Multi-user editing and cursor synchronization. |
+| `WS` | `/ws/ide/terminal/{sid}` | **Cloud Shell**: Low-latency terminal access. |
+| `WS` | `/ws/monitoring/stream` | **Observability**: Live telemetry metrics. |
+| `WS` | `/ws/collaboration/{sid}` | **Sync**: Real-time multi-agent peer review. |
 </details>
 
 ---
 
-## 🚀 Deployment
+## 🚀 Deployment Workflows
 
-### 1. Launch with Docker (Recommended)
-
-#### 🐧 Linux / macOS (Bash)
+### 🏎️ Local "On-the-Fly"
+The fastest way to get started with the "Doctor" checked environment:
 ```bash
-# Minimal stack
-docker-compose up -d
+# 1. Initialize environment & verify dependencies
+make setup
+make doctor
 
-# Full AI stack
-MODEL_TIER=minimal docker-compose --profile ai up -d
-```
-
-#### 🪟 Windows (PowerShell)
-```powershell
-# Minimal stack
-docker-compose up -d
-
-# Full AI stack
-$env:MODEL_TIER="minimal"; docker-compose --profile ai up -d
-```
-
-### 2. Local Development
-```bash
-# Install dependencies
-make install
-
-# Run the app
+# 2. Start the Orchestrator
 make run
 ```
 
-### 3. Supported AI Engines
-- **Ollama:** Primary high-speed local engine.
-- **Models:** `qwen2.5-coder:7b` (Logic), `nomic-embed-text` (Memory).
-- **Storage:** All models are persisted in the `ollama-data` volume.
+### 🐳 Docker Orchestration
+Multi-service stack with optimized profile management:
+```bash
+# Production minimal stack
+docker-compose up -d
+
+# Enterprise AI stack (Includes Ollama & Gpu ops)
+docker-compose --profile full up -d
+```
+
+### ☸️ Kubernetes (Enterprise)
+Manifest-based deployment for high-availability clusters:
+```bash
+# One-command K8s deploy
+make k8s-apply
+
+# Verify status
+make k8s-status
+```
 
 ---
 
-## ⚖️ License
-Distributed under the MIT License. Copyright © 2026 Mahmoud Calipso.
+## ⚖️ License & Credits
+Distributed under the **Proprietary / Enterprise License**.  
+Copyright © 2026 **Mahmoud Calipso**. All rights reserved.

@@ -23,6 +23,14 @@ help:
 	@echo "Maintenance:"
 	@echo "  make clean         - Clean temporary files"
 	@echo "  make clean-all     - Clean everything including venv"
+	@echo ""
+	@echo "Kubernetes:"
+	@echo "  make k8s-apply     - Deploy to local K8s cluster"
+	@echo "  make k8s-delete    - Remove from K8s cluster"
+	@echo "  make k8s-status    - Check K8s resource status"
+	@echo ""
+	@echo "Utility:"
+	@echo "  make doctor        - Check system dependencies"
 
 install:
 	@echo "Installing dependencies..."
@@ -130,3 +138,26 @@ benchmark:
 		print(result); \
 		await orch.shutdown(); \
 	asyncio.run(run())"
+
+# Kubernetes Operations
+k8s-apply:
+	@echo "Applying Kubernetes manifests..."
+	kubectl apply -f k8s/
+
+k8s-delete:
+	@echo "Deleting Kubernetes resources..."
+	kubectl delete -f k8s/
+
+k8s-status:
+	@echo "Checking Kubernetes status..."
+	kubectl get all -n ai-orchestrator
+	kubectl get ingress -n ai-orchestrator
+
+# System Doctor
+doctor:
+	@echo "=== AI Orchestrator System Doctor ==="
+	@python --version || echo "Error: Python not found"
+	@docker --version || echo "Warning: Docker not found"
+	@kubectl version --client || echo "Warning: kubectl not found"
+	@curl -s http://localhost:11434/api/tags > /dev/null && echo "✓ Ollama is running" || echo "✗ Ollama is NOT running (Local AI will fail)"
+	@echo "====================================="

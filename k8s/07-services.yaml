@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-postgres
+  namespace: ai-orchestrator
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: postgres
+  clusterIP: None # Headless for StatefulSet
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-redis
+  namespace: ai-orchestrator
+spec:
+  ports:
+  - port: 6379
+  selector:
+    app: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-ollama
+  namespace: ai-orchestrator
+spec:
+  ports:
+  - port: 11434
+  selector:
+    app: ollama
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-orchestrator-svc
+  namespace: ai-orchestrator
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+    name: http
+  selector:
+    app: ai-orchestrator

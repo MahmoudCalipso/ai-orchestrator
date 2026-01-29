@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrator-config
+  namespace: ai-orchestrator
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  API_PORT: "8000"
+  REDIS_HOST: "orchestrator-redis"
+  REDIS_PORT: "6379"
+  DATABASE_HOST: "orchestrator-postgres"
+  OLLAMA_BASE_URL: "http://orchestrator-ollama:11434"
+  ALLOWED_ORIGINS: "*"
