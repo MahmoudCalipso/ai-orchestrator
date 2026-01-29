@@ -73,26 +73,27 @@ class PromptInjectionException(BaseAppException):
             }
         )
 
+from dto.v1.base import ErrorResponse, ResponseStatus, ErrorDetail
+
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler for all unhandled exceptions."""
     
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-    timestamp = datetime.utcnow().isoformat() + "Z"
-
+    
     if isinstance(exc, BaseAppException):
         logger.warning(f"{exc.__class__.__name__}: {exc.message}", extra=exc.details)
+        
+        # Standardize error response
+        response = ErrorResponse(
+            status=ResponseStatus.ERROR,
+            code=exc.error_code,
+            message=exc.message,
+            request_id=request_id,
+            meta=exc.details
+        )
         return JSONResponse(
             status_code=exc.status_code,
-            content={
-                "success": False,
-                "request_id": request_id,
-                "timestamp": timestamp,
-                "error": {
-                    "code": exc.error_code,
-                    "message": exc.message,
-                    "details": exc.details
-                }
-            }
+            content=response.model_dump()
         )
     
     # Log unexpected errors
@@ -106,19 +107,20 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
     
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "request_id": request_id,
-            "timestamp": timestamp,
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred",
-                "details": {
-                    "error_type": exc.__class__.__name__,
-                    "debug": str(exc) if os.getenv("DEBUG") == "true" else "Hidden in production"
-                }
-            }
+    # Standardize internal error
+    response = ErrorResponse(
+        status=ResponseStatus.ERROR,
+        code="INTERNAL_ERROR",
+        message="An unexpected error occurred. Please contact support.",
+        request_id=request_id,
+        meta={
+            "error_type": exc.__class__.__name__,
+            "debug": str(exc) if os.getenv("DEBUG") == "true" else "Hidden in production"
         }
     )
+    
+    return JSONResponse(
+        status_code=500,
+        content=response.model_dump()
+    )
+

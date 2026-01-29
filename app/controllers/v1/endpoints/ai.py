@@ -11,17 +11,18 @@ from fastapi.responses import StreamingResponse
 from core.security import verify_api_key
 from core.container import container
 from ....core.llm.service import get_llm_service, ModelTier
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.ai import (
     InferenceRequest, FixCodeRequest, AnalyzeCodeRequest, TestCodeRequest,
-    OptimizeCodeRequest, RefactorCodeRequest, ExplainCodeRequest
+    OptimizeCodeRequest, RefactorCodeRequest, ExplainCodeRequest,
+    DocumentCodeRequest
 )
-from dto.v1.responses.ai import ModelInfoDTO, InferenceResponseDTO
-from dto.v1.responses.swarm import SwarmResponse
+from dto.v1.requests.generation import GenerationRequest, MigrationRequest as SwarmMigrationRequest
+from dto.v1.responses.ai import ModelInfoDTO, InferenceResponseDTO, SwarmResponseDTO, ModelListResponseDTO, ModelSummaryDTO
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ai", tags=["AI - Open Source"])
+router = APIRouter(prefix="/ai", tags=["AI Intelligence"])
 
 @router.get("/models")
 async def list_models(
@@ -39,11 +40,19 @@ async def list_models(
         end = start + page_size
         paginated = models[start:end]
         
+        models_data = [
+            ModelSummaryDTO(name=m, provider="ollama", is_local=True) 
+            for m in paginated
+        ]
+        
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="MODELS_DISCOVERED",
             message=f"Discovered {len(paginated)} open-source AI models",
-            data=[{"name": m, "provider": "ollama", "local": True} for m in paginated],
+            data=ModelListResponseDTO(
+                models=models_data,
+                total=total
+            ),
             meta={
                 "pagination": {
                     "page": page,
@@ -51,8 +60,7 @@ async def list_models(
                     "total": total,
                     "total_pages": (total + page_size - 1) // page_size
                 },
-                "tier": llm_service.tier.value,
-                "available_models": llm_service.available_models
+                "tier": llm_service.tier.value
             }
         )
     except Exception as e:
@@ -71,7 +79,7 @@ async def get_model_info(
             if not model_info:
                 raise HTTPException(status_code=404, detail="Model not found")
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="MODEL_INFO_RETRIEVED",
                 data=ModelInfoDTO.model_validate(model_info)
             )
@@ -100,7 +108,7 @@ async def run_inference(
                 context=request.context
             )
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="INFERENCE_COMPLETED",
                 message="AI inference completed",
                 data=InferenceResponseDTO.model_validate(result)
@@ -146,7 +154,7 @@ async def load_model(
         if container.orchestrator:
             result = await container.orchestrator.load_model(model_name)
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="MODEL_LOADED",
                 message=f"Model '{model_name}' loaded successfully",
                 data={"model": model_name, "details": result}
@@ -166,7 +174,7 @@ async def unload_model(
         if container.orchestrator:
             result = await container.orchestrator.unload_model(model_name)
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="MODEL_UNLOADED",
                 message=f"Model '{model_name}' unloaded successfully",
                 data={"model": model_name, "details": result}
@@ -175,32 +183,32 @@ async def unload_model(
     except Exception as e:
         logger.error(f"Failed to unload model: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-@router.post("/generate", response_model=SwarmResponse)
+@router.post("/generate", response_model=BaseResponse[SwarmResponseDTO])
 async def generate_project(
-    request: Dict[str, Any],
+    request: GenerationRequest,
     api_key: str = Depends(verify_api_key)
 ):
     """Generate a full project or component using AI swarm."""
     try:
         if container.orchestrator and container.orchestrator.lead_architect:
             result = await container.orchestrator.lead_architect.act(
-                f"Generate project: {request.get('project_name')}",
-                {**request, "type": "full_project_generation"}
+                f"Generate project: {request.project_name}",
+                {**request.model_dump(), "type": "full_project_generation"}
             )
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="GENERATION_STARTED",
-                message=f"Generation task for project '{request.get('project_name')}' started",
-                data=result
+                message=f"Generation task for project '{request.project_name}' started",
+                data=SwarmResponseDTO.model_validate(result)
             )
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
     except Exception as e:
         logger.error(f"Generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/migrate", response_model=SwarmResponse)
+@router.post("/migrate", response_model=BaseResponse[SwarmResponseDTO])
 async def migrate_project(
-    request: Dict[str, Any],
+    request: SwarmMigrationRequest,
     api_key: str = Depends(verify_api_key)
 ):
     """Migrate code or projects between stacks."""
@@ -208,13 +216,13 @@ async def migrate_project(
         if container.orchestrator and container.orchestrator.lead_architect:
             result = await container.orchestrator.lead_architect.act(
                 "Perform stack migration and logic healing.",
-                {**request, "type": "migration"}
+                {**request.model_dump(), "type": "migration"}
             )
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="MIGRATION_STARTED",
                 message="Migration task initialized",
-                data=result
+                data=SwarmResponseDTO.model_validate(result)
             )
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
     except Exception as e:
@@ -245,7 +253,7 @@ Provide the fixed code only, without explanations."""
         result = await llm_service.generate(prompt, model=model, temperature=0.2)
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="CODE_FIXED",
             data={"result": result, "model_used": model}
         )
@@ -279,7 +287,7 @@ Provide detailed analysis including:
         result = await llm_service.generate(prompt, model=model, temperature=0.3)
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="CODE_ANALYZED",
             data={"result": result, "model_used": model}
         )
@@ -297,7 +305,7 @@ async def generate_tests(
         task = f"Generate {request.test_framework or ''} tests for this code:\n{request.code}"
         result = await container.orchestrator.universal_agent.act(task, {"type": "test_generation", "language": request.language})
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="TESTS_GENERATED",
             data={"result": result.get("solution")}
         )
@@ -315,7 +323,7 @@ async def optimize_code(
         task = f"Optimize this code for {request.optimization_goal}:\n{request.code}"
         result = await container.orchestrator.universal_agent.act(task, {"type": "optimize", "language": request.language})
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="CODE_OPTIMIZED",
             data={"result": result.get("solution")}
         )
@@ -333,7 +341,7 @@ async def refactor_code(
         task = f"Refactor this code to achieve: {request.refactoring_goal}\nCode:\n{request.code}"
         result = await container.orchestrator.universal_agent.act(task, {"type": "refactor", "language": request.language})
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="CODE_REFACTORED",
             data={"result": result.get("solution")}
         )
@@ -366,11 +374,10 @@ Provide:
         result = await llm_service.generate(prompt, model=model, temperature=0.5)
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="CODE_EXPLAINED",
             data={"result": result, "model_used": model}
         )
     except Exception as e:
         logger.error(f"Explanation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

@@ -1,5 +1,5 @@
 """Robust WebSocket management with ConnectionPool and Heartbeats."""
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from typing import Dict, Set, Optional
 import asyncio
 import json
@@ -7,6 +7,9 @@ import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
 
 class ConnectionManager:
     """Manages active WebSocket connections with heartbeats and locking."""
@@ -96,3 +99,49 @@ class ConnectionManager:
 
 # Global connection manager instance
 manager = ConnectionManager()
+
+@router.websocket("/ide/terminal/{sid}")
+async def terminal_websocket(websocket: WebSocket, sid: str):
+    """WebSocket for Cloud Shell / Terminal access"""
+    await manager.connect(websocket, sid)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # In a real scenario, this would pipe to a shell process
+            # For now, we broadcast it back as an echo for verification
+            await manager.broadcast({
+                "type": "terminal_data",
+                "sid": sid,
+                "output": data
+            }, sid)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, sid)
+
+@router.websocket("/monitoring/stream")
+async def monitoring_stream(websocket: WebSocket):
+    """WebSocket for live telemetry stream"""
+    await manager.connect(websocket, "monitoring")
+    try:
+        while True:
+            # Simulate metrics
+            await websocket.send_json({
+                "type": "telemetry",
+                "timestamp": datetime.utcnow().isoformat(),
+                "metrics": {"cpu": 12.5, "memory": 45.2}
+            })
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, "monitoring")
+
+@router.websocket("/collaboration/{sid}")
+async def collaboration_websocket(websocket: WebSocket, sid: str):
+    """WebSocket for shared context and cursor syncing"""
+    await manager.connect(websocket, sid)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # Broadcast collaboration events to other clients in same session
+            await manager.broadcast(data, sid)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, sid)
+

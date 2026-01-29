@@ -13,9 +13,9 @@ from dotenv import load_dotenv
 
 # Load .env file
 load_dotenv()
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from platform_core.auth.dependencies import get_db
-from core.database.manager import unified_db
 from platform_core.auth.rbac import Role
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ class SecurityManager:
         else:
             logger.warning("No DEFAULT_API_KEY environment variable set. API key required for all requests.")
 
-    def get_user_info(self, api_key: str, db: Optional[Session] = None) -> Optional[dict]:
+    async def get_user_info(self, api_key: str, db: Optional[AsyncSession] = None) -> Optional[dict]:
         """Get user info associated with an API key (Local cache or DB)"""
         # 1. Check local cache (Admin/Env keys)
         if api_key in self.api_keys:
@@ -125,37 +125,36 @@ class SecurityManager:
         # 2. Check Database
         if db:
             from platform_core.auth.models import APIKey
-            from platform_core.auth.jwt_manager import JWTManager
             
-            # This is hash based lookup - optimization: cache this
-            jwt_mgr = JWTManager()
-            key_hash = jwt_mgr.hash_api_key(api_key)
+            key_hash = self.hash_api_key(api_key)
             
-            record = db.query(APIKey).filter(
-                APIKey.key_hash == key_hash, 
-                APIKey.is_active == True
-            ).first()
+            result = await db.execute(
+                select(APIKey).where(
+                    APIKey.key_hash == key_hash, 
+                    APIKey.is_active == True
+                )
+            )
+            record = result.scalar_one_or_none()
             
             if record:
                 # Return standardized user info dict
                 return {
-                    "user_id": record.user.id,
+                    "user_id": record.user_id,
                     "username": record.user.email,
                     "email": record.user.email,
                     "role": record.user.role,
-                    "org_id": record.user.tenant_id, # Using tenant_id as org_id
                     "tenant_id": record.user.tenant_id,
                     "source": "database"
                 }
 
         return None
 
-    def is_superuser(self, api_key: str, db: Optional[Session] = None) -> bool:
+    async def is_superuser(self, api_key: str, db: Optional[AsyncSession] = None) -> bool:
         """Check if the user is a SuperUser"""
-        user_info = self.get_user_info(api_key, db)
+        user_info = await self.get_user_info(api_key, db)
         return user_info and user_info.get("role") == Role.ADMIN.value
 
-    def verify_api_key(self, api_key: str, db: Optional[Session] = None) -> bool:
+    async def verify_api_key(self, api_key: str, db: Optional[AsyncSession] = None) -> bool:
         """
         Verify an API key. 
         Checks local cache (env keys) first, then database if provided.
@@ -166,19 +165,20 @@ class SecurityManager:
             
         # 2. Check Database if available
         if db:
-            from platform_core.auth.jwt_manager import JWTManager
             from platform_core.auth.models import APIKey
             
-            jwt_manager = JWTManager()
-            key_hash = jwt_manager.hash_api_key(api_key)
+            key_hash = self.hash_api_key(api_key)
             
-            api_key_record = db.query(APIKey).filter(
-                APIKey.key_hash == key_hash,
-                APIKey.is_active == True
-            ).first()
+            result = await db.execute(
+                select(APIKey).where(
+                    APIKey.key_hash == key_hash,
+                    APIKey.is_active == True
+                )
+            )
+            api_key_record = result.scalar_one_or_none()
             
             if api_key_record:
-                if api_key_record.expires_at and api_key_record.expires_at < datetime.now():
+                if api_key_record.expires_at and api_key_record.expires_at < datetime.utcnow():
                     return False
                 return True
                 
@@ -225,7 +225,7 @@ class SecurityManager:
 # Dependency for FastAPI
 async def verify_api_key(
     x_api_key: Optional[str] = Header(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> str:
     """Verify API key from header, supporting both ENV and DB keys"""
     if not x_api_key:
@@ -236,7 +236,7 @@ async def verify_api_key(
 
     security_manager = get_security_manager()
     
-    if not security_manager.verify_api_key(x_api_key, db=db):
+    if not await security_manager.verify_api_key(x_api_key, db=db):
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired API key"
@@ -253,12 +253,12 @@ def require_role(allowed_roles: list[Role]):
     SuperUser (Admin) always has access.
     Returns user_info dict.
     """
-    def _check_role(
+    async def _check_role(
         api_key: str = Depends(verify_api_key),
-        db: Session = Depends(get_db)
+        db: AsyncSession = Depends(get_db)
     ):
         security_manager = get_security_manager()
-        user_info = security_manager.get_user_info(api_key, db)
+        user_info = await security_manager.get_user_info(api_key, db)
         
         if not user_info:
              raise HTTPException(status_code=401, detail="User not found")

@@ -1,6 +1,7 @@
 """Main FastAPI application entry point."""
 import logging
 import os
+import asyncio
 import uuid
 import re
 from dotenv import load_dotenv
@@ -12,7 +13,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .core.database import db_manager
 from .core.agent_manager import agent_manager
-from .core.container import setup_container
+from .core.container import setup_container, container
+from .models import all as models_registry
 from .core.exceptions import global_exception_handler, BaseAppException
 import redis.asyncio as redis
 from .core.billing import TokenBudgetManager
@@ -36,7 +38,7 @@ async def lifespan(app: FastAPI):
     app.state.container = container
     
     # 2. Database & Agent Initialization
-    await container.db_manager().initialize()
+    container.db_manager().initialize()
     await container.db_manager().create_tables()
     await container.agent_manager().start()
     

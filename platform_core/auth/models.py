@@ -5,7 +5,8 @@ User, APIKey, and related models
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Integer
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Integer, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from platform_core.database import Base, SessionLocal
 
@@ -20,6 +21,7 @@ class User(Base):
     id = Column(String, primary_key=True)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String, unique=True, index=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
     role = Column(String, default="developer", index=True)  # admin, enterprise, pro_developer, developer
@@ -27,6 +29,7 @@ class User(Base):
     is_verified = Column(Boolean, default=False, index=True)
     credentials_accepted = Column(Boolean, default=False)
     last_login = Column(DateTime)
+    extra_metadata = Column(JSONB, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -34,6 +37,23 @@ class User(Base):
     tenant = relationship("Tenant", back_populates="users")
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     external_accounts = relationship("ExternalAccount", back_populates="user", cascade="all, delete-orphan")
+    
+    def to_dict(self):
+        """Convert to dictionary (excluding sensitive fields)"""
+        return {
+            "id": self.id,
+            "tenant_id": self.tenant_id,
+            "username": self.username,
+            "email": self.email,
+            "full_name": self.full_name,
+            "role": self.role,
+            "is_active": self.is_active,
+            "is_verified": self.is_verified,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "extra_metadata": self.extra_metadata
+        }
     
     def __repr__(self):
         return f"<User {self.email}>"

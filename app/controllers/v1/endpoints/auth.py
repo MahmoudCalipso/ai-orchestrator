@@ -13,13 +13,14 @@ from core.security import verify_api_key, SecurityManager, Role, JWTManager
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from platform_core.auth.dependencies import get_db, get_current_active_user, get_current_tenant
 from platform_core.auth import email_service
 
 from platform_core.tenancy.models import Tenant
 from platform_core.auth.models import User, APIKey, ExternalAccount, PasswordResetToken
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.auth import (
     UserRegisterRequest, UserLoginRequest, TokenRefreshRequest,
     APIKeyCreateRequest, PasswordChangeRequest, ForgotPasswordRequest,
@@ -40,13 +41,15 @@ jwt_manager = JWTManager()
 @router.post("/register", response_model=BaseResponse[TokenResponseDTO], status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserRegisterRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Register a new user and create tenant
     """
     # Check if email already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    existing_user = result.scalar_one_or_none()
+    
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -79,8 +82,8 @@ async def register(
         is_active=True
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     
     # Generate tokens
     access_token = jwt_manager.create_access_token({
@@ -93,7 +96,7 @@ async def register(
     refresh_token = jwt_manager.create_refresh_token(user.id, tenant_id)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="USER_REGISTERED",
         message="User registered successfully",
         data=TokenResponseDTO(
@@ -107,13 +110,14 @@ async def register(
 @router.post("/login", response_model=BaseResponse[TokenResponseDTO])
 async def login(
     credentials: UserLoginRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Login with email and password
     """
     # Find user
-    user = db.query(User).filter(User.email == credentials.email).first()
+    result = await db.execute(select(User).where(User.email == credentials.email))
+    user = result.scalar_one_or_none()
     
     if not user or not jwt_manager.verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
@@ -130,7 +134,7 @@ async def login(
     
     # Update last login
     user.last_login = datetime.utcnow()
-    db.commit()
+    await db.commit()
     
     # Generate tokens
     access_token = jwt_manager.create_access_token({
@@ -143,7 +147,7 @@ async def login(
     refresh_token = jwt_manager.create_refresh_token(user.id, user.tenant_id)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="LOGIN_SUCCESS",
         message="Login successful",
         data=TokenResponseDTO(
@@ -157,7 +161,7 @@ async def login(
 @router.post("/refresh", response_model=BaseResponse[TokenResponseDTO])
 async def refresh_token(
     token_data: TokenRefreshRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Refresh access token using refresh token
@@ -165,11 +169,19 @@ async def refresh_token(
     try:
         # Verify refresh token
         payload = jwt_manager.verify_token(token_data.refresh_token, token_type="refresh")
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+            
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")
         
         # Get user
-        user = db.query(User).filter(User.id == user_id).first()
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -185,7 +197,7 @@ async def refresh_token(
         })
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="TOKEN_REFRESHED",
             message="Token refreshed successfully",
             data=TokenResponseDTO(
@@ -195,7 +207,10 @@ async def refresh_token(
             )
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Token refresh failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -210,27 +225,30 @@ async def logout(
     Logout current user
     """
     jwt_manager.revoke_token(current_user.id)
-    return BaseResponse(status="success", code="LOGOUT_SUCCESS", message="Successfully logged out")
+    return BaseResponse(status=ResponseStatus.SUCCESS, code="LOGOUT_SUCCESS", message="Successfully logged out")
 
 
 @router.get("/me", response_model=BaseResponse[MeResponseDTO])
 async def get_me(
     current_user: User = Depends(get_current_active_user),
     tenant: Tenant = Depends(get_current_tenant),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Get current user information
+    Get current user information and context
     """
+    from platform_core.auth.rbac import RBACManager
+    
     # Get user permissions
     user_role = Role(current_user.role)
     permissions = [p.value for p in RBACManager.get_role_permissions(user_role)]
     
     # Get external accounts
-    external_accounts = db.query(ExternalAccount).filter(ExternalAccount.user_id == current_user.id).all()
+    result = await db.execute(select(ExternalAccount).where(ExternalAccount.user_id == current_user.id))
+    external_accounts = result.scalars().all()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="ME_RETRIEVED",
         data=MeResponseDTO(
             user=UserResponseDTO.model_validate(current_user),
@@ -251,7 +269,7 @@ async def connect_external_account(
     redirect_uri = f"{os.getenv('FRONTEND_URL')}/auth/callback/{provider}"
     auth_url = oauth_service.get_auth_url(provider, redirect_uri, state)
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="OAUTH_CONNECT_URL",
         data={"auth_url": auth_url, "state": state}
     )
@@ -284,10 +302,13 @@ async def external_callback(
         encrypted_refresh = encryption_service.encrypt(refresh_token) if refresh_token else None
         
         # 4. Save or update ExternalAccount
-        existing = db.query(ExternalAccount).filter(
-            ExternalAccount.user_id == current_user.id,
-            ExternalAccount.provider == provider
-        ).first()
+        result = await db.execute(
+            select(ExternalAccount).where(
+                ExternalAccount.user_id == current_user.id,
+                ExternalAccount.provider == provider
+            )
+        )
+        existing = result.scalar_one_or_none()
         
         expires_at = datetime.utcnow() + timedelta(seconds=expires_in) if expires_in else None
         
@@ -323,9 +344,9 @@ async def external_callback(
         if user_updated:
             db.add(current_user)
             
-        db.commit()
+        await db.commit()
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="OAUTH_ACCOUNT_LINKED",
             message=f"Connected to {provider} successfully"
         )
@@ -339,7 +360,7 @@ async def external_callback(
 async def create_api_key(
     key_data: APIKeyCreateRequest,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new API key
@@ -364,11 +385,11 @@ async def create_api_key(
     )
     
     db.add(api_key_record)
-    db.commit()
-    db.refresh(api_key_record)
+    await db.commit()
+    await db.refresh(api_key_record)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="API_KEY_CREATED",
         message=f"API key '{api_key_record.name}' created",
         data=APIKeyResponseDTO.model_validate({
@@ -387,19 +408,20 @@ async def create_api_key(
 async def list_api_keys(
     search: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     List all API keys for current user with search
     """
-    query = db.query(APIKey).filter(APIKey.user_id == current_user.id)
+    query = select(APIKey).where(APIKey.user_id == current_user.id)
     if search:
         query = query.filter(APIKey.name.ilike(f"%{search}%"))
     
-    api_keys = query.all()
+    result = await db.execute(query)
+    api_keys = result.scalars().all()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="API_KEYS_RETRIEVED",
         message=f"Retrieved {len(api_keys)} API keys",
         data=[APIKeyResponseDTO.model_validate(key) for key in api_keys],
@@ -411,15 +433,18 @@ async def list_api_keys(
 async def revoke_api_key(
     key_id: str,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Revoke an API key
     """
-    api_key = db.query(APIKey).filter(
-        APIKey.id == key_id,
-        APIKey.user_id == current_user.id
-    ).first()
+    result = await db.execute(
+        select(APIKey).where(
+            APIKey.id == key_id,
+            APIKey.user_id == current_user.id
+        )
+    )
+    api_key = result.scalar_one_or_none()
     
     if not api_key:
         raise HTTPException(
@@ -428,10 +453,10 @@ async def revoke_api_key(
         )
     
     api_key.is_active = False
-    db.commit()
+    await db.commit()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="API_KEY_REVOKED",
         message="API key revoked successfully",
         data={"key_id": key_id}
@@ -442,7 +467,7 @@ async def revoke_api_key(
 async def change_password(
     password_data: PasswordChangeRequest,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Change user password
@@ -456,10 +481,10 @@ async def change_password(
     
     # Update password
     current_user.hashed_password = jwt_manager.hash_password(password_data.new_password)
-    db.commit()
+    await db.commit()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PASSWORD_CHANGED",
         message="Password changed successfully. Please login again."
     )
@@ -467,7 +492,7 @@ async def change_password(
 
 @router.post("/accept-credentials", response_model=BaseResponse)
 async def accept_credentials(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -475,22 +500,24 @@ async def accept_credentials(
     """
     current_user.credentials_accepted = True
     current_user.updated_at = datetime.utcnow()
-    db.commit()
-    return BaseResponse(status="success", code="CREDENTIALS_ACCEPTED", message="Credentials accepted successfully")
+    await db.commit()
+    return BaseResponse(status=ResponseStatus.SUCCESS, code="CREDENTIALS_ACCEPTED", message="Credentials accepted successfully")
 
 
 @router.post("/forgot-password", response_model=BaseResponse)
 async def forgot_password(
     data: ForgotPasswordRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Request a password reset email
     """
-    user = db.query(User).filter(User.email == data.email).first()
+    result = await db.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+    
     if not user:
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="FORGOT_PASSWORD_SENT",
             message="If this email is registered, you will receive a reset link shortly."
         )
@@ -508,13 +535,13 @@ async def forgot_password(
         used=False
     )
     db.add(reset_token)
-    db.commit()
+    await db.commit()
     
     # Send email
     await email_service.send_password_reset_email(user.email, token)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="FORGOT_PASSWORD_SENT",
         message="If this email is registered, you will receive a reset link shortly."
     )
@@ -523,18 +550,21 @@ async def forgot_password(
 @router.post("/reset-password", response_model=BaseResponse)
 async def reset_password(
     data: PasswordResetRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Reset password using token
     """
     token_hash = hashlib.sha256(data.token.encode()).hexdigest()
     
-    reset_token = db.query(PasswordResetToken).filter(
-        PasswordResetToken.token_hash == token_hash,
-        PasswordResetToken.used == False,
-        PasswordResetToken.expires_at > datetime.utcnow()
-    ).first()
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used == False,
+            PasswordResetToken.expires_at > datetime.utcnow()
+        )
+    )
+    reset_token = result.scalar_one_or_none()
     
     if not reset_token:
         raise HTTPException(
@@ -542,20 +572,22 @@ async def reset_password(
             detail="Invalid or expired reset token"
         )
     
-    user = db.query(User).filter(User.id == reset_token.user_id).first()
+    result = await db.execute(select(User).where(User.id == reset_token.user_id))
+    user = result.scalar_one_or_none()
+    
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     # Update password
     user.hashed_password = jwt_manager.hash_password(data.new_password)
     reset_token.used = True
-    db.commit()
+    await db.commit()
     
     # Revoke all tokens
     jwt_manager.revoke_token(user.id)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PASSWORD_RESET_SUCCESS",
         message="Password reset successfully. Please login with your new password."
     )

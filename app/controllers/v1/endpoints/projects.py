@@ -18,8 +18,11 @@ from ....middleware.auth import require_auth
 
 # Models & DTOs
 from platform_core.auth.models import User
-from dto.common.base_response import BaseResponse
-from dto.v1.responses.project import ProjectResponseDTO
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.requests.project import ProjectCreateRequest, ProjectUpdateRequest, ProjectSearchRequest
+from dto.v1.responses.project import ProjectResponseDTO, ProjectListResponseDTO
+from schemas.spec import ProjectStatus, BuildStatus, RunStatus, Role
+from core.security import get_security_manager
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +58,13 @@ async def check_access(user_info: dict, target_user_id: str, db: AsyncSession):
 
 # --- Endpoints ---
 
-@router.get("/user/{user_id}/projects", response_model=BaseResponse[List[ProjectResponseDTO]])
+@router.get("/user/{user_id}/projects", response_model=BaseResponse[ProjectListResponseDTO])
 async def list_user_projects(
     user_id: str,
     search: Optional[str] = None,
     status: Optional[str] = None,
     name: Optional[str] = None,
-    framework: Optional[str] = None,
+    framework: Optional[str] = None
     language: Optional[str] = None,
     solution_id: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -70,10 +73,8 @@ async def list_user_projects(
     db: AsyncSession = Depends(get_db)
 ):
     """List all projects belonging to a user (RBAC Enforced)."""
-    sm = SecurityManager()
-    # Note: sm.get_user_info currently sync, might need refactoring or wrapping
-    # Assuming for now it works or we use a sync wrapper
-    user_info = sm.get_user_info(api_key) # Fixed sync usage
+    sm = get_security_manager()
+    user_info = await sm.get_user_info(api_key, db)
     
     if not user_info:
         raise HTTPException(401, "User not found")
@@ -90,26 +91,21 @@ async def list_user_projects(
         "solution_id": solution_id
     }
     
-    # Project Manager is likely sync internal logic if it uses in-memory dict
-    # If it touches DB, it needs update. Assuming in-memory for this step based on legacy code.
-    result = container.project_manager.get_user_projects(user_id, status, page, page_size, filters)
+    result = await container.project_manager.get_user_projects(user_id, status, page, page_size, filters)
     
     projects = [ProjectResponseDTO.model_validate(p) for p in result["projects"]]
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECTS_RETRIEVED",
         message=f"Retrieved {len(projects)} projects for user {user_id}",
-        data=projects,
-        meta={
-            "pagination": {
-                "page": result["page"],
-                "page_size": result["page_size"],
-                "total": result["total"],
-                "total_pages": result["total_pages"]
-            },
-            "filters": filters
-        }
+        data=ProjectListResponseDTO(
+            projects=projects,
+            total=result["total"],
+            page=result["page"],
+            page_size=result["page_size"]
+        ),
+        meta={"filters": filters}
     )
 
 @router.get("/user/{user_id}/projects/{project_id}", response_model=BaseResponse[ProjectResponseDTO])
@@ -120,8 +116,8 @@ async def get_user_project(
     db: AsyncSession = Depends(get_db)
 ):
     """Get project details."""
-    sm = SecurityManager()
-    user_info = sm.get_user_info(api_key, db)
+    sm = get_security_manager()
+    user_info = await sm.get_user_info(api_key, db)
     if not user_info: raise HTTPException(401)
     
     await check_access(user_info, user_id, db)
@@ -129,50 +125,50 @@ async def get_user_project(
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project or project["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Project not found")
         
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECT_DETAILS_RETRIEVED",
         message="Project details retrieved successfully",
         data=ProjectResponseDTO.model_validate(project)
     )
 
-@router.post("/user/{user_id}/projects")
+@router.post("/user/{user_id}/projects", response_model=BaseResponse[ProjectResponseDTO], status_code=status.HTTP_201_CREATED)
 async def create_user_project(
     user_id: str, 
-    request: Dict[str, Any], 
+    request: ProjectCreateRequest, 
     api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new user project."""
-    sm = SecurityManager()
-    user_info = sm.get_user_info(api_key, db)
+    sm = get_security_manager()
+    user_info = await sm.get_user_info(api_key, db)
     if not user_info: raise HTTPException(401)
     await check_access(user_info, user_id, db)
     
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
-    project = container.project_manager.create_project(
+    project = await container.project_manager.create_project(
         user_id=user_id,
-        project_name=request.get("project_name", "New Project"),
-        description=request.get("description", ""),
-        git_repo_url=request.get("git_repo_url", ""),
-        language=request.get("language", ""),
-        framework=request.get("framework", "")
+        project_name=request.project_name,
+        description=request.description,
+        git_repo_url=request.git_repo_url,
+        language=request.language or "",
+        framework=request.framework or ""
     )
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECT_CREATED",
         message="Project created successfully",
-        data=project
+        data=ProjectResponseDTO.model_validate(project)
     )
 
-@router.delete("/user/{user_id}/projects/{project_id}")
+@router.delete("/user/{user_id}/projects/{project_id}", response_model=BaseResponse[Dict[str, str]])
 async def delete_user_project(
     project_id: str, 
     user_id: str, 
@@ -180,20 +176,20 @@ async def delete_user_project(
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a user project."""
-    sm = SecurityManager()
-    user_info = sm.get_user_info(api_key, db)
+    sm = get_security_manager()
+    user_info = await sm.get_user_info(api_key, db)
     if not user_info: raise HTTPException(401)
     await check_access(user_info, user_id, db)
     
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
-    success = container.project_manager.delete_project(project_id, user_id)
+    success = await container.project_manager.delete_project(project_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Project not found or unauthorized")
         
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECT_DELETED",
         message="Project deleted successfully",
         data={"project_id": project_id}
@@ -201,19 +197,19 @@ async def delete_user_project(
 
 # --- Action Endpoints ---
 
-@router.post("/{project_id}/open")
+@router.post("/{project_id}/open", response_model=BaseResponse[Dict[str, Any]])
 async def open_user_project(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     """Open a project: Clone from Git and load in IDE."""
     if not container.project_manager or not container.git_sync_service or not container.editor_service:
          raise HTTPException(status_code=503, detail="Project services not ready")
 
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
     # Check ownership
-    sm = SecurityManager()
-    user_info = sm.get_user_info(api_key)
+    sm = get_security_manager()
+    user_info = await sm.get_user_info(api_key, db)
     await check_access(user_info, project["user_id"], db)
     
     # Clone if not already cloned
@@ -228,17 +224,17 @@ async def open_user_project(project_id: str, request: Dict[str, Any], api_key: s
         if not res["success"]:
             raise HTTPException(status_code=500, detail=res["message"])
     
-    container.project_manager.update_last_opened(project_id)
+    await container.project_manager.update_last_opened(project_id)
     
     # Create IDE workspace
     workspace = await container.editor_service.create_workspace(project["project_name"], local_path)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECT_OPENED",
         data={
             "workspace_id": workspace.id,
-            "project": project
+            "project": ProjectResponseDTO.model_validate(project)
         }
     )
 
@@ -248,7 +244,7 @@ async def sync_user_project(project_id: str, api_key: str = Depends(verify_api_k
     if not container.project_manager or not container.git_sync_service:
         raise HTTPException(status_code=503, detail="Project services not ready")
         
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
@@ -257,7 +253,7 @@ async def sync_user_project(project_id: str, api_key: str = Depends(verify_api_k
         raise HTTPException(status_code=500, detail=res["error"])
         
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECT_VERSION_CHECKED",
         data={"commit": res["commit_hash"]}
     )
@@ -268,7 +264,7 @@ async def ai_update_project(project_id: str, request: Dict[str, Any], api_key: s
     if not container.project_manager or not container.ai_update_service:
         raise HTTPException(status_code=503, detail="Project services not ready")
         
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
@@ -282,7 +278,11 @@ async def ai_update_project(project_id: str, request: Dict[str, Any], api_key: s
     if not res["success"]:
         raise HTTPException(status_code=500, detail=res["error"])
         
-    return res
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="AI_UPDATE_APPLIED",
+        data=res
+    )
 
 @router.post("/{project_id}/workflow", response_model=BaseResponse[Dict[str, Any]])
 async def execute_project_workflow(project_id: str, request: Dict[str, Any], api_key: str = Depends(verify_api_key)):
@@ -290,7 +290,7 @@ async def execute_project_workflow(project_id: str, request: Dict[str, Any], api
     if not container.project_manager or not container.workflow_engine:
         raise HTTPException(status_code=503, detail="Workflow engine not ready")
         
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
@@ -302,7 +302,7 @@ async def execute_project_workflow(project_id: str, request: Dict[str, Any], api
     )
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="WORKFLOW_STARTED",
         message="Workflow execution initialized",
         data={
@@ -321,7 +321,7 @@ async def build_project(
     if not container.project_manager or not container.build_service:
         raise HTTPException(status_code=503, detail="Services not ready")
         
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
         
@@ -331,7 +331,7 @@ async def build_project(
             config=request
         )
         return BaseResponse(
-            status="success" if result["success"] else "failed",
+            status=ResponseStatus.SUCCESS if result["success"] else ResponseStatus.ERROR,
             code="PROJECT_BUILD_RESULT",
             data=result
         )
@@ -349,7 +349,7 @@ async def run_project(
     if not container.project_manager or not container.runtime_service:
         raise HTTPException(status_code=503, detail="Services not ready")
         
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
         
@@ -364,7 +364,7 @@ async def run_project(
             env_vars=env
         )
         return BaseResponse(
-            status="success" if result["success"] else "failed",
+            status=ResponseStatus.SUCCESS if result["success"] else ResponseStatus.ERROR,
             code="PROJECT_RUN_RESULT",
             data=result
         )
@@ -383,7 +383,7 @@ async def stop_project(
     try:
         result = await container.runtime_service.stop_project(project_id)
         return BaseResponse(
-            status="success" if result["success"] else "failed",
+            status=ResponseStatus.SUCCESS if result["success"] else ResponseStatus.ERROR,
             code="PROJECT_STOP_RESULT",
             data=result
         )
@@ -403,7 +403,7 @@ async def get_project_logs(
     try:
         logs = await container.runtime_service.get_logs(project_id, lines)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="PROJECT_LOGS_RETRIEVED",
             data={
                 "project_id": project_id,

@@ -17,8 +17,12 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     print("ERROR: DATABASE_URL environment variable is required")
     print("Please set it in your .env file or environment")
-    print("Example: DATABASE_URL=postgresql://user:password@localhost:5432/dbname")
     sys.exit(1)
+
+# Ensure sync URL for synchronous engine
+if DATABASE_URL.startswith("postgresql+asyncpg://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
+
 
 # For SQLite, we need to allow multithreading. For PostgreSQL, we add pooling.
 if DATABASE_URL.startswith("sqlite"):
@@ -34,5 +38,7 @@ else:
         echo=False  # Disable SQL echo in production
     )
 
+from app.core.database import Base
+# SessionLocal remains here for legacy sync components
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+

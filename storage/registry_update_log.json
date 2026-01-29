@@ -427,5 +427,54 @@
         }
       ]
     }
+  },
+  {
+    "timestamp": "2026-01-29T19:46:14.105603",
+    "updates": {
+      "javascript": {
+        "axios": {
+          "old": "1.13.2",
+          "new": "1.13.4"
+        }
+      },
+      "typescript": {
+        "@types/node": {
+          "old": "25.0.10",
+          "new": "25.1.0"
+        }
+      },
+      "csharp": {
+        "Serilog": {
+          "old": "4.3.1-dev-02404",
+          "new": "4.3.1-dev-02406"
+        }
+      },
+      "rust": {
+        "clap": {
+          "old": "4.5.54",
+          "new": "4.5.56"
+        }
+      },
+      "frameworks": [
+        {
+          "type": "framework",
+          "language": "python",
+          "package": "fastapi",
+          "latest_version": "0.128.0"
+        },
+        {
+          "type": "framework",
+          "language": "typescript",
+          "package": "angular",
+          "latest_version": "21.1.2"
+        },
+        {
+          "type": "framework",
+          "language": "java",
+          "package": "spring_boot",
+          "latest_version": "3.5.3"
+        }
+      ]
+    }
   }
 ]

@@ -6,8 +6,10 @@ Dependency injection for authentication and authorization
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from jose import JWTError
+from app.core.database import get_db
 
 from .jwt_manager import JWTManager
 from .models import User, APIKey
@@ -22,22 +24,12 @@ security = HTTPBearer()
 jwt_manager = JWTManager()
 
 
-from platform_core.database import SessionLocal
-
-def get_db():
-    """
-    Get database session
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Removed sync get_db, use app.core.database.get_db
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     """
     Get current authenticated user from JWT token
@@ -70,7 +62,8 @@ async def get_current_user(
         raise credentials_exception
     
     # Get user from database
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     
     if user is None:
         raise credentials_exception
@@ -109,7 +102,7 @@ async def get_current_active_user(
 
 async def verify_api_key(
     x_api_key: Optional[str] = Header(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     """
     Verify API key and return associated user
@@ -135,10 +128,13 @@ async def verify_api_key(
     key_hash = jwt_manager.hash_api_key(x_api_key)
     
     # Find API key in database
-    api_key = db.query(APIKey).filter(
-        APIKey.key_hash == key_hash,
-        APIKey.is_active == True
-    ).first()
+    result = await db.execute(
+        select(APIKey).where(
+            APIKey.key_hash == key_hash,
+            APIKey.is_active == True
+        )
+    )
+    api_key = result.scalar_one_or_none()
     
     if not api_key:
         raise HTTPException(
@@ -160,7 +156,8 @@ async def verify_api_key(
     db.commit()
     
     # Get user
-    user = db.query(User).filter(User.id == api_key.user_id).first()
+    result = await db.execute(select(User).where(User.id == api_key.user_id))
+    user = result.scalar_one_or_none()
     
     if not user or not user.is_active:
         raise HTTPException(
@@ -251,12 +248,13 @@ def require_admin(
 
 async def get_current_tenant(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> Tenant:
     """
     Get current user's tenant
     """
-    tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+    result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = result.scalar_one_or_none()
     
     if not tenant:
         raise HTTPException(
@@ -275,7 +273,7 @@ async def get_current_tenant(
 
 async def require_git_account(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     """
     Enforce that the user has connected at least one Git account
@@ -283,10 +281,13 @@ async def require_git_account(
     from .models import ExternalAccount
     
     git_providers = ["github", "gitlab", "bitbucket"]
-    connected = db.query(ExternalAccount).filter(
-        ExternalAccount.user_id == current_user.id,
-        ExternalAccount.provider.in_(git_providers)
-    ).first()
+    result = await db.execute(
+        select(ExternalAccount).where(
+            ExternalAccount.user_id == current_user.id,
+            ExternalAccount.provider.in_(git_providers)
+        )
+    )
+    connected = result.scalar_one_or_none()
     
     if not connected:
         raise HTTPException(

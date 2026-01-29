@@ -37,6 +37,40 @@ class ModelStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class ProjectStatus(str, Enum):
+    """Project lifecycle status"""
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    DELETED = "deleted"
+    BUILDING = "building"
+    RUNNING = "running"
+
+
+class BuildStatus(str, Enum):
+    """Project build status"""
+    PENDING = "pending"
+    BUILDING = "building"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class RunStatus(str, Enum):
+    """Project runtime status"""
+    STOPPED = "stopped"
+    RUNNING = "running"
+    CRASHED = "crashed"
+    STARTING = "starting"
+
+
+class WorkflowStatus(str, Enum):
+    """Workflow execution status"""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class InferenceParameters(BaseModel):
     """Inference parameters"""
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature (0.0 - 2.0)")
