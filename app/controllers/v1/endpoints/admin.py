@@ -266,3 +266,4 @@ async def get_audit_log(
             "ip_address": log.ip_address
         } for log in logs]
     )
+

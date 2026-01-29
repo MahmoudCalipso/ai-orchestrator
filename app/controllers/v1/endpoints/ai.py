@@ -1,62 +1,56 @@
 """
-AI Controller
-Handles AI inference, model management, and streaming generation.
+AI Inference & Management API Controller (Open-Source Models)
+Uses local Ollama inference - NO API KEYS REQUIRED
 """
-from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, Depends
+from typing import Dict, Any, List, Optional
+import logging
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
+
+# Core & Services
 from core.security import verify_api_key
-from core.container import container
+from ....core.llm.service import get_llm_service, ModelTier
 from dto.common.base_response import BaseResponse
 from dto.v1.requests.ai import (
     InferenceRequest, FixCodeRequest, AnalyzeCodeRequest, TestCodeRequest,
-    OptimizeCodeRequest, DocumentCodeRequest, ReviewCodeRequest,
-    ExplainCodeRequest, RefactorCodeRequest
+    OptimizeCodeRequest, RefactorCodeRequest, ExplainCodeRequest
 )
-from dto.v1.responses.swarm import SwarmResponse
-from dto.v1.responses.ai import InferenceResponseDTO, ModelInfoDTO, SwarmResponseDTO
-import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["AI"])
+router = APIRouter(prefix="/ai", tags=["AI - Open Source"])
 
 @router.get("/models")
 async def list_models(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
     api_key: str = Depends(verify_api_key)
 ):
-    """List all available AI models supported by the system with pagination."""
+    """List all available open-source AI models."""
     try:
-        if container.orchestrator:
-             models = await container.orchestrator.list_available_models()
-             model_infos = [ModelInfo(**model) for model in models]
-             
-             total = len(model_infos)
-             start = (page - 1) * page_size
-             end = start + page_size
-             paginated_models = model_infos[start:end]
-             
-             return BaseResponse(
-                 status="success",
-                 code="MODELS_DISCOVERED",
-                 message=f"Discovered {len(paginated_models)} available AI models",
-                 data=[ModelInfoDTO.model_validate(m) for m in paginated_models],
-                 meta={
-                     "pagination": {
-                         "page": page,
-                         "page_size": page_size,
-                         "total": total,
-                         "total_pages": (total + page_size - 1) // page_size
-                     }
-                 }
-             )
+        llm_service = get_llm_service()
+        models = await llm_service.list_models()
+        
+        total = len(models)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated = models[start:end]
+        
         return BaseResponse(
             status="success",
-            code="NO_MODELS_DISCOVERED",
-            data={"models": []},
-            meta={"pagination": {"page": page, "page_size": page_size, "total": 0, "total_pages": 0}}
+            code="MODELS_DISCOVERED",
+            message=f"Discovered {len(paginated)} open-source AI models",
+            data=[{"name": m, "provider": "ollama", "local": True} for m in paginated],
+            meta={
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total": total,
+                    "total_pages": (total + page_size - 1) // page_size
+                },
+                "tier": llm_service.tier.value,
+                "available_models": llm_service.available_models
+            }
         )
     except Exception as e:
         logger.error(f"Failed to list models: {e}")
@@ -224,37 +218,67 @@ async def migrate_project(
         logger.error(f"Migration failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/fix", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/fix")
 async def fix_code(
     request: FixCodeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Automatically fix code issues."""
+    """Automatically fix code issues using open-source models."""
     try:
-        task = f"Fix the following issue: {request.issue}\nCode:\n{request.code}"
-        result = await container.orchestrator.universal_agent.act(task, {"type": "fix", "language": request.language})
+        llm_service = get_llm_service()
+        model = llm_service.get_model_for_task("code")
+        
+        prompt = f"""Fix the following {request.language} code issue:
+
+Issue: {request.issue}
+
+Code:
+```{request.language}
+{request.code}
+```
+
+Provide the fixed code only, without explanations."""
+        
+        result = await llm_service.generate(prompt, model=model, temperature=0.2)
+        
         return BaseResponse(
             status="success",
             code="CODE_FIXED",
-            data={"result": result.get("solution")}
+            data={"result": result, "model_used": model}
         )
     except Exception as e:
         logger.error(f"Fix failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/analyze", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/analyze")
 async def analyze_code(
     request: AnalyzeCodeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Analyze code quality and security."""
+    """Analyze code quality and security using open-source models."""
     try:
-        task = f"Perform {request.analysis_type} analysis on this code:\n{request.code}"
-        result = await container.orchestrator.universal_agent.act(task, {"type": "analyze", "language": request.language})
+        llm_service = get_llm_service()
+        model = llm_service.get_model_for_task("code")
+        
+        prompt = f"""Perform {request.analysis_type} analysis on this {request.language} code:
+
+```{request.language}
+{request.code}
+```
+
+Provide detailed analysis including:
+1. Issues found
+2. Security vulnerabilities
+3. Performance concerns
+4. Best practice violations
+5. Recommendations"""
+        
+        result = await llm_service.generate(prompt, model=model, temperature=0.3)
+        
         return BaseResponse(
             status="success",
             code="CODE_ANALYZED",
-            data={"result": result.get("solution")}
+            data={"result": result, "model_used": model}
         )
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
@@ -314,20 +338,36 @@ async def refactor_code(
         logger.error(f"Refactor failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/explain", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/explain")
 async def explain_code(
     request: ExplainCodeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Explain code logic in natural language."""
+    """Explain code logic using open-source models."""
     try:
-        task = f"Explain the logic of this code in detail:\n{request.code}"
-        result = await container.orchestrator.universal_agent.act(task, {"type": "explain", "language": request.language})
+        llm_service = get_llm_service()
+        model = llm_service.get_model_for_task("chat")
+        
+        prompt = f"""Explain the following {request.language} code in detail:
+
+```{request.language}
+{request.code}
+```
+
+Provide:
+1. High-level overview
+2. Step-by-step explanation
+3. Key algorithms/patterns used
+4. Potential use cases"""
+        
+        result = await llm_service.generate(prompt, model=model, temperature=0.5)
+        
         return BaseResponse(
             status="success",
             code="CODE_EXPLAINED",
-            data={"result": result.get("solution")}
+            data={"result": result, "model_used": model}
         )
     except Exception as e:
         logger.error(f"Explanation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

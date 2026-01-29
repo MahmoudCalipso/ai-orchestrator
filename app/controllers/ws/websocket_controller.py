@@ -19,9 +19,15 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
     
     async def connect(self, websocket: WebSocket, session_id: str):
-        """Accepts a connection and tracks it."""
-        await websocket.accept()
+        """Accepts a connection and tracks it with strict resource limits."""
         async with self._lock:
+            # V2.0 Requirement: Maximum 5 WebSockets per agent (prevent DoS/FD exhaustion)
+            if session_id in self.active_connections and len(self.active_connections[session_id]) >= 5:
+                await websocket.accept() # Must accept before closing gracefully
+                await websocket.close(code=1008, reason="Max concurrent connections reached for agent")
+                return
+
+            await websocket.accept()
             if session_id not in self.active_connections:
                 self.active_connections[session_id] = set()
             self.active_connections[session_id].add(websocket)
@@ -29,7 +35,7 @@ class ConnectionManager:
                 "connected_at": datetime.utcnow(),
                 "last_heartbeat": datetime.utcnow()
             }
-        logger.info(f"WebSocket connected: {session_id} (Total sessions: {len(self.active_connections)})")
+        logger.info(f"WebSocket connected: {session_id} (Connections: {len(self.active_connections[session_id])})")
     
     async def disconnect(self, websocket: WebSocket, session_id: str):
         """Removes a connection and cleans up session if empty."""
@@ -67,22 +73,23 @@ class ConnectionManager:
                         self.active_connections[session_id].discard(dead_conn)
     
     async def heartbeat_monitor(self):
-        """Prunes stale connections that haven't sent a heartbeat."""
+        """Prunes stale connections and zombie sockets every 60s."""
         while True:
-            await asyncio.sleep(30)
+            await asyncio.sleep(60) # V2.0 Requirement: 60s ping/pong detection
             now = datetime.utcnow()
             async with self._lock:
                 stale_sessions = []
                 for session_id, info in self.connection_info.items():
-                    # Close if no heartbeat for 120 seconds
-                    if (now - info["last_heartbeat"]).total_seconds() > 120:
+                    # Close if no heartbeat for 60 seconds (Aggressive pruning)
+                    if (now - info["last_heartbeat"]).total_seconds() > 60:
                         stale_sessions.append(session_id)
                 
                 for sid in stale_sessions:
                     logger.warning(f"Closing stale WebSocket session: {sid}")
                     for conn in list(self.active_connections.get(sid, [])):
                         try:
-                            await conn.close()
+                            # V2.0 Requirement: code 1001 (going away)
+                            await conn.close(code=1001)
                         except: pass
                     self.active_connections.pop(sid, None)
                     self.connection_info.pop(sid, None)

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from ....core.database import get_db
 from ....middleware.auth import require_auth
-from ....core.security.prompt_validator import validator as prompt_validator
+from ....core.security.prompt_validator import security_validator as prompt_validator
 from ....core.billing import TokenBudgetManager
 from ....core.agent_manager import agent_manager
 from ....schemas.v1.orchestration import (
@@ -25,19 +25,15 @@ async def orchestrate(
 ):
     """Initiates an AI orchestration task."""
     
-    # 1. Prompt Injection Validation
-    validation = prompt_validator.validate(request.prompt)
-    if not validation.is_safe:
+    # 1. Prompt Injection Validation (V2.0 Hardened)
+    is_safe, details = prompt_validator.validate(request.prompt, user_id=user["sub"])
+    if not is_safe:
         raise HTTPException(
             status_code=400,
             detail={
-                "code": "PROMPT_INJECTION_DETECTED",
-                "message": "Malicious prompt pattern detected",
-                "details": {
-                    "risk_level": validation.risk_level.value,
-                    "risk_score": validation.risk_score,
-                    "patterns": validation.detected_patterns
-                }
+                "code": "SECURITY_VIOLATION",
+                "message": "Security compliance check failed",
+                "details": details
             }
         )
     
@@ -67,3 +63,4 @@ async def orchestrate(
         websocket_url=f"wss://api.ai-orchestrator.com/v1/executions/{execution_id}/stream",
         estimated_duration_ms=5000
     )
+

@@ -52,3 +52,4 @@ async def list_active_emulators(api_key: str = Depends(verify_api_key)):
         code="ACTIVE_EMULATORS_RETRIEVED",
         data=result
     )
+

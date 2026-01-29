@@ -109,3 +109,4 @@ async def get_databases(search: Optional[str] = None):
         data=dbs,
         meta={"search": search}
     )
+

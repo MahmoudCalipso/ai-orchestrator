@@ -328,3 +328,4 @@ async def ai_refactor(
     except Exception as e:
         logger.error(f"Failed to perform AI refactor: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

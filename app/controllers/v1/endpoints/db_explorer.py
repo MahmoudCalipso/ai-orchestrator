@@ -101,3 +101,4 @@ async def execute_custom_query(
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

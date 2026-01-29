@@ -163,3 +163,4 @@ async def remove_member(
     except Exception as e:
         logger.error(f"Failed to remove member: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

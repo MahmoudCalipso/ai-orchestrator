@@ -18,6 +18,7 @@ class AgentContext:
     last_activity: datetime = field(default_factory=datetime.utcnow)
     llm_chain: Any = None
     memory: Any = None
+    websocket_connections: set = field(default_factory=set)
     
     def touch(self):
         self.last_activity = datetime.utcnow()
@@ -25,7 +26,7 @@ class AgentContext:
 class AgentManager:
     """Manages agent sessions with automatic cleanup to prevent memory leaks."""
     
-    def __init__(self, session_ttl: int = 3600, max_sessions: int = 1000):
+    def __init__(self, session_ttl: int = 3600, max_sessions: int = 10000):
         self.session_ttl = session_ttl
         self.max_sessions = max_sessions
         # Initialize TTLCache - cachetools will handle TTL expiration
@@ -88,19 +89,41 @@ class AgentManager:
             pass
     
     async def _cleanup_resources(self, context: AgentContext):
-        """Explicitly clear memory and references."""
+        """Explicitly clear memory, close WebSockets, and purge references."""
+        # 1. Force close all Associated WebSockets (code 1001 = going away)
+        if context.websocket_connections:
+            await asyncio.gather(
+                *[ws.close(code=1001) for ws in context.websocket_connections],
+                return_exceptions=True
+            )
+            context.websocket_connections.clear()
+
+        # 2. Clear LangChain memory
         if context.memory and hasattr(context.memory, 'clear'):
             context.memory.clear()
+        
         context.llm_chain = None
         context.memory = None
     
     async def _cleanup_loop(self):
-        """Background loop for extra safety or periodic tasks."""
+        """Background loop pruning stale sessions every 300s."""
         while self._running:
             try:
                 # TTLCache handles removal automatically on access,
-                # but we can force a cleanup check here if needed.
-                await asyncio.sleep(60)
+                # but we force explicit cleanup/pruning for memory safety.
+                expired = []
+                current_time = datetime.utcnow()
+                
+                for sid, context in list(self._sessions.items()):
+                    delta = (current_time - context.last_activity).total_seconds()
+                    if delta > self.session_ttl:
+                        expired.append(sid)
+                
+                for sid in expired:
+                    logger.info(f"Pruning stale session {sid}")
+                    await self.destroy_session(sid)
+                
+                await asyncio.sleep(300) # Task requirement: 300s
             except asyncio.CancelledError:
                 break
             except Exception as e:

@@ -95,10 +95,36 @@ app.add_exception_handler(Exception, global_exception_handler)
 # Health Check
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "version": "2026.1.0"}
+    """Enterprise health check with sub-system metrics."""
+    db_metrics = db_manager.get_pool_status()
+    return {
+        "status": "healthy", 
+        "version": "2026.2.0-v2",
+        "database": {
+            "connected": db_metrics.get("status") != "uninitialized",
+            "pool": db_metrics
+        },
+        "system": {
+            "uptime": "active", # Simplified placeholder
+            "environment": os.getenv("APP_ENV", "dev")
+        }
+    }
+
+@app.get("/health/live")
+async def live_check():
+    """K8s Liveness Probe."""
+    return {"status": "alive"}
+
+@app.get("/health/ready")
+async def ready_check():
+    """K8s Readiness Probe - Checks if pool is saturated."""
+    db_metrics = db_manager.get_pool_status()
+    if db_metrics.get("saturation", 0) > 90:
+         raise HTTPException(status_code=503, detail="Database pool saturated")
+    return {"status": "ready"}
 
 # Include Routers (v1)
-from .api.v1.api import api_router
+from .controllers.v1.api import api_router
 app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":

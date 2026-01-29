@@ -108,3 +108,4 @@ async def get_build(
     except Exception as e:
         logger.error(f"Failed to get build: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

@@ -68,3 +68,4 @@ async def system_status(api_key: str = Depends(verify_api_key)):
     except Exception as e:
         logger.error(f"Status check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

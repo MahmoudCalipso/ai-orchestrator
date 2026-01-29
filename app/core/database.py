@@ -49,13 +49,13 @@ class DatabaseManager:
                 1
             )
         
-        # Advanced configuration from recommendations
+        # Advanced V2.0 configuration for Military-Grade Resilience
         self.engine = create_async_engine(
             database_url,
             pool_size=20,
-            max_overflow=10,
+            max_overflow=30,  # Specific to V2.0 requirements
             pool_timeout=30,
-            pool_recycle=3600,
+            pool_recycle=1800,  # Reduced recycle time for freshness
             pool_pre_ping=True,
             echo=False,
             future=True,
@@ -84,6 +84,20 @@ class DatabaseManager:
     async def close(self):
         if self.engine:
             await self.engine.dispose()
+    
+    def get_pool_status(self) -> dict:
+        """Returns connection pool metrics for health checks."""
+        if not self.engine:
+            return {"status": "uninitialized"}
+        pool = self.engine.pool
+        return {
+            "size": pool.size(),
+            "checkedin": pool.checkedin(),
+            "checkedout": pool.checkedout(),
+            "overflow": pool.overflow(),
+            "max_overflow": pool._max_overflow,
+            "saturation": (pool.checkedout() / (pool.size() + pool._max_overflow)) * 100 if (pool.size() + pool._max_overflow) > 0 else 0
+        }
     
     @asynccontextmanager
     async def session(self) -> AsyncGenerator[AsyncSession, None]:

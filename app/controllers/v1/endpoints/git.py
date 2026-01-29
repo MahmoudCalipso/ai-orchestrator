@@ -474,3 +474,4 @@ async def resolve_conflict_ai(
             raise HTTPException(status_code=500, detail="AI failed to resolve conflict")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
