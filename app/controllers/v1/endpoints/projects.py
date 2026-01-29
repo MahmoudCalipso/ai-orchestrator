@@ -73,7 +73,7 @@ async def list_user_projects(
     sm = SecurityManager()
     # Note: sm.get_user_info currently sync, might need refactoring or wrapping
     # Assuming for now it works or we use a sync wrapper
-    user_info = sm.get_user_info(api_key, db) # Warning: legacy sync usage
+    user_info = sm.get_user_info(api_key) # Fixed sync usage
     
     if not user_info:
         raise HTTPException(401, "User not found")

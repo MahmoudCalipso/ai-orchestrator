@@ -9,6 +9,7 @@ from ....middleware.auth import require_auth
 from ....core.security.prompt_validator import security_validator as prompt_validator
 from ....core.billing import TokenBudgetManager
 from ....core.agent_manager import agent_manager
+from core.container import container
 from ....schemas.v1.orchestration import (
     OrchestrationRequest, 
     OrchestrationResponse, 
@@ -38,9 +39,8 @@ async def orchestrate(
         )
     
     # 2. Token Budget Check (simplified estimation)
-    from ...main import budget_manager
-    if budget_manager:
-        has_budget = await budget_manager.check_budget(user["sub"], estimated_tokens=1000)
+    if container.monitoring_service:
+        has_budget = await container.monitoring_service.check_budget(user["sub"], estimated_tokens=1000)
         if not has_budget:
             raise HTTPException(
                 status_code=422,

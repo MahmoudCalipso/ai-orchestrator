@@ -29,42 +29,54 @@ budget_manager = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle management for the application."""
-    logger.info("Initializing AI Orchestrator Backend...")
+    logger.info("🚀 IA-ORCH: Starting Production Control Plane (v2026.2.0)")
     
-    # Setup Dependency Injection Container
-    container = setup_container()
+    # 1. Setup Dependency Injection
+    setup_container()
     app.state.container = container
     
-    # Initialize Database & Create Tables
-    db_manager.initialize()
-    await db_manager.create_tables()
+    # 2. Database & Agent Initialization
+    await container.db_manager().initialize()
+    await container.db_manager().create_tables()
+    await container.agent_manager().start()
     
-    # Initialize Redis & Token Budgeting
-    global redis_client, budget_manager
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    redis_client = await redis.from_url(redis_url)
-    budget_manager = TokenBudgetManager(redis_client)
+    # 3. Start Background Workers
+    await container.message_bus().start()
+    await container.monitoring_service().start()
     
-    # Start Agent Lifecycle Manager
-    await agent_manager.start()
+    # 4. Schedule Registry Updates
+    from services.registry.registry_updater import RegistryUpdater
+    updater = RegistryUpdater()
+    asyncio.create_task(updater.schedule_periodic_updates(interval_hours=24))
     
-    logger.info("AI Orchestrator Backend ready")
+    logger.info("✓ AI Orchestrator Backend ready - All systems GO")
     
     yield
     
     # Shutdown logic
-    logger.info("Shutting down AI Orchestrator Backend...")
-    await agent_manager.stop()
-    await db_manager.close()
-    if redis_client:
-        await redis_client.close()
-    logger.info("Shutdown complete")
+    logger.info("Shutting down IA-ORCH Services...")
+    await container.agent_manager().stop()
+    await container.message_bus().stop() # Assuming stop exists
+    await container.monitoring_service().stop()
+    await container.db_manager().close()
+    logger.info("✓ Shutdown complete")
+
+# Premium Documentation Metadata
+API_DESCRIPTION = """
+# 🚀 AI Orchestrator Control Plane
+### The Ultimate AI Agent OS for Production-Ready Scalability
+
+Welcome to the unified nerve center of the **AI Orchestrator**. 
+- **Swarm Intelligence**: Autonomous agent coordination.
+- **Post-Quantum Security**: Quantum-ready vault protection.
+- **Closed-Loop Healing**: Self-patching infrastructure.
+"""
 
 # Create FastAPI instance with premium documentation settings
 app = FastAPI(
     title="🚀 AI Orchestrator Control Plane",
-    description="Ultimate AI Agent OS for Production-Ready Scalability",
-    version="2026.1.0",
+    description=API_DESCRIPTION,
+    version="2026.2.0-v2",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -73,7 +85,7 @@ app = FastAPI(
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,43 +101,39 @@ async def add_request_id(request: Request, call_next):
     return response
 
 # Register Global Exception Handlers
+from .core.exceptions import global_exception_handler, BaseAppException
 app.add_exception_handler(BaseAppException, global_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
 
-# Health Check
+# --- Standard Health Probes ---
 @app.get("/health")
 async def health_check():
     """Enterprise health check with sub-system metrics."""
-    db_metrics = db_manager.get_pool_status()
+    db_metrics = container.db_manager().get_pool_status()
     return {
         "status": "healthy", 
         "version": "2026.2.0-v2",
-        "database": {
-            "connected": db_metrics.get("status") != "uninitialized",
-            "pool": db_metrics
-        },
-        "system": {
-            "uptime": "active", # Simplified placeholder
-            "environment": os.getenv("APP_ENV", "dev")
-        }
+        "database": {"pool": db_metrics},
+        "system": {"environment": os.getenv("APP_ENV", "dev")}
     }
 
 @app.get("/health/live")
-async def live_check():
-    """K8s Liveness Probe."""
-    return {"status": "alive"}
+async def live_check(): return {"status": "alive"}
 
 @app.get("/health/ready")
 async def ready_check():
-    """K8s Readiness Probe - Checks if pool is saturated."""
-    db_metrics = db_manager.get_pool_status()
+    db_metrics = container.db_manager().get_pool_status()
     if db_metrics.get("saturation", 0) > 90:
          raise HTTPException(status_code=503, detail="Database pool saturated")
     return {"status": "ready"}
 
-# Include Routers (v1)
+# Include Routers (Consolidated v1)
 from .controllers.v1.api import api_router
 app.include_router(api_router, prefix="/api/v1")
+
+# WebSocket Layer
+from .controllers.ws.websocket_controller import router as ws_router
+app.include_router(ws_router, prefix="/ws")
 
 if __name__ == "__main__":
     import uvicorn

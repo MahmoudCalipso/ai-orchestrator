@@ -20,9 +20,14 @@ class DatabaseExplorerService:
         return inspector.get_table_names()
 
     async def get_table_schema(self, config: Any, table_name: str) -> List[Dict[str, Any]]:
-        """Get detailed schema for a specific table"""
+        """Get detailed schema for a specific table with validation"""
         engine = await self._get_engine(config)
+        
+        # SECURITY: Validate table name
         inspector = inspect(engine)
+        if table_name not in inspector.get_table_names():
+            raise ValueError(f"Invalid table name: {table_name}")
+            
         columns = inspector.get_columns(table_name)
         
         # Convert types to string for JSON serialization
@@ -37,9 +42,14 @@ class DatabaseExplorerService:
         limit: int = 50, 
         offset: int = 0
     ) -> Dict[str, Any]:
-        """Fetch sample data from a table"""
+        """Fetch sample data from a table with strict validation"""
         engine = await self._get_engine(config)
         
+        # SECURITY: Validate table name against schema to prevent injection
+        inspector = inspect(engine)
+        if table_name not in inspector.get_table_names():
+            raise ValueError(f"Invalid table name: {table_name}")
+            
         query = text(f"SELECT * FROM {table_name} LIMIT :limit OFFSET :offset")
         
         with engine.connect() as conn:

@@ -9,12 +9,15 @@ from fastapi.responses import StreamingResponse
 
 # Core & Services
 from core.security import verify_api_key
+from core.container import container
 from ....core.llm.service import get_llm_service, ModelTier
 from dto.common.base_response import BaseResponse
 from dto.v1.requests.ai import (
     InferenceRequest, FixCodeRequest, AnalyzeCodeRequest, TestCodeRequest,
     OptimizeCodeRequest, RefactorCodeRequest, ExplainCodeRequest
 )
+from dto.v1.responses.ai import ModelInfoDTO, InferenceResponseDTO
+from dto.v1.responses.swarm import SwarmResponse
 
 logger = logging.getLogger(__name__)
 
