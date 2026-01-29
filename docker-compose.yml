@@ -12,8 +12,8 @@ services:
     container_name: orchestrator-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ai_orchestrator}
-      POSTGRES_USER: ${POSTGRES_USER:-orchestrator}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_PLEASE}
+      POSTGRES_USER: ${POSTGRES_USER:-orchestrator_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-MAHMOUD1996*369*PgSqlPassWd}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -84,7 +84,7 @@ services:
     container_name: orchestrator-mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-orchestrator}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-CHANGE_ME_PLEASE}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-mogo_orchestrator_passMa120396}
     ports:
       - "${MONGO_PORT:-27017}:27017"
     volumes:
