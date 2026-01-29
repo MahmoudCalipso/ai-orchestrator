@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from platform_core.auth.dependencies import get_db, get_current_active_user, require_git_account
 from platform_core.auth.models import User
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 from services.database.explorer import DatabaseExplorerService
 from services.database.connection_manager import (
     DatabaseConnectionManager
@@ -36,7 +36,7 @@ async def list_tables(
             tables = [t for t in tables if search in t.lower()]
             
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="DB_TABLES_RETRIEVED",
             message=f"Discovered {len(tables)} tables in database",
             data=tables,
@@ -55,7 +55,7 @@ async def get_schema(
     try:
         schema = await explorer_service.get_table_schema(config, table_name)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="DB_SCHEMA_RETRIEVED",
             data={"schema": schema}
         )
@@ -74,7 +74,7 @@ async def get_data(
     try:
         data = await explorer_service.get_table_data(config, table_name, limit, offset)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="DB_DATA_RETRIEVED",
             data={"data": data}
         )
@@ -91,7 +91,7 @@ async def execute_custom_query(
     try:
         result = await explorer_service.execute_query(config, query)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="DB_QUERY_EXECUTED",
             message="Custom query executed successfully",
             data=result,

@@ -35,16 +35,6 @@ class UsageMetric(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     metadata_json = Column(JSON, name="metadata")
 
-class Project(Base):
-    """Generated Projects Tracking"""
-    __tablename__ = "projects"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    tech_stack = Column(JSON, nullable=False)
-    status = Column(String(50), default="active")
-    created_by = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    metadata_json = Column(JSON, name="metadata")
+    def __repr__(self):
+        return f"<UsageMetric {self.metric_type}:{self.user_id}>"

@@ -6,7 +6,8 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.responses.supplemental import FigmaAnalysisResponseDTO
 from dto.v1.requests.git import (
     GitConfigUpdate, GitRepoInit, GitRemoteCreate,
     GitBranchCreate, GitCommitRequest, GitConflictResolve,
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Tools"])
 
-@router.post("/api/figma/analyze", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/api/figma/analyze", response_model=BaseResponse[FigmaAnalysisResponseDTO])
 async def analyze_figma_design(
     request: FigmaAnalyzeRequest,
     api_key: str = Depends(verify_api_key)
@@ -29,12 +30,12 @@ async def analyze_figma_design(
         from services.figma.analyzer import FigmaAnalyzer
         # Use orchestrator from container for AI power
         analyzer = FigmaAnalyzer(orchestrator=container.orchestrator)
-        result = await analyzer.analyze_file(request.file_data)
+        result = await analyzer.analyze_file(request.file_key) # Fixed access to request
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="FIGMA_ANALYSIS_COMPLETE",
             message="Figma design analyzed successfully",
-            data=result
+            data=FigmaAnalysisResponseDTO(**result)
         )
     except Exception as e:
         logger.error(f"Figma analysis failed: {e}")
@@ -55,7 +56,7 @@ async def generate_kubernetes_config(
             request.get("config")
         )
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="K8S_CONFIG_GENERATED",
             data={"manifests": result}
         )
@@ -74,7 +75,7 @@ async def security_scan(
         scanner = VulnerabilityScanner(orchestrator=container.orchestrator)
         result = await scanner.scan_code(request.project_path, request.language)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="SECURITY_SCAN_COMPLETE",
             data={"vulnerabilities": result}
         )
@@ -106,7 +107,7 @@ async def execute_lifecycle(
                 context
             )
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="LIFECYCLE_EXECUTED",
                 data=result
             )

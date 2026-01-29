@@ -9,8 +9,17 @@ from platform_core.auth.models import User, APIKey, RefreshToken, ExternalAccoun
 # Core Agents
 from app.models.agent import Agent
 
-# Project Management
+# Project Management & Solutions
 from models.user_project import UserProject, ProjectSession, ProjectUpdate, WorkflowExecution
+from models.solution import Solution
+from models.workspace import Workspace, WorkspaceMember, WorkspaceActivity
+
+# Engine & Intelligence
+from core.database.models import NeuralMemory, UsageMetric
+from platform_core.auth.audit_model import AuditLog
+
+# Registry & Metadata
+from services.registry.persistence import LanguageMetadata, DatabaseMetadata, FrameworkMetadata
 
 # Registry & Metadata
 # (Add any other models here as they are created)

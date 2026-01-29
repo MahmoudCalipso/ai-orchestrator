@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from platform_core.auth.dependencies import get_db
 from core.security import verify_api_key, require_role, Role, SecurityManager
 from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ async def list_all_users(
     users = query.offset((page - 1) * page_size).limit(page_size).all()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="ADMIN_USERS_RETRIEVED",
         message=f"Retrieved {len(users)} users",
         data=[
@@ -75,7 +75,7 @@ async def list_all_projects(
 ):
     """List all projects across all users (SuperUser only) with metrics search and pagination"""
     if not container.project_manager:
-        return BaseResponse(status="success", code="NO_PROCESSOR", data={"projects": [], "total": 0})
+        return BaseResponse(status=ResponseStatus.SUCCESS, code="NO_PROCESSOR", data={"projects": [], "total": 0})
 
     # Use ProjectManager's logic for filtering if possible, or manual filter here
     all_projects = list(container.project_manager.projects_db.values())
@@ -99,7 +99,7 @@ async def list_all_projects(
     paginated_projects = filtered_projects[start:end]
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="ADMIN_PROJECTS_RETRIEVED",
         data=paginated_projects,
         meta={
@@ -135,7 +135,7 @@ async def update_user_role(
     db.commit()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="USER_ROLE_UPDATED",
         message=f"User {user_id} promoted to {new_role}",
         data={"user_id": user_id, "new_role": new_role}
@@ -174,7 +174,7 @@ async def get_system_wide_metrics(
     uptime_str = f"{days}d {hours}h" if days > 0 else f"{hours}h {int((uptime_seconds % 3600) // 60)}m"
 
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="SYSTEM_METRICS_RETRIEVED",
         data={
             "uptime": uptime_str,
@@ -203,7 +203,7 @@ async def list_tenants(
     tenants = query.offset((page - 1) * page_size).limit(page_size).all()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="TENANTS_RETRIEVED",
         message=f"Retrieved {len(tenants)} tenants",
         data=[{
@@ -226,13 +226,13 @@ async def list_tenant_projects(
     user_ids = [u.id for u in tenant_users]
     
     if not container.project_manager:
-        return BaseResponse(status="success", code="NO_PROCESSOR", data=[])
+        return BaseResponse(status=ResponseStatus.SUCCESS, code="NO_PROCESSOR", data=[])
 
     all_projects = list(container.project_manager.projects_db.values())
     tenant_projects = [p for p in all_projects if p.get("user_id") in user_ids]
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="TENANT_PROJECTS_RETRIEVED",
         message=f"Found {len(tenant_projects)} projects for tenant {tenant_id}",
         data=tenant_projects
@@ -253,7 +253,7 @@ async def get_audit_log(
     logs = audit_service.get_logs(limit=limit, user_id=user_id, action=action)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="AUDIT_LOG_RETRIEVED",
         message=f"Retrieved {len(logs)} audit entries",
         data=[{

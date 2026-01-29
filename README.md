@@ -1,141 +1,122 @@
-# 🚀 AI Orchestrator: Enterprise 2026 AI Agent OS
+# 🚀 AI Orchestrator: The Ultimate AI Agent OS (2026 Edition)
 
-[![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-green.svg)](https://fastapi.tiangolo.com/)
-[![Kubernetes](https://img.shields.io/badge/K8s-Production--Ready-blue.svg)](https://kubernetes.io/)
-[![Docker](https://img.shields.io/badge/Docker-Optimized-blue.svg)](https://www.docker.com/)
-[![License: Enterprise](https://img.shields.io/badge/License-Proprietary-red.svg)](https://ia-orch.example.com/license)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688.svg?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![SQLAlchemy 2.0](https://img.shields.io/badge/SQLAlchemy-2.0-red.svg?style=flat-square&logo=sqlalchemy)](https://www.sqlalchemy.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Managed-336791.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-Edge-DC382D.svg?style=flat-square&logo=redis)](https://redis.io/)
+[![Docker](https://img.shields.io/badge/Docker-Production-2496ED.svg?style=flat-square&logo=docker)](https://www.docker.com/)
 
-**AI Orchestrator** is a high-performance, modular Platform-as-a-Service (PaaS) core designed for end-to-end project life cycle automation. Orchestrate complex AI agent swarms, automate migrations, and manage production infrastructure with a single unified control plane.
+**AI Orchestrator** is a military-grade, contract-first Platform-as-a-Service (PaaS) core. It provides a unified control plane for autonomous AI swarm coordination, bi-directional repository synchronization, and real-time containerized execution. Designed for the 2026 AI-First enterprise, it features a fully asynchronous architecture and a robust, self-documenting API contract.
 
 ---
 
-## 🏗️ Enterprise Architecture 2026
+## 🏛️ High-Fidelity Architecture
 
-The platform utilizes a **Distributed Controller Architecture** with a high-performance **Service Container** and a **Hyper-Intelligence Core**.
+The platform is built on a **Modular Service Container** architecture, ensuring total isolation between the intelligence core and infrastructure services.
 
 ```mermaid
 graph TD
-    subgraph Ingress_Layer["🌐 Global Ingress"]
-        LB["Load Balancer / Ingress"]
-        SSL["Quantum-Safe SSL"]
+    subgraph Client_Layer["🌐 Premium Ingress"]
+        FE["Angular / React / Flutter"]
+        CLI["CLI Control Tool"]
+        IDP["External IDP (OIDC)"]
     end
 
-    subgraph API_Layer["⚡ Control Plane (FastAPI)"]
-        AUTH["RBAC & Security"]
-        CONT["V1 Controllers"]
-        WS["WebSocket Gateway"]
+    subgraph API_Gateway["⚡ Control Plane (FastAPI)"]
+        AUTH["🛡️ Unified RBAC / PQC Sec"]
+        PROJ["📂 Async Project Mgr"]
+        AI_CNTRL["🧠 Intelligence Controller"]
+        GIT["🍴 Managed Git Ops"]
+        SYS["📊 Telemetry & Health"]
     end
 
-    subgraph Intelligence_Core["🧠 Hyper-Intelligence Ops"]
-        ORCH["AI Orchestrator"]
-        RED["RedTeam AI (Sec)"]
-        QV["Quantum Vault (PQC)"]
-        MCP["MCP Bridge (Tools)"]
-        KG["Knowledge Graph"]
+    subgraph Intelligence_Swarm["🧠 Autonomous Intelligence Core"]
+        ORCH["Lead Architect Agent"]
+        SWARM["Agent Swarm (Workers)"]
+        UNIV["Universal Coding Agent"]
+        MEM["🧠 Neural Memory (L1/L2)"]
     end
 
-    subgraph Infrastructure_Layer["☁️ Managed Infrastructure"]
-        OLLAMA["Ollama (AI Engine)"]
-        PG["PostgreSQL (Data)"]
-        REDIS["Redis (Cache/Bus)"]
-        MONGO["MongoDB (Docs)"]
-        QDRANT["Qdrant (Vector)"]
+    subgraph Persistence_Layer["🗄️ Unified Persistence Layer"]
+        REGISTRY["Central Model Registry"]
+        PG["PostgreSQL (Unified Metadata)"]
+        REDIS["Redis (Real-time Bus)"]
+        VECTOR["Qdrant (Knowledge Base)"]
     end
 
-    Ingress_Layer -->|TLS 1.3| API_Layer
-    API_Layer --> Intelligence_Core
-    Intelligence_Core --> Infrastructure_Layer
-    API_Layer --> Infrastructure_Layer
+    subgraph Runtimes["🏗️ Execution Sanboxes"]
+        POD["Docker Sandbox (POD)"]
+        WS["WebSocket Streamer"]
+    end
+
+    Client_Layer --> API_Gateway
+    API_Gateway --> Intelligence_Swarm
+    API_Gateway --> Persistence_Layer
+    Intelligence_Swarm --> Persistence_Layer
+    API_Gateway --> Runtimes
 ```
 
 ---
 
-## 📖 Production Documentation
+## 📑 PaaS-Grade Contract-First Specification
 
-### 🚀 Developer Control Plane
-- **Interactive Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)  
-- **Enterprise ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+The AI Orchestrator follows a **strict contract-first approach**. Every interaction is governed by strongly-typed Pydantic DTOs, ensuring 100% Swagger/Angular compatibility.
 
-### 📊 Health & Observability
-| Probe | Path | Purpose |
-| :--- | :--- | :--- |
-| **Liveness** | `/health/live` | Ensures the container is running and healthy. |
-| **Readiness** | `/health/ready` | Ensures sub-systems (DB, Redis) are ready for traffic. |
-| **System** | `/api/v1/system/status` | Detailed resource and model telemetry. |
+### 🚀 Core Intelligence Endpoints
+| Component | Endpoint | Contract (DTO) | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Generation** | `/api/v1/ai/generate` | `GenerationRequest` | Full project/component instantiation via Swarm. |
+| **Migration** | `/api/v1/ai/migrate` | `MigrationRequest` | Cross-stack logic healing and tech migration. |
+| **Inference** | `/api/v1/ai/inference` | `InferenceRequest` | Direct LLM interaction with runtime management. |
+| **Analysis** | `/api/v1/ai/analyze` | `AnalyzeCodeRequest` | Deep semantic code analysis and performance profiling. |
 
----
-
-## 📋 API & WebSocket Specification (V1 Unified)
-
-<details>
-<summary><b>🧠 Advanced AI & Security</b></summary>
-
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/v1/ai/generate` | `POST` | Generate full project or component. |
-| `/api/v1/ai/migrate` | `POST` | Cross-framework architectural migration. |
-| `/api/v1/security/scan` | `POST` | Full RedTeam AI vulnerability assessment. |
-| `/api/v1/quantum/vault` | `POST` | Secure PQC-encrypted secret storage. |
-</details>
-
-<details>
-<summary><b>📂 Core Project Management</b></summary>
-
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/v1/projects` | `GET/POST` | Project lifecycle and metadata management. |
-| `/api/v1/git/sync` | `POST` | Bi-directional repository synchronization. |
-| `/api/v1/ide/workspace` | `POST` | Remote IDE environment initialization. |
-</details>
-
-<details>
-<summary><b>⚡ Real-time Stream Gateway</b></summary>
-
-| Protocol | Path | Usage |
-| :--- | :--- | :--- |
-| `WS` | `/ws/ide/terminal/{sid}` | **Cloud Shell**: Low-latency terminal access. |
-| `WS` | `/ws/monitoring/stream` | **Observability**: Live telemetry metrics. |
-| `WS` | `/ws/collaboration/{sid}` | **Sync**: Real-time multi-agent peer review. |
-</details>
+### 📂 Lifecycle & Infrastructure
+| Component | Endpoint | Contract (DTO) | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Projects** | `/api/v1/projects` | `ProjectCreateRequest` | Managed project lifecycle (Build, Run, Sync). |
+| **Git Ops** | `/api/v1/git` | `GitCommitRequest` | Bi-directional Repo sync with AI Conflict Resolution. |
+| **System** | `/api/v1/system` | `HealthResponseDTO` | Real-time health, uptime, and resource metrics. |
 
 ---
 
-## 🚀 Deployment Workflows
+## ⚡ Key Features (2026 Edition)
 
-### 🏎️ Local "On-the-Fly"
-The fastest way to get started with the "Doctor" checked environment:
+- **🔄 Asynchronous Foundation**: 100% Non-blocking I/O across Database, Git, and AI services for massive scalability.
+- **🛡️ unified Security Layer**: Single source of truth for RBAC, API Keys, and JWT management.
+- **🧠 Neural Memory**: L1/L2 persistence layer for AI context, ensuring agents remember architectural decisions.
+- **🔌 MCP Integration**: Native support for Model Context Protocol (MCP) to bridge internal tools and external AI models.
+- **📡 Real-time Observability**: WebSocket-driven log streaming and terminal access for containerized workloads.
+
+---
+
+## 🏎️ Getting Started
+
+### 1. Prerequisites
+- **Python 3.11+** (Strictly enforced)
+- **PostgreSQL 15+**
+- **Ollama** (For local AI intelligence)
+
+### 2. Quick Install
 ```bash
-# 1. Initialize environment & verify dependencies
-make setup
-make doctor
+# Clone and enter
+git clone https://github.com/MahmoudCalipso/ai-orchestrator.git
+cd ai-orchestrator
 
-# 2. Start the Orchestrator
-make run
-```
+# Setup environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-### 🐳 Docker Orchestration
-Multi-service stack with optimized profile management:
-```bash
-# Production minimal stack
-docker-compose up -d
-
-# Enterprise AI stack (Includes Ollama & Gpu ops)
-docker-compose --profile full up -d
-```
-
-### ☸️ Kubernetes (Enterprise)
-Manifest-based deployment for high-availability clusters:
-```bash
-# One-command K8s deploy
-make k8s-apply
-
-# Verify status
-make k8s-status
+# Run migrations and start
+make deploy
 ```
 
 ---
 
-## ⚖️ License & Credits
+## ⚖️ License & Intellectual Property
+
 Distributed under the **Proprietary / Enterprise License**.  
+Developed and maintained by **Mahmoud Calipso**.
+
 Copyright © 2026 **Mahmoud Calipso**. All rights reserved.

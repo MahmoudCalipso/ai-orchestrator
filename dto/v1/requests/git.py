@@ -16,6 +16,15 @@ class GitRemoteCreate(BaseModel):
     description: str = ""
     private: bool = True
 
+class GitCloneRequest(BaseModel):
+    repo_url: str = Field(..., description="Url of the remote repository")
+    local_path: str = Field(..., description="Local directory path to clone into")
+    branch: str = "main"
+    credentials: Optional[dict] = None
+
+class GitPullRequest(BaseModel):
+    local_path: str = Field(..., description="Local directory path of the repository")
+
 class GitBranchCreate(BaseModel):
     local_path: str
     branch_name: str

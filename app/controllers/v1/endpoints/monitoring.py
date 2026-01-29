@@ -6,7 +6,8 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.responses.supplemental import MetricSystemDTO, BuildSummaryDTO
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ async def get_monitoring_metrics(
             raise HTTPException(status_code=503, detail="Monitoring service not ready")
         metrics = container.monitoring_service.get_metrics(limit)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="MONITORING_METRICS_RETRIEVED",
             data={"metrics": metrics}
         )
@@ -40,9 +41,9 @@ async def get_current_metrics(api_key: str = Depends(verify_api_key)):
              raise HTTPException(status_code=503, detail="Monitoring service not ready")
         metrics = container.monitoring_service.get_current_metrics()
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="CURRENT_METRICS_RETRIEVED",
-            data=metrics or {}
+            data=MetricSystemDTO(**metrics) if metrics else None
         )
     except Exception as e:
         logger.error(f"Failed to get current metrics: {e}")
@@ -68,10 +69,16 @@ async def list_builds(
             builds = [b for b in builds if search in (b.get("project_name") or "").lower()]
             
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="BUILDS_LISTED",
             message=f"Retrieved {len(builds)} builds",
-            data=builds,
+            data=[BuildSummaryDTO(
+                id=str(b.get("id")),
+                project_name=b.get("project_name", ""),
+                status=b.get("status", "unknown"),
+                duration=b.get("duration", 0.0),
+                timestamp=b.get("timestamp", "")
+            ) for b in builds],
             meta={
                 "pagination": {
                     "page": result["page"],
@@ -99,9 +106,15 @@ async def get_build(
         if not build:
             raise HTTPException(status_code=404, detail="Build not found")
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="BUILD_RETRIEVED",
-            data=build.to_dict()
+            data=BuildSummaryDTO(
+                id=str(build_dict.get("id")),
+                project_name=build_dict.get("project_name", ""),
+                status=build_dict.get("status", "unknown"),
+                duration=build_dict.get("duration", 0.0),
+                timestamp=build_dict.get("timestamp", "")
+            ) if (build_dict := build.to_dict()) else None
         )
     except HTTPException:
         raise

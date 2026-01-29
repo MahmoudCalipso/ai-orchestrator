@@ -7,26 +7,24 @@ from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from dto.common.base_response import BaseResponse
-from dto.v1.responses.system import HealthResponseDTO, SystemStatusDTO
+from core.security import verify_api_key
+from core.container import container
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.responses.system import HealthResponseDTO, SystemStatusDTO, SystemInfoDTO
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["System"])
 
-@router.get("/", response_model=BaseResponse[Dict[str, Any]])
+@router.get("/", response_model=BaseResponse[SystemInfoDTO])
 async def root():
     """Root endpoint to verify service is running."""
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="SYSTEM_ONLINE",
         message="Service is online and ready",
-        data={
-            "service": "AI Orchestrator",
-            "version": "1.0.0",
-            "status": "running"
-        }
+        data=SystemInfoDTO()
     )
 
 @router.get("/health", response_model=BaseResponse[HealthResponseDTO])
@@ -37,16 +35,22 @@ async def health_check():
         if container.orchestrator:
              status = await container.orchestrator.get_health_status()
              return BaseResponse(
-                 status="success",
+                 status=ResponseStatus.SUCCESS,
                  code="HEALTH_CHECK_OK",
                  message="System health status retrieved",
                  data=HealthResponseDTO.model_validate(status)
              )
         return BaseResponse(
-            status="warning",
+            status=ResponseStatus.WARNING,
             code="SYSTEM_INITIALIZING",
             message="Orchestrator is initializing",
-            data={"components": {}, "memory_usage": {}}
+            data=HealthResponseDTO(
+                status="initializing",
+                version="1.0.0",
+                uptime=0.0,
+                models_loaded=0,
+                runtimes_available=[]
+            )
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -59,7 +63,7 @@ async def system_status(api_key: str = Depends(verify_api_key)):
         if container.orchestrator:
             status = await container.orchestrator.get_system_status()
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="SYSTEM_STATUS_RETRIEVED",
                 message="System status and metrics retrieved",
                 data=SystemStatusDTO.model_validate(status)

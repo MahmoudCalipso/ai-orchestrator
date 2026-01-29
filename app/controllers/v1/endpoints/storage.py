@@ -6,7 +6,8 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.responses.supplemental import StorageStatsDTO, StoredProjectDTO
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,10 +22,10 @@ async def get_storage_stats(api_key: str = Depends(verify_api_key)):
             raise HTTPException(status_code=503, detail="Storage service not ready")
         stats = await container.storage_manager.get_storage_stats()
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="STORAGE_STATS_RETRIEVED",
             message="Storage statistics retrieved",
-            data=stats
+            data=StorageStatsDTO(**stats) if stats else None
         )
     except Exception as e:
         logger.error(f"Failed to get storage stats: {e}")
@@ -51,10 +52,19 @@ async def list_stored_projects(
             page_size=page_size
         )
         return BaseResponse(
-            status="success",
-            code="STORED_PROJECTS_RETRIEVED",
+            status=ResponseStatus.SUCCESS,
+            code="STORED_PROJECT_RETRIEVED",
             message=f"Retrieved {len(result['projects'])} projects from storage",
-            data=result["projects"],
+            data=[StoredProjectDTO(
+                id=p.get("id"),
+                project_name=p.get("project_name"),
+                local_path=p.get("local_path"),
+                status=p.get("status"),
+                language=p.get("language"),
+                framework=p.get("framework"),
+                size_mb=p.get("size_mb", 0.0),
+                created_at=p.get("created_at", "")
+            ) for p in result["projects"]],
             meta={
                 "pagination": {
                     "page": result["page"],
@@ -86,9 +96,18 @@ async def get_stored_project(
             raise HTTPException(status_code=404, detail="Project not found")
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="STORED_PROJECT_RETRIEVED",
-            data=project
+            data=StoredProjectDTO(
+                id=project.get("id"),
+                project_name=project.get("project_name"),
+                local_path=project.get("local_path"),
+                status=project.get("status"),
+                language=project.get("language"),
+                framework=project.get("framework"),
+                size_mb=project.get("size_mb", 0.0),
+                created_at=project.get("created_at", "")
+            )
         )
     except HTTPException:
         raise
@@ -112,7 +131,7 @@ async def delete_stored_project(
             raise HTTPException(status_code=404, detail="Project not found")
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="PROJECT_DELETED",
             message=f"Project {'soft' if soft else 'hard'} deleted",
             data={"project_id": project_id}
@@ -138,7 +157,7 @@ async def archive_stored_project(
             raise HTTPException(status_code=404, detail="Project not found")
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="PROJECT_ARCHIVED",
             message="Project archived",
             data={"project_id": project_id}
@@ -166,7 +185,7 @@ async def cleanup_storage(api_key: str = Depends(verify_api_key)):
         removed_backups = await container.backup_manager.cleanup_old_backups(days=30)
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="STORAGE_CLEANUP_SUCCESS",
             data={
                 "archived_projects": archived_count,
@@ -188,7 +207,7 @@ async def backup_stored_project(project_id: str, api_key: str = Depends(verify_a
         result = await container.backup_manager.create_backup(project_id)
         if result:
             return BaseResponse(
-                status="success",
+                status=ResponseStatus.SUCCESS,
                 code="BACKUP_CREATED",
                 message=f"Backup created: {result}",
                 data={"backup_path": result}

@@ -7,14 +7,10 @@ from datetime import datetime
 from ....core.database import get_db
 from ....middleware.auth import require_auth
 from ....core.security.prompt_validator import security_validator as prompt_validator
-from ....core.billing import TokenBudgetManager
-from ....core.agent_manager import agent_manager
 from core.container import container
-from ....schemas.v1.orchestration import (
-    OrchestrationRequest, 
-    OrchestrationResponse, 
-    ExecutionStatusEnum
-)
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.requests.orchestrate import OrchestrationRequest
+from dto.v1.responses.orchestrate import OrchestrationResponseDTO, ExecutionStatusEnum
 
 router = APIRouter(prefix="/orchestrate", tags=["Orchestration"])
 
@@ -53,14 +49,17 @@ async def orchestrate(
     # 4. Start Orchestration (Placeholder for background task)
     # BackgroundTask(run_orchestration, execution_id, request)
     
-    return OrchestrationResponse(
-        success=True,
-        request_id=str(uuid.uuid4()),
-        execution_id=execution_id,
-        status=ExecutionStatusEnum.PENDING,
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="ORCHESTRATION_QUEUED",
         message="Orchestration task accepted and queued",
-        result_url=f"/api/v1/executions/{execution_id}",
-        websocket_url=f"wss://api.ai-orchestrator.com/v1/executions/{execution_id}/stream",
-        estimated_duration_ms=5000
+        data=OrchestrationResponseDTO(
+            execution_id=execution_id,
+            status=ExecutionStatusEnum.PENDING,
+            message="Task accepted",
+            result_url=f"/api/v1/executions/{execution_id}",
+            websocket_url=f"wss://api.ai-orchestrator.com/v1/executions/{execution_id}/stream",
+            estimated_duration_ms=5000
+        )
     )
 

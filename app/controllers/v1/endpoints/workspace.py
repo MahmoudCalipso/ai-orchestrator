@@ -6,10 +6,11 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.workspace import (
     WorkspaceCreateRequest, WorkspaceInviteRequest, CollaborationSessionRequest
 )
+from dto.v1.responses.workspace import WorkspaceResponseDTO, WorkspaceListResponseDTO
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,10 @@ async def create_workspace(
             request.owner_name
         )
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="WORKSPACE_CREATED",
             message="Workspace created successfully",
-            data=workspace.to_dict()
+            data=WorkspaceResponseDTO.model_validate(workspace)
         )
     except Exception as e:
         logger.error(f"Failed to create workspace: {e}")
@@ -54,7 +55,11 @@ async def get_workspace(
         workspace = workspace_mgr.get_workspace(workspace_id)
         if not workspace:
             raise HTTPException(status_code=404, detail="Workspace not found")
-        return workspace.to_dict()
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="WORKSPACE_RETRIEVED",
+            data=WorkspaceResponseDTO.model_validate(workspace)
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -82,15 +87,18 @@ async def list_user_workspaces(
             workspaces = [w for w in workspaces if search in w["name"].lower()]
             
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="WORKSPACES_RETRIEVED",
             message=f"Retrieved {len(workspaces)} workspaces",
-            data=workspaces,
+            data=WorkspaceListResponseDTO(
+                workspaces=[WorkspaceResponseDTO.model_validate(w) for w in result["workspaces"]],
+                total=result["total"]
+            ),
             meta={
                 "pagination": {
                     "page": result["page"],
                     "page_size": result["page_size"],
-                    "total": len(workspaces) if search else result["total"],
+                    "total": result["total"],
                     "total_pages": result["total_pages"]
                 },
                 "search": search
@@ -125,7 +133,7 @@ async def invite_member(
             raise HTTPException(status_code=403, detail="Permission denied or member already exists")
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="MEMBER_INVITED",
             message="Member invited successfully",
             data={"workspace_id": workspace_id, "user_id": request.user_id}
@@ -154,7 +162,7 @@ async def remove_member(
             raise HTTPException(status_code=403, detail="Permission denied")
         
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="MEMBER_REMOVED",
             message=f"User {user_id} removed from workspace"
         )

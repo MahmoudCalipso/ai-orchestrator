@@ -9,13 +9,10 @@ from datetime import datetime
 from ....core.database import get_db
 from ....middleware.auth import require_auth
 from ....models.agent import Agent, AgentStatus
-from ....schemas.v1.agent import (
-    AgentDTO, 
-    CreateAgentRequest, 
-    CreateAgentResponse, 
-    UpdateAgentRequest, 
-    ListAgentsResponse,
-    PaginationResponse
+from dto.v1.base import BaseResponse, ResponseStatus
+from dto.v1.requests.agent import CreateAgentRequest, UpdateAgentRequest
+from dto.v1.responses.agent import (
+    AgentResponseDTO, AgentInitializationResponseDTO, AgentStatusEnum
 )
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
@@ -49,12 +46,14 @@ async def create_agent(
     await db.commit()
     await db.refresh(new_agent)
     
-    return CreateAgentResponse(
-        success=True,
-        request_id=str(uuid.uuid4()),
-        agent=AgentDTO.from_orm(new_agent),
-        initialization_status="initializing",
-        websocket_url=f"wss://api.ai-orchestrator.com/v1/agents/{new_agent.id}/stream"
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="AGENT_CREATED",
+        data=AgentInitializationResponseDTO(
+            agent=AgentResponseDTO.model_validate(new_agent),
+            initialization_status="initializing",
+            websocket_url=f"wss://api.ai-orchestrator.com/v1/agents/{new_agent.id}/stream"
+        )
     )
 
 @router.get("/", response_model=ListAgentsResponse)

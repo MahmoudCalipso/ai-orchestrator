@@ -3,11 +3,7 @@ Solution Model - Groups multiple projects into a single bundle
 """
 from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
-import uuid
-
-Base = declarative_base()
+from app.core.database import Base
 
 class Solution(Base):
     """Solution model for grouping related projects (e.g. FE, BE, Mobile)"""

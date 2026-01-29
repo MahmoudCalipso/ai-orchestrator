@@ -11,19 +11,16 @@ from sqlalchemy.orm import Session
 from platform_core.auth.dependencies import get_db
 from platform_core.auth.models import User
 from platform_core.auth.jwt_manager import JWTManager
-from platform_core.tenancy.models import Tenant
-
-from core.security import verify_api_key, require_role, Role, SecurityManager
-from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.enterprise import CreateOrgUserRequest, ProjectProtectionRequest
+from dto.v1.responses.supplemental import EnterpriseUserResponseDTO, WorkbenchMonitorDTO
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Enterprise"])
 
-@router.post("/enterprise/users")
+@router.post("/enterprise/users", response_model=BaseResponse[Dict[str, Any]])
 async def add_organization_user(
     request: CreateOrgUserRequest,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
@@ -71,7 +68,7 @@ async def add_organization_user(
     db.refresh(new_user)
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="USER_CREATED",
         message=f"User {request.email} added to organization as {assigned_role}",
         data={
@@ -80,7 +77,7 @@ async def add_organization_user(
         }
     )
 
-@router.get("/enterprise/users")
+@router.get("/enterprise/users", response_model=BaseResponse[List[EnterpriseUserResponseDTO]])
 async def list_organization_users(
     search: Optional[str] = None,
     page: int = 1,
@@ -103,18 +100,18 @@ async def list_organization_users(
     users = query.offset((page - 1) * page_size).limit(page_size).all()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="USERS_RETRIEVED",
         message=f"Retrieved {len(users)} organization users",
         data=[
-            {
-                "id": u.id, 
-                "email": u.email, 
-                "role": u.role,
-                "full_name": u.full_name,
-                "is_active": u.is_active,
-                "created_at": u.created_at.isoformat() if u.created_at else None
-            } for u in users
+            EnterpriseUserResponseDTO(
+                id=u.id, 
+                email=u.email, 
+                role=u.role,
+                full_name=u.full_name,
+                is_active=u.is_active,
+                created_at=u.created_at.isoformat() if u.created_at else None
+            ) for u in users
         ],
         meta={
             "pagination": {
@@ -146,7 +143,7 @@ async def remove_organization_user(
     db.commit()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="USER_DEACTIVATED",
         message=f"User {user_id} deactivated",
         data={"user_id": user_id}
@@ -188,7 +185,7 @@ async def list_organization_projects(
     paginated_projects = org_projects[start:end]
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="ORCHESTRATOR_PROJECTS_RETRIEVED",
         message=f"Retrieved {len(paginated_projects)} organization projects",
         data=paginated_projects,
@@ -255,10 +252,10 @@ async def monitor_active_workbenches(
                 })
                 
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="WORKBENCHES_MONITORED",
         message=f"Monitoring {len(active_benches)} active workbenches",
-        data=active_benches
+        data=[WorkbenchMonitorDTO(**b) for b in active_benches]
     )
 
 @router.put("/enterprise/users/{user_id}/permissions")
@@ -285,7 +282,7 @@ async def update_user_permissions(
     db.commit()
     
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PERMISSIONS_UPDATED",
         message=f"Permissions updated for user {target_user.email}",
         data={"user_id": user_id, "new_role": target_user.role}
@@ -320,7 +317,7 @@ async def force_delete_project(
         raise HTTPException(status_code=500, detail="Failed to delete project")
         
     return BaseResponse(
-        status="success",
+        status=ResponseStatus.SUCCESS,
         code="PROJECT_FORCE_DELETED",
         message=f"Project {project_id} force deleted by Enterprise Admin",
         data={"project_id": project_id}

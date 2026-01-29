@@ -6,10 +6,14 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from core.security import verify_api_key
 from core.container import container
-from dto.common.base_response import BaseResponse
+from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.ide import (
     IDEWorkspaceRequest, IDEFileWriteRequest,
     IDETerminalRequest, IDEDebugRequest
+)
+from dto.v1.responses.supplemental import (
+    IDEFileResponseDTO, IDETerminalResponseDTO, IDETreeNodeDTO,
+    AICompletionResponseDTO, AIHoverResponseDTO
 )
 import logging
 
@@ -59,7 +63,7 @@ async def create_ide_workspace(
             result = await container.editor_service.create_workspace(request.workspace_id)
             
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="IDE_WORKSPACE_CREATED",
             message=f"IDE Workspace '{request.workspace_id}' initialized",
             data=result,
@@ -69,7 +73,7 @@ async def create_ide_workspace(
         logger.error(f"Failed to create IDE workspace: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/ide/files/{workspace_id}/{path:path}", response_model=BaseResponse[Dict[str, Any]])
+@router.get("/ide/files/{workspace_id}/{path:path}", response_model=BaseResponse[IDEFileResponseDTO])
 async def read_file(
     workspace_id: str,
     path: str,
@@ -82,9 +86,9 @@ async def read_file(
             
         result = await container.editor_service.read_file(workspace_id, path)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="FILE_READ",
-            data=result
+            data=IDEFileResponseDTO(**result)
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -108,10 +112,10 @@ async def write_file(
             
         result = await container.editor_service.write_file(workspace_id, path, request.content)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="FILE_WRITTEN",
             message=f"File {path} written successfully",
-            data=result
+            data=IDEFileResponseDTO(**result) if result else None
         )
     except Exception as e:
         logger.error(f"Failed to write file: {e}")
@@ -130,7 +134,7 @@ async def delete_file(
             
         result = await container.editor_service.delete_file(workspace_id, path)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="FILE_DELETED",
             message=f"File {path} deleted",
             data=result
@@ -157,17 +161,17 @@ async def list_files(
             files = [f for f in files if search in f["name"].lower()]
             
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="FILES_LISTED",
             message=f"Listed {len(files)} files in {directory}",
-            data=files,
+            data=[IDEFileResponseDTO(**f) for f in files],
             meta={"directory": directory, "search": search}
         )
     except Exception as e:
         logger.error(f"Failed to list files: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/ide/terminal", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/ide/terminal", response_model=BaseResponse[IDETerminalResponseDTO])
 async def create_terminal(
     request: IDETerminalRequest,
     api_key: str = Depends(verify_api_key)
@@ -179,10 +183,10 @@ async def create_terminal(
             
         session_id = await container.terminal_service.create_session(request.workspace_id, request.shell)
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="TERMINAL_CREATED",
             message="Terminal session initialized",
-            data={"session_id": session_id}
+            data=IDETerminalResponseDTO(session_id=session_id, workspace_id=request.workspace_id)
         )
     except Exception as e:
         logger.error(f"Failed to create terminal: {e}")
@@ -205,7 +209,7 @@ async def create_debug_session(
             request.args
         )
         return BaseResponse(
-            status="success",
+            status=ResponseStatus.SUCCESS,
             code="DEBUG_SESSION_CREATED",
             message="Debug session initialized",
             data={"session_id": session_id}
@@ -231,7 +235,7 @@ async def handle_dap_message(
         logger.error(f"DAP message failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/ide/tree/{workspace_id}")
+@router.get("/ide/tree/{workspace_id}", response_model=BaseResponse[List[IDETreeNodeDTO]])
 async def get_file_tree(
     workspace_id: str,
     api_key: str = Depends(verify_api_key)
@@ -241,12 +245,17 @@ async def get_file_tree(
         if not container.editor_service:
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
-        return await container.editor_service.get_file_tree(workspace_id)
+        result = await container.editor_service.get_file_tree(workspace_id)
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="FILE_TREE_RETRIEVED",
+            data=[IDETreeNodeDTO(**node) for node in result]
+        )
     except Exception as e:
         logger.error(f"Failed to get file tree: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/ide/intelligence/completions/{workspace_id}/{path:path}")
+@router.post("/ide/intelligence/completions/{workspace_id}/{path:path}", response_model=BaseResponse[AICompletionResponseDTO])
 async def get_completions(
     workspace_id: str,
     path: str,
@@ -258,17 +267,22 @@ async def get_completions(
         if not container.editor_service:
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
-        return await container.editor_service.get_completions(
+        result = await container.editor_service.get_completions(
             workspace_id,
             path,
             request.get("offset", 0),
             request.get("language")
         )
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="COMPLETIONS_RETRIEVED",
+            data=AICompletionResponseDTO(**result)
+        )
     except Exception as e:
         logger.error(f"Failed to get completions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/ide/intelligence/hover/{workspace_id}/{path:path}")
+@router.post("/ide/intelligence/hover/{workspace_id}/{path:path}", response_model=BaseResponse[AIHoverResponseDTO])
 async def get_hover_info(
     workspace_id: str,
     path: str,
@@ -280,17 +294,22 @@ async def get_hover_info(
         if not container.editor_service:
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
-        return await container.editor_service.get_hover_info(
+        result = await container.editor_service.get_hover_info(
             workspace_id,
             path,
             request.get("symbol"),
             request.get("language")
         )
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="HOVER_INFO_RETRIEVED",
+            data=AIHoverResponseDTO(**result)
+        )
     except Exception as e:
         logger.error(f"Failed to get hover info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/ide/intelligence/diagnostics/{workspace_id}/{path:path}")
+@router.get("/ide/intelligence/diagnostics/{workspace_id}/{path:path}", response_model=BaseResponse[List[Dict[str, Any]]])
 async def get_diagnostics(
     workspace_id: str,
     path: str,
@@ -302,12 +321,17 @@ async def get_diagnostics(
         if not container.editor_service:
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
-        return await container.editor_service.get_diagnostics(workspace_id, path, language)
+        result = await container.editor_service.get_diagnostics(workspace_id, path, language)
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="DIAGNOSTICS_RETRIEVED",
+            data=result
+        )
     except Exception as e:
         logger.error(f"Failed to get diagnostics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/ide/intelligence/refactor/{workspace_id}/{path:path}")
+@router.post("/ide/intelligence/refactor/{workspace_id}/{path:path}", response_model=BaseResponse[Dict[str, Any]])
 async def ai_refactor(
     workspace_id: str,
     path: str,
@@ -319,11 +343,16 @@ async def ai_refactor(
         if not container.editor_service:
             raise HTTPException(status_code=503, detail="Editor service not ready")
             
-        return await container.editor_service.ai_refactor(
+        result = await container.editor_service.ai_refactor(
             workspace_id,
             path,
             request.get("instruction"),
             request.get("language")
+        )
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="REFACTOR_COMPLETE",
+            data=result
         )
     except Exception as e:
         logger.error(f"Failed to perform AI refactor: {e}")
