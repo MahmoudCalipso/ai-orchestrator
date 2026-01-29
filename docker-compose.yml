@@ -201,9 +201,9 @@ services:
       - .env
     environment:
       PYTHONUNBUFFERED: 1
-      DATABASE_URL: postgresql://${POSTGRES_USER:-orchestrator}:${POSTGRES_PASSWORD:-CHANGE_ME_PLEASE}@postgres:5432/${POSTGRES_DB:-ai_orchestrator}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-orchestrator_user}:${POSTGRES_PASSWORD:-MAHMOUD1996*369*PgSqlPassWd}@postgres:5432/${POSTGRES_DB:-ai_orchestrator}
       REDIS_URL: redis://redis:6379/0
-      MONGO_URL: mongodb://${MONGO_USERNAME:-orchestrator}:${MONGO_PASSWORD:-CHANGE_ME_PLEASE}@mongodb:27017
+      MONGO_URL: mongodb://${MONGO_USERNAME:-orchestrator_user}:${MONGO_PASSWORD:-mogo_orchestrator_passMa120396}@mongodb:27017
       QDRANT_URL: http://qdrant:6333
       OLLAMA_BASE_URL: http://ollama:11434
     depends_on:
@@ -224,7 +224,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: 16G
 
 # =============================================================================
 # Networks
