@@ -38,3 +38,10 @@ class AgentInitializationResponseDTO(BaseModel):
     agent: AgentResponseDTO
     initialization_status: str = Field(..., description="Status of the background initialization process")
     websocket_url: Optional[str] = Field(None, description="Stream endpoint for real-time interaction")
+
+class AgentListResponseDTO(BaseModel):
+    agents: List[AgentResponseDTO]
+    total: int
+    page: int
+    limit: int
+    total_pages: int

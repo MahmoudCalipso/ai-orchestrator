@@ -7,9 +7,13 @@ from typing import Dict, Any, List, Optional
 import uuid
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
+from core.security import Role, require_role
+from core.container import container
 from platform_core.auth.dependencies import get_db
 from platform_core.auth.models import User
+from platform_core.tenancy.models import Tenant
 from platform_core.auth.jwt_manager import JWTManager
 from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.enterprise import CreateOrgUserRequest, ProjectProtectionRequest
@@ -24,11 +28,12 @@ router = APIRouter(tags=["Enterprise"])
 async def add_organization_user(
     request: CreateOrgUserRequest,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Add a user to the organization (Enterprise Owner only). Enforces 20-seat limit."""
     # Check if user exists
-    if db.query(User).filter(User.email == request.email).first():
+    user_exists = await db.execute(select(User).where(User.email == request.email))
+    if user_exists.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
         
     jwt_manager = JWTManager()
@@ -38,11 +43,13 @@ async def add_organization_user(
         raise HTTPException(status_code=400, detail="Organization ID missing from requester")
 
     # Check Seat Limit
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
-    current_count = db.query(User).filter(User.tenant_id == tenant_id).count()
+    count_result = await db.execute(select(func.count(User.id)).where(User.tenant_id == tenant_id))
+    current_count = count_result.scalar() or 0
     if current_count >= tenant.max_users:
         raise HTTPException(
             status_code=403, 
@@ -64,8 +71,8 @@ async def add_organization_user(
     )
     
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
@@ -83,21 +90,27 @@ async def list_organization_users(
     page: int = 1,
     page_size: int = 20,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """List all users in the organization with search and pagination."""
     tenant_id = user_info.get("tenant_id")
     
-    query = db.query(User).filter(User.tenant_id == tenant_id)
+    stmt = select(User).where(User.tenant_id == tenant_id)
     if search:
         search_query = f"%{search}%"
-        query = query.filter(
+        stmt = stmt.where(
             (User.email.ilike(search_query)) | 
             (User.full_name.ilike(search_query))
         )
         
-    total = query.count()
-    users = query.offset((page - 1) * page_size).limit(page_size).all()
+    # Get total count
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+    
+    # Get paginated users
+    result = await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))
+    users = result.scalars().all()
     
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
@@ -128,11 +141,12 @@ async def list_organization_users(
 async def remove_organization_user(
     user_id: str,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Remove a user from the organization."""
     tenant_id = user_info.get("tenant_id")
-    user = db.query(User).filter(User.id == user_id, User.tenant_id == tenant_id).first()
+    result = await db.execute(select(User).where(User.id == user_id, User.tenant_id == tenant_id))
+    user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found in organization")
@@ -140,7 +154,7 @@ async def remove_organization_user(
     # Soft delete or hard delete? Let's do soft (deactivate) for safety or hard. User requested 'delete/add/update'
     # db.delete(user) # Hard delete might break integrity if projects exist
     user.is_active = False # Safe default
-    db.commit()
+    await db.commit()
     
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
@@ -155,7 +169,7 @@ async def list_organization_projects(
     page: int = 1,
     page_size: int = 20,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """List all projects in the organization with search and pagination."""
     if not container.project_manager:
@@ -164,8 +178,8 @@ async def list_organization_projects(
     tenant_id = user_info.get("tenant_id")
     
     # Get all users in tenant to filter projects
-    org_users = db.query(User.id).filter(User.tenant_id == tenant_id).all()
-    org_user_ids = [u.id for u in org_users]
+    user_ids_result = await db.execute(select(User.id).where(User.tenant_id == tenant_id))
+    org_user_ids = [u_id for u_id, in user_ids_result.all()]
     
     all_projects = container.project_manager.get_all_projects()
     if isinstance(all_projects, dict):
@@ -223,7 +237,7 @@ async def set_project_protection(
 @router.get("/enterprise/workbenches")
 async def monitor_active_workbenches(
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Real-time: List all active IDE workbenches for the organization."""
     if not container.orchestrator:
@@ -232,8 +246,8 @@ async def monitor_active_workbenches(
     tenant_id = user_info.get("tenant_id")
     
     # Get all users in this tenant
-    org_users = db.query(User.id, User.email).filter(User.tenant_id == tenant_id).all()
-    user_map = {u.id: u.email for u in org_users}
+    users_result = await db.execute(select(User.id, User.email).where(User.tenant_id == tenant_id))
+    user_map = {u_id: u_email for u_id, u_email in users_result.all()}
     
     # Filter active workbenches by organization users
     active_benches = []
@@ -263,11 +277,12 @@ async def update_user_permissions(
     user_id: str,
     permissions: Dict[str, Any],
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Update permissions or role for a sub-user (Admin control)."""
     tenant_id = user_info.get("tenant_id")
-    target_user = db.query(User).filter(User.id == user_id, User.tenant_id == tenant_id).first()
+    result = await db.execute(select(User).where(User.id == user_id, User.tenant_id == tenant_id))
+    target_user = result.scalar_one_or_none()
     
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found in organization")
@@ -275,11 +290,11 @@ async def update_user_permissions(
     # Example: Allow changing role between PRO_DEVELOPER and DEVELOPER
     new_role = permissions.get("role")
     if new_role:
-        if new_role not in [Role.PRO_DEVELOPER, Role.DEVELOPER]:
+        if new_role not in [Role.PRO_DEVELOPER.value, Role.DEVELOPER.value]:
              raise HTTPException(status_code=400, detail="Can only assign PRO_DEVELOPER or DEVELOPER roles")
         target_user.role = new_role
         
-    db.commit()
+    await db.commit()
     
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
@@ -292,7 +307,7 @@ async def update_user_permissions(
 async def force_delete_project(
     project_id: str,
     user_info: dict = Depends(require_role([Role.ENTERPRISE])),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Force delete any project within the organization."""
     tenant_id = user_info.get("tenant_id")
@@ -301,12 +316,13 @@ async def force_delete_project(
         raise HTTPException(status_code=503, detail="Project Manager unavailable")
         
     # Verify project belongs to tenant
-    project = container.project_manager.get_project(project_id)
+    project = await container.project_manager.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
         
     owner_id = project.get("user_id")
-    owner = db.query(User).filter(User.id == owner_id, User.tenant_id == tenant_id).first()
+    owner_result = await db.execute(select(User).where(User.id == owner_id, User.tenant_id == tenant_id))
+    owner = owner_result.scalar_one_or_none()
     
     if not owner:
         raise HTTPException(status_code=403, detail="Project does not belong to your organization")

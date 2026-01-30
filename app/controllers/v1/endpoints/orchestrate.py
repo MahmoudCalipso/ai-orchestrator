@@ -14,7 +14,7 @@ from dto.v1.responses.orchestrate import OrchestrationResponseDTO, ExecutionStat
 
 router = APIRouter(prefix="/orchestrate", tags=["Orchestration"])
 
-@router.post("/", response_model=OrchestrationResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/", response_model=BaseResponse[OrchestrationResponseDTO], status_code=status.HTTP_202_ACCEPTED)
 async def orchestrate(
     request: OrchestrationRequest,
     db: AsyncSession = Depends(get_db),

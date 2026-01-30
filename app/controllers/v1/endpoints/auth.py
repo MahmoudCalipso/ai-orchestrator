@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from platform_core.auth.dependencies import get_db, get_current_active_user, get_current_tenant
 from platform_core.auth import email_service
+from platform_core.auth.oauth_service import oauth_service
+from platform_core.auth.encryption import encryption_service
 
 from platform_core.tenancy.models import Tenant
 from platform_core.auth.models import User, APIKey, ExternalAccount, PasswordResetToken
@@ -280,7 +282,7 @@ async def external_callback(
     provider: str,
     code: str,
     state: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Handle OAuth2 callback and link account"""

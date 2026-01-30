@@ -8,17 +8,17 @@ class GitCredentialsValidationDTO(BaseModel):
 class GitRepoInfoDTO(BaseModel):
     path: str
 
+class GitBranchDTO(BaseModel):
+    name: str = Field(..., description="Branch name")
+    is_current: bool = Field(False, description="Whether this is the currently checked out branch")
+    remote: Optional[str] = Field(None, description="Remote tracking branch if applicable")
+
 class GitBranchListResponseDTO(BaseModel):
     current_branch: Optional[str]
     branches: List[GitBranchDTO]
 
 class GitCheckoutResponseDTO(BaseModel):
     branch: str
-
-class GitBranchDTO(BaseModel):
-    name: str = Field(..., description="Branch name")
-    is_current: bool = Field(False, description="Whether this is the currently checked out branch")
-    remote: Optional[str] = Field(None, description="Remote tracking branch if applicable")
 
 class GitCommitDTO(BaseModel):
     hash: str = Field(..., description="Full commit SHA")

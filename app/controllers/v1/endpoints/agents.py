@@ -12,12 +12,12 @@ from ....models.agent import Agent, AgentStatus
 from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.agent import CreateAgentRequest, UpdateAgentRequest
 from dto.v1.responses.agent import (
-    AgentResponseDTO, AgentInitializationResponseDTO, AgentStatusEnum
+    AgentResponseDTO, AgentInitializationResponseDTO, AgentStatusEnum, AgentListResponseDTO
 )
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
-@router.post("/", response_model=CreateAgentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=BaseResponse[AgentInitializationResponseDTO], status_code=status.HTTP_201_CREATED)
 async def create_agent(
     request: CreateAgentRequest,
     db: AsyncSession = Depends(get_db),
@@ -56,7 +56,7 @@ async def create_agent(
         )
     )
 
-@router.get("/", response_model=ListAgentsResponse)
+@router.get("/", response_model=BaseResponse[AgentListResponseDTO])
 async def list_agents(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -78,21 +78,19 @@ async def list_agents(
     
     total_pages = (total_count + limit - 1) // limit
     
-    return ListAgentsResponse(
-        success=True,
-        request_id=str(uuid.uuid4()),
-        data=[AgentDTO.from_orm(a) for a in agents],
-        pagination=PaginationResponse(
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="AGENTS_LIST_RETRIEVED",
+        data=AgentListResponseDTO(
+            agents=[AgentResponseDTO.model_validate(a) for a in agents],
+            total=total_count,
             page=page,
             limit=limit,
-            total=total_count,
-            total_pages=total_pages,
-            has_next=page < total_pages,
-            has_prev=page > 1
+            total_pages=total_pages
         )
     )
 
-@router.get("/{agent_id}", response_model=AgentDTO)
+@router.get("/{agent_id}", response_model=BaseResponse[AgentResponseDTO])
 async def get_agent(
     agent_id: str,
     db: AsyncSession = Depends(get_db),
@@ -107,9 +105,13 @@ async def get_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
         
-    return AgentDTO.from_orm(agent)
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="AGENT_RETRIEVED",
+        data=AgentResponseDTO.model_validate(agent)
+    )
 
-@router.patch("/{agent_id}", response_model=AgentDTO)
+@router.patch("/{agent_id}", response_model=BaseResponse[AgentResponseDTO])
 async def update_agent(
     agent_id: str,
     request: UpdateAgentRequest,
@@ -134,7 +136,11 @@ async def update_agent(
     await db.commit()
     await db.refresh(agent)
     
-    return AgentDTO.from_orm(agent)
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="AGENT_UPDATED",
+        data=AgentResponseDTO.model_validate(agent)
+    )
 
 @router.delete("/{agent_id}", status_code=status.HTTP_200_OK)
 async def delete_agent(
@@ -154,14 +160,17 @@ async def delete_agent(
     await db.delete(agent)
     await db.commit()
     
-    return {
-        "success": True,
-        "deleted": True,
-        "agent_id": agent_id,
-        "cleanup_status": {
-            "memory_released": "success",
-            "sessions_archived": "success",
-            "websocket_connections": "closed"
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="AGENT_DELETED",
+        message="Agent deleted successfully",
+        data={
+            "agent_id": agent_id,
+            "cleanup_status": {
+                "memory_released": "success",
+                "sessions_archived": "success",
+                "websocket_connections": "closed"
+            }
         }
-    }
+    )
 

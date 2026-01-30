@@ -6,7 +6,7 @@ Fully Async implementation
 from typing import Dict, Any, List, Optional
 import logging
 import os
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -21,7 +21,7 @@ from platform_core.auth.models import User
 from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.project import ProjectCreateRequest, ProjectUpdateRequest, ProjectSearchRequest
 from dto.v1.responses.project import ProjectResponseDTO, ProjectListResponseDTO
-from schemas.spec import ProjectStatus, BuildStatus, RunStatus, Role
+from schemas.spec import ProjectStatus, BuildStatus, RunStatus
 from core.security import get_security_manager
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ async def list_user_projects(
     search: Optional[str] = None,
     status: Optional[str] = None,
     name: Optional[str] = None,
-    framework: Optional[str] = None
+    framework: Optional[str] = None,
     language: Optional[str] = None,
     solution_id: Optional[str] = None,
     page: int = Query(1, ge=1),

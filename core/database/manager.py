@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Load .env file
 load_dotenv()
@@ -13,6 +14,8 @@ from qdrant_client import AsyncQdrantClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.database import Base
+
+logger = logging.getLogger(__name__)
 
 class UnifiedDatabaseManager:
     """

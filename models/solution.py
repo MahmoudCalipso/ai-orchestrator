@@ -1,6 +1,8 @@
 """
 Solution Model - Groups multiple projects into a single bundle
 """
+import uuid
+from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.core.database import Base
