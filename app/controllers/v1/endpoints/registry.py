@@ -11,47 +11,56 @@ logger = logging.getLogger(__name__)
 
 @router.get("/registry/frameworks")
 async def get_frameworks(search: Optional[str] = None):
-    """Get all frameworks and their metadata with optional search"""
-    all_fw = framework_registry.get_all_frameworks()
-    all_fw = framework_registry.get_all_frameworks()
+    """Get all frameworks and their metadata categorized (Backend, Frontend, Mobile)"""
+    all_cat = framework_registry.get_all_frameworks()
+    
     if not search:
         return BaseResponse(
             status=ResponseStatus.SUCCESS,
             code="FRAMEWORKS_RETRIEVED",
-            message=f"Retrieved {sum(len(v) for v in all_fw.values())} frameworks",
-            data=all_fw
+            message=f"Retrieved categorized frameworks",
+            data=all_cat
         )
         
     search = search.lower()
     filtered = {}
-    for lang, frameworks in all_fw.items():
-        matched = {fw: data for fw, data in frameworks.items() if search in fw.lower() or search in lang.lower()}
-        if matched:
-            filtered[lang] = matched
+    for cat, langs in all_cat.items():
+        cat_match = {}
+        for lang, fws in langs.items():
+            fw_match = {fw: data for fw, data in fws.items() if search in fw.lower() or search in lang.lower() or search in cat.lower()}
+            if fw_match:
+                cat_match[lang] = fw_match
+        if cat_match:
+            filtered[cat] = cat_match
             
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
         code="FRAMEWORKS_SEARCHED",
-        message=f"Found {sum(len(v) for v in filtered.values())} frameworks matching '{search}'",
+        message=f"Found frameworks matching '{search}'",
         data=filtered,
         meta={"search": search}
     )
 
-@router.get("/registry/frameworks/{language}")
-async def get_language_frameworks(language: str):
-    """Get all frameworks for a specific language"""
-    lang = language.lower()
+@router.get("/registry/frameworks/{category}/{language}")
+async def get_categorized_frameworks(category: str, language: str):
+    """Get all frameworks for a specific category and language"""
+    cat, lang = category.lower(), language.lower()
     all_fw = framework_registry.get_all_frameworks()
-    if lang not in all_fw:
-        raise HTTPException(status_code=404, detail=f"Language '{language}' not found in registry")
+    
+    if cat not in all_fw:
+        raise HTTPException(status_code=404, detail=f"Category '{category}' not found")
+    if lang not in all_fw[cat]:
+        raise HTTPException(status_code=404, detail=f"Language '{language}' not found in category '{category}'")
+        
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
-        code="LANGUAGE_FRAMEWORKS_RETRIEVED",
-        data=all_fw[lang]
+        code="CATEGORY_FRAMEWORKS_RETRIEVED",
+        data=all_fw[cat][lang]
     )
 
-@router.post("/registry/frameworks/{language}/{framework}")
+@router.post("/registry/frameworks/{category}/{language}/{framework}")
 async def add_or_update_framework(
+    category: str,
     language: str, 
     framework: str, 
     data: Dict[str, Any],
@@ -59,24 +68,44 @@ async def add_or_update_framework(
 ):
     """Add or update a framework in the registry (Admin only)"""
     try:
-        framework_registry.update_framework(language, framework, data)
+        framework_registry.update_framework(category, language, framework, data)
         return BaseResponse(
             status=ResponseStatus.SUCCESS,
             code="FRAMEWORK_UPDATED",
-            message=f"Framework {language}/{framework} updated",
-            data={"language": language, "framework": framework}
+            message=f"Framework {category}/{language}/{framework} updated",
+            data={"category": category, "language": language, "framework": framework}
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/registry/sync")
-async def trigger_sync(background_tasks: BackgroundTasks, user=Depends(require_admin)):
-    """Trigger an immediate version sync from external registries (Admin only)"""
-    background_tasks.add_task(framework_registry.check_for_updates, apply=True)
+@router.get("/registry/packages")
+async def get_packages(language: str, framework: str, database: Optional[str] = None):
+    """Get required packages for a given stack (includes DB drivers)"""
+    packages = framework_registry.get_required_packages(language, framework, database)
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
-        code="SYNC_STARTED",
-        message="Version sync started in background"
+        code="PACKAGES_RETRIEVED",
+        data={"packages": packages}
+    )
+
+@router.get("/registry/best-practices")
+async def get_best_practices(language: str, framework: str):
+    """Retrieve technical best practices for a specific framework"""
+    practices = framework_registry.get_best_practices(language, framework)
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="BEST_PRACTICES_RETRIEVED",
+        data={"best_practices": practices}
+    )
+
+@router.get("/registry/architecture-templates")
+async def get_arch_templates(architecture: str, language: Optional[str] = None, framework: Optional[str] = None):
+    """Get detailed project structure templates for a given architecture"""
+    template = framework_registry.get_architecture_template(architecture, language, framework)
+    return BaseResponse(
+        status=ResponseStatus.SUCCESS,
+        code="ARCH_TEMPLATE_RETRIEVED",
+        data=template
     )
 
 @router.get("/registry/languages")
@@ -85,7 +114,7 @@ async def get_languages(search: Optional[str] = None):
     langs = framework_registry.languages
     if search:
         search = search.lower()
-        langs = [l for l in langs if search in l.lower()]
+        langs = {l: data for l, data in langs.items() if search in l.lower()}
         
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
@@ -97,17 +126,28 @@ async def get_languages(search: Optional[str] = None):
 
 @router.get("/registry/databases")
 async def get_databases(search: Optional[str] = None):
-    """Get all supported databases with optional search"""
+    """Get all supported databases grouped by type (SQL, NoSQL, Vector)"""
     dbs = framework_registry.databases
-    if search:
-        search = search.lower()
-        dbs = [d for d in dbs if search in d.lower()]
+    if not search:
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS,
+            code="DATABASES_RETRIEVED",
+            message=f"Retrieved categorized databases",
+            data=dbs
+        )
         
+    search = search.lower()
+    filtered = {}
+    for db_type, db_list in dbs.items():
+        matched = {name: data for name, data in db_list.items() if search in name.lower() or search in db_type.lower()}
+        if matched:
+            filtered[db_type] = matched
+            
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
-        code="DATABASES_RETRIEVED",
-        message=f"Retrieved {len(dbs)} supported databases",
-        data=dbs,
+        code="DATABASES_SEARCHED",
+        message=f"Found databases matching '{search}'",
+        data=filtered,
         meta={"search": search}
     )
 

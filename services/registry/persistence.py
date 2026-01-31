@@ -40,6 +40,7 @@ class FrameworkMetadata(Base):
     required_packages = Column(JSON)  # List of strings
     update_source = Column(String(255), nullable=True) # e.g. "npm", "maven"
     update_identifier = Column(String(255), nullable=True) # e.g. "@angular/core"
+    category = Column(String(20), index=True) # backend, frontend, mobile
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     class Config:

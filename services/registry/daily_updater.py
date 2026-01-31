@@ -66,18 +66,18 @@ class DailyRegistryUpdater:
                 await asyncio.sleep(3600)  # Wait 1 hour on error
     
     async def perform_update(self):
-        """Perform registry update"""
+        """Perform registry update using internal registry logic"""
         logger.info("Starting framework registry update...")
         
         try:
-            # Check for updates
-            updates = await self.registry.check_for_updates()
+            # Check AND Apply updates internally to the registry
+            updates = await self.registry.check_for_updates(apply=True)
             
             logger.info(f"Found {len(updates['updates_found'])} updates")
             
-            # Apply updates
+            # Log updates for audit
             for update in updates['updates_found']:
-                await self._apply_update(update)
+                await self._log_update(update)
             
             # Update database if available
             if self.db_manager:
@@ -87,82 +87,66 @@ class DailyRegistryUpdater:
             
         except Exception as e:
             logger.error(f"Failed to update framework registry: {e}")
-    
-    async def _apply_update(self, update: Dict[str, Any]):
-        """Apply a single update"""
-        language = update['language']
-        package = update['package']
-        new_version = update['latest_version']
-        
-        logger.info(f"Updating {language}/{package} to {new_version}")
-        
-        # Update in-memory registry
-        if language in self.registry.frameworks:
-            if package in self.registry.frameworks[language]:
-                self.registry.frameworks[language][package]['latest_version'] = new_version
-        
-        # Log to database
-        if self.db_manager:
+            import traceback
+            logger.error(traceback.format_exc())
+
+    async def _log_update(self, update: Dict[str, Any]):
+        """Log update for audit/history"""
+        if not self.db_manager:
+            return
+            
+        u_type = update.get("type")
+        if u_type == "framework":
             await self.db_manager.log_update(
                 update_type='framework',
-                language=language,
-                framework=package,
-                old_version=update['current_version'],
-                new_version=new_version,
-                source=update['source']
+                language=update.get('language'),
+                framework=update.get('package'),
+                old_version="unknown", # Internal application already updated it
+                new_version=update.get('latest_version'),
+                source=update.get('source', 'registry')
             )
-    
+        elif u_type == "database":
+            await self.db_manager.log_update(
+                update_type='database',
+                language=update.get('db_type'),
+                framework=update.get('package'),
+                old_version="unknown",
+                new_version=update.get('latest_version'),
+                source="docker"
+            )
+
     async def _sync_to_database(self):
-        """Sync registry to database"""
+        """Sync registry to database by traversing categorized structure"""
         if not self.db_manager:
             return
         
-        logger.info("Syncing registry to database...")
+        logger.info("Syncing categorized registry to database...")
         
-        for language, frameworks in self.registry.frameworks.items():
-            for framework, info in frameworks.items():
-                # Save framework version
-                await self.db_manager.save_framework_version(
-                    language=language,
-                    framework=framework,
-                    version=info.get('latest_version'),
-                    is_latest=True,
-                    is_lts=info.get('lts_version') == info.get('latest_version')
+        # 1. Sync Frameworks
+        for cat, languages in self.registry.frameworks.items():
+            for language, frameworks in languages.items():
+                for framework, info in frameworks.items():
+                    await self.db_manager.save_framework_version(
+                        language=language,
+                        framework=framework,
+                        version=info.get('latest_version'),
+                        is_latest=True,
+                        category=cat # Passing category if supported by db_manager
+                    )
+                    
+                    if 'best_practices' in info:
+                        await self.db_manager.save_best_practices(language, framework, info['best_practices'])
+                    
+                    if 'required_packages' in info:
+                        await self.db_manager.save_required_packages(language, framework, info['required_packages'])
+
+        # 2. Sync Databases
+        for db_type, dbs in self.registry.databases.items():
+            for name, info in dbs.items():
+                await self.db_manager.save_database_metadata(
+                    name=name,
+                    db_type=db_type,
+                    version=info.get('latest_version')
                 )
-                
-                # Save best practices
-                if 'best_practices' in info:
-                    await self.db_manager.save_best_practices(
-                        language,
-                        framework,
-                        info['best_practices']
-                    )
-                
-                # Save required packages
-                if 'required_packages' in info:
-                    await self.db_manager.save_required_packages(
-                        language,
-                        framework,
-                        info['required_packages']
-                    )
-                
-                # Save SDK/JDK versions
-                if 'sdk_versions' in info:
-                    for sdk_version in info['sdk_versions']:
-                        await self.db_manager.save_sdk_version(
-                            language=language,
-                            sdk_type='SDK',
-                            version=sdk_version,
-                            is_latest=sdk_version == info.get('recommended_sdk')
-                        )
-                
-                if 'jdk_versions' in info:
-                    for jdk_version in info['jdk_versions']:
-                        await self.db_manager.save_sdk_version(
-                            language=language,
-                            sdk_type='JDK',
-                            version=jdk_version,
-                            is_latest=jdk_version == info.get('recommended_jdk')
-                        )
         
         logger.info("Database sync completed")
