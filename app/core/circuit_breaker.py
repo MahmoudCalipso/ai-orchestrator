@@ -113,10 +113,37 @@ class MultiProviderLLM:
         raise HTTPException(503, f"All LLM providers failed: {'; '.join(errors)}")
 
     async def _execute_provider(self, name: str, prompt: str, **kwargs):
-        """Simplified mock for provider execution logic."""
-        # This is where LangChain or direct API calls would go
-        await asyncio.sleep(0.1) # Simulate network
-        return {"provider": name, "result": "V2.0 Processed Output"}
+        """Execute LLM inference via Ollama with circuit breaker protection."""
+        import os
+        import httpx
+        
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        model = os.getenv("OLLAMA_DEFAULT_MODEL", "qwen2.5-coder:7b")
+        
+        # Map provider name to model preference
+        model_preferences = {
+            'openai': model,
+            'anthropic': model,
+            'azure': model
+        }
+        target_model = model_preferences.get(name, model)
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{base_url}/api/generate",
+                    json={
+                        "model": target_model,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return {"provider": name, "result": data.get("response", "")}
+        except Exception as e:
+            logger.error(f"Provider {name} execution failed: {e}")
+            raise
 
 # Global singleton
 resilience_manager = MultiProviderLLM()

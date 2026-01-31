@@ -30,7 +30,18 @@ class LLMInference:
         self.batch_queue = asyncio.Queue()
         self.batch_window = 0.05 # 50ms window to collect concurrent requests
         self.max_batch_size = 5
-        asyncio.create_task(self._process_batches())
+        # Defer batch processing task creation to avoid "no running event loop" error
+        self._batch_task = None
+        
+    def _ensure_batch_task(self):
+        """Ensure batch processing task is running."""
+        if self._batch_task is None or self._batch_task.done():
+            try:
+                loop = asyncio.get_running_loop()
+                self._batch_task = loop.create_task(self._process_batches())
+            except RuntimeError:
+                # No event loop running, will retry on first inference call
+                pass
         
         # Initialize client (Ollama uses OpenAI-compatible API)
         try:
@@ -181,9 +192,35 @@ class LLMInference:
             import random
             return [random.uniform(-1, 1) for _ in range(1536)]
 
-    def _mock_generate(self, prompt: str) -> str:
-        """Mock fallback for offline mode"""
-        return "## Analysis\nOpen Source Model is currently unavailable. Using fallback response.\n"
+    async def _fallback_generate(self, prompt: str) -> str:
+        """Dynamic fallback that attempts to use available local models."""
+        import httpx
+        
+        # Try to find any available model
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(f"{self.base_url}/api/tags")
+                if response.status_code == 200:
+                    models = response.json().get("models", [])
+                    if models:
+                        # Use first available model as fallback
+                        fallback_model = models[0].get("name", "qwen2.5-coder:0.5b")
+                        
+                        gen_response = await client.post(
+                            f"{self.base_url}/api/generate",
+                            json={
+                                "model": fallback_model,
+                                "prompt": prompt,
+                                "stream": False
+                            },
+                            timeout=60.0
+                        )
+                        if gen_response.status_code == 200:
+                            return gen_response.json().get("response", "")
+        except Exception as e:
+            logger.error(f"Fallback generation failed: {e}")
+        
+        return "## Analysis\nOpen Source Model is currently unavailable. Please ensure Ollama is running.\n"
 
     def get_available_models(self) -> List[str]:
         """Get recommended open source models"""

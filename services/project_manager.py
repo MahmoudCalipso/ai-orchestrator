@@ -18,14 +18,39 @@ class ProjectManager:
     
     def __init__(
         self, 
-        db_manager: DatabaseManager, 
-        project_repo_factory: Callable[..., Any],
+        db_manager: DatabaseManager = None, 
+        project_repo_factory: Callable[..., Any] = None,
         storage_base_path: str = "./storage/projects"
     ):
-        self.db_manager = db_manager
-        self.project_repo_factory = project_repo_factory
+        # Lazy initialization - dependencies can be set later
+        self._db_manager = db_manager
+        self._project_repo_factory = project_repo_factory
         self.storage_base_path = Path(storage_base_path)
         self.storage_base_path.mkdir(parents=True, exist_ok=True)
+        self._initialized = False
+    
+    def initialize(self, db_manager: DatabaseManager, project_repo_factory: Callable[..., Any]):
+        """Initialize with required dependencies."""
+        self._db_manager = db_manager
+        self._project_repo_factory = project_repo_factory
+        self._initialized = True
+    
+    @property
+    def db_manager(self):
+        if self._db_manager is None:
+            from app.core.database import DatabaseManager
+            self._db_manager = DatabaseManager()
+        return self._db_manager
+    
+    @property
+    def project_repo_factory(self):
+        if self._project_repo_factory is None:
+            # Default repository factory using SQLAlchemy
+            def default_factory(session):
+                from core.repository.base import BaseRepository
+                return BaseRepository(UserProject, session)
+            self._project_repo_factory = default_factory
+        return self._project_repo_factory
         
     async def create_project(
         self,

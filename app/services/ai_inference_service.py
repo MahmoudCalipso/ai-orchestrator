@@ -88,16 +88,35 @@ class AIInferenceService:
                     req["future"].set_exception(e)
     
     async def _execute_inference(self, prompts: List[str], model: str) -> List[str]:
-        """Simulates parallel inference calls."""
-        # This would be replaced with actual LangChain or OpenAI calls
-        # For now, we simulate concurrent execution
-        tasks = [self._mock_api_call(p, model) for p in prompts]
+        """Execute parallel inference calls to Ollama."""
+        tasks = [self._call_ollama(p, model) for p in prompts]
         return await asyncio.gather(*tasks)
     
-    async def _mock_api_call(self, prompt: str, model: str) -> str:
-        """Mock LLM response for testing purposes."""
-        await asyncio.sleep(1.5) # Simulate latency
-        return f"AI Response to: {prompt[:20]}... [via {model}]"
+    async def _call_ollama(self, prompt: str, model: str) -> str:
+        """Call Ollama API for LLM inference."""
+        import os
+        import httpx
+        
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        default_model = os.getenv("OLLAMA_DEFAULT_MODEL", "qwen2.5-coder:7b")
+        target_model = model if model != "gpt-4o" else default_model
+        
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{base_url}/api/generate",
+                    json={
+                        "model": target_model,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("response", "")
+        except Exception as e:
+            logger.error(f"Ollama inference failed: {e}")
+            raise
 
 class StreamingOptimizer:
     """Buffers streaming responses to improve network efficiency."""

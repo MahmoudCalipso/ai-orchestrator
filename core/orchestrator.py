@@ -119,10 +119,38 @@ class Orchestrator:
         # Initialize Blackboard
         await self.blackboard.initialize()
         
-        # Initialize MCP Servers (placeholder for dynamic config)
-        await self.mcp_manager.register_server("system", "node", ["-e", "console.log('system tool')"])
+        # Initialize MCP Servers with dynamic configuration
+        await self._initialize_mcp_servers()
         
         logger.info("Orchestrator initialized successfully")
+        
+    async def _initialize_mcp_servers(self):
+        """Initialize MCP servers from configuration."""
+        import os
+        import yaml
+        
+        mcp_config_path = os.getenv("MCP_CONFIG_PATH", "config/mcp_servers.yaml")
+        
+        try:
+            if os.path.exists(mcp_config_path):
+                with open(mcp_config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    servers = config.get('servers', {})
+                    
+                    for server_name, server_config in servers.items():
+                        try:
+                            command = server_config.get('command')
+                            args = server_config.get('args', [])
+                            await self.mcp_manager.register_server(server_name, command, args)
+                            logger.info(f"Registered MCP server: {server_name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to register MCP server {server_name}: {e}")
+            else:
+                # Fallback: register default system server
+                await self.mcp_manager.register_server("system", "node", ["-e", "console.log('system tool')"])
+                logger.info("Registered default MCP server (config not found)")
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP servers: {e}")
         
     async def _initialize_runtimes(self):
         """Initialize all available runtimes"""
