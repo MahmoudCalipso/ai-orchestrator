@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .core.database import db_manager
 from .core.agent_manager import agent_manager
@@ -74,6 +75,34 @@ Welcome to the unified nerve center of the **AI Orchestrator**.
 - **Closed-Loop Healing**: Self-patching infrastructure.
 """
 
+# Tags Metadata for clean grouping
+tags_metadata = [
+    {
+        "name": "Core Intelligence",
+        "description": "Primary Swarm Access Points for Generation, Migration, and Analysis.",
+    },
+    {
+        "name": "Project Lifecycle", 
+        "description": "Standard Async CRUD for Project Management.",
+    },
+    {
+        "name": "Git Ops",
+        "description": "Bi-directional repository synchronization and conflict resolution.",
+    },
+    {
+        "name": "System Health",
+        "description": "Real-time telemetry and resource monitoring.",
+    },
+    {
+        "name": "WebSocket Streaming",
+        "description": "Real-time log streaming and interactive terminal sessions via `ws://` protocol.",
+        "externalDocs": {
+            "description": "WebSocket Protocol Specs",
+            "url": "https://fastapi.tiangolo.com/advanced/websockets/",
+        },
+    },
+]
+
 # Create FastAPI instance with premium documentation settings
 app = FastAPI(
     title="🚀 AI Orchestrator Control Plane",
@@ -81,8 +110,24 @@ app = FastAPI(
     version="2026.2.0-v2",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    openapi_tags=tags_metadata,
+    swagger_ui_parameters={
+        "defaultModelsExpandDepth": 1,   # Show Schemas section
+        "docExpansion": "list",          # Expand tags, collapse operations
+        "filter": True,                  # Enable search bar
+        "syntaxHighlight.theme": "monokai", # Premium coding feel
+        "persistAuthorization": True,    # Keep auth token on refresh
+        "displayRequestDuration": True,  # Show latency
+        "tryItOutEnabled": True,         # Ready to click
+    }
 )
+
+# --- Root Redirect ---
+@app.get("/", include_in_schema=False)
+async def root():
+    """Redirect root to Swagger UI"""
+    return RedirectResponse(url="/docs")
 
 # CORS Configuration
 app.add_middleware(

@@ -19,14 +19,14 @@ from ....middleware.auth import require_auth
 # Models & DTOs
 from platform_core.auth.models import User
 from dto.v1.base import BaseResponse, ResponseStatus
-from dto.v1.requests.project import ProjectCreateRequest, ProjectUpdateRequest, ProjectSearchRequest
+from dto.v1.requests.project import ProjectUpdateRequest, ProjectSearchRequest
 from dto.v1.responses.project import ProjectResponseDTO, ProjectListResponseDTO
 from dto.v1.schemas.enums import ProjectStatus, BuildStatus, RunStatus
 from core.security import get_security_manager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/projects", tags=["Project Management"])
+router = APIRouter(prefix="/projects", tags=["Project Lifecycle"])
 
 # --- Helper ---
 async def check_access(
@@ -257,36 +257,7 @@ async def get_project(
         data=ProjectResponseDTO.model_validate(project)
     )
 
-@router.post("/", response_model=BaseResponse[ProjectResponseDTO], status_code=status.HTTP_201_CREATED)
-async def create_project(
-    request: ProjectCreateRequest, 
-    api_key: str = Depends(verify_api_key),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create a new user project."""
-    sm = get_security_manager()
-    user_info = await sm.get_user_info(api_key, db)
-    if not user_info: raise HTTPException(401)
-    target_user_id = user_info.get("user_id")
-    
-    if not container.project_manager:
-        raise HTTPException(status_code=503, detail="Project Manager not ready")
-        
-    project = await container.project_manager.create_project(
-        user_id=target_user_id,
-        project_name=request.project_name,
-        description=request.description,
-        git_repo_url=request.git_repo_url,
-        language=request.language or "",
-        framework=request.framework or ""
-    )
-    
-    return BaseResponse(
-        status=ResponseStatus.SUCCESS,
-        code="PROJECT_CREATED",
-        message="Project created successfully",
-        data=ProjectResponseDTO.model_validate(project)
-    )
+
 
 @router.delete("/{project_id}", response_model=BaseResponse[Dict[str, str]])
 async def delete_project(

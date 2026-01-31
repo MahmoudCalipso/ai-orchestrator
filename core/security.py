@@ -189,7 +189,10 @@ class SecurityManager:
         Check if request is within rate limits using a sliding window algorithm in Redis.
         Default: 1000 requests per hour.
         """
-        if not unified_db.redis:
+        from app.core.container import container
+        
+        redis_client = container.redis_client()
+        if not redis_client:
             logger.warning("Redis not available for rate limiting. Bypassing check.")
             return True
 
@@ -202,7 +205,7 @@ class SecurityManager:
             key = f"rate_limit:{api_key}"
             now = time.time()
             
-            async with unified_db.redis.pipeline(transaction=True) as pipe:
+            async with redis_client.pipeline(transaction=True) as pipe:
                 # Remove older records outside the window
                 pipe.zremrangebyscore(key, 0, now - window_seconds)
                 # Count remaining records

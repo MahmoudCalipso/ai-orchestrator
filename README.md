@@ -74,7 +74,7 @@ The AI Orchestrator follows a **strict contract-first approach**. Every interact
 ### 📂 Lifecycle & Infrastructure
 | Component | Endpoint | Contract (DTO) | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Projects** | `/api/v1/projects` | `ProjectCreateRequest` | Managed project lifecycle (Build, Run, Sync). |
+| **Projects** | `/api/v1/projects` | `ProjectResponseDTO` | Managed lifecycle (List, Details, Build, Run). |
 | **Git Ops** | `/api/v1/git` | `GitCommitRequest` | Bi-directional Repo sync with AI Conflict Resolution. |
 | **System** | `/api/v1/system` | `HealthResponseDTO` | Real-time health, uptime, and resource metrics. |
 
@@ -85,6 +85,8 @@ The AI Orchestrator follows a **strict contract-first approach**. Every interact
 - **🔄 Asynchronous Foundation**: 100% Non-blocking I/O across Database, Git, and AI services for massive scalability.
 - **🛡️ unified Security Layer**: Single source of truth for RBAC, API Keys, and JWT management.
 - **🧠 Neural Memory**: L1/L2 persistence layer for AI context, ensuring agents remember architectural decisions.
+- **Verified Dynamic Architecture**: Zero-mock implementation ensuring real-time system interactions and valid metrics.
+- **🛡️ Robust Security**: Redis-backed Sliding Window rate limiting and deep-container dependency injection.
 - **🔌 MCP Integration**: Native support for Model Context Protocol (MCP) to bridge internal tools and external AI models.
 - **📡 Real-time Observability**: WebSocket-driven log streaming and terminal access for containerized workloads.
 

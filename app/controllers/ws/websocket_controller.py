@@ -5,6 +5,8 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import List, Dict, Set, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -144,4 +146,47 @@ async def collaboration_websocket(websocket: WebSocket, sid: str):
             await manager.broadcast(data, sid)
     except WebSocketDisconnect:
         await manager.disconnect(websocket, sid)
+
+# --- Documentation Endpoint ---
+
+class WebSocketEndpointInfo(BaseModel):
+    path: str = Field(..., description="WebSocket URI path")
+    description: str = Field(..., description="Purpose of the stream")
+    example: str = Field(..., description="Example connection string")
+    protocol: str = Field("ws", description="Protocol (ws/wss)")
+
+class WebSocketDocs(BaseModel):
+    endpoints: List[WebSocketEndpointInfo]
+
+@router.get("/docs", response_model=WebSocketDocs, tags=["WebSocket Streaming"])
+async def get_websocket_docs():
+    """
+    Get connection details for all available Real-Time WebSocket streams.
+    
+    Since Swagger UI does not natively support `ws://` connections, use this endpoint
+    to discover the available streams and their connection formats.
+    """
+    return {
+        "endpoints": [
+            {
+                "path": "/ws/ide/terminal/{sid}",
+                "description": "Interactive Cloud Shell / Terminal access",
+                "example": "ws://localhost:8000/ws/ide/terminal/session-123",
+                "protocol": "ws"
+            },
+            {
+                "path": "/ws/monitoring/stream",
+                "description": "Real-time system telemetry and build logs",
+                "example": "ws://localhost:8000/ws/monitoring/stream",
+                "protocol": "ws"
+            },
+            {
+                "path": "/ws/collaboration/{sid}",
+                "description": "Multi-user cursor syncing and context sharing",
+                "example": "ws://localhost:8000/ws/collaboration/project-alpha",
+                "protocol": "ws"
+            }
+        ]
+    }
+
 

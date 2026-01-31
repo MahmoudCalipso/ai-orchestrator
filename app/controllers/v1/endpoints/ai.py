@@ -26,7 +26,7 @@ from platform_core.auth.models import User as AuthUserModel
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ai", tags=["AI Intelligence"])
+router = APIRouter(prefix="/ai", tags=["Core Intelligence"])
 
 @router.get("/models")
 async def list_models(
@@ -233,7 +233,7 @@ async def generate_project(
         if container.orchestrator and container.orchestrator.lead_architect:
             # Pass target user info to the generation context
             generation_context = {
-                **request.model_dump(),
+                **request.model_dump(mode="json", exclude_none=True),
                 "type": "full_project_generation",
                 "user_id": target_user_id,
                 "tenant_id": tenant_id,
@@ -241,8 +241,12 @@ async def generate_project(
                 "requested_by_role": role
             }
             
+            prompt = f"Generate project: {request.project_name}"
+            if request.description:
+                prompt += f". {request.description}"
+            
             result = await container.orchestrator.lead_architect.act(
-                f"Generate project: {request.project_name}",
+                prompt,
                 generation_context
             )
             return BaseResponse(
