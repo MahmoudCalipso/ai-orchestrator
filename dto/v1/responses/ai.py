@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from schemas.spec import ModelStatus
+from dto.v1.schemas.enums import ModelStatus
 
 class InferenceResponseDTO(BaseModel):
     """Detailed result of an AI inference operation"""

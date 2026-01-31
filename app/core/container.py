@@ -54,7 +54,14 @@ class Container(containers.DeclarativeContainer):
     from core.storage import StorageManager, BackupManager
     from services.collaboration import CollaborationService
     
-    project_manager = providers.Singleton(ProjectManager, db_manager=db_manager)
+    from repositories.project_repository import ProjectRepository
+    project_repository_factory = providers.Factory(ProjectRepository)
+
+    project_manager = providers.Singleton(
+        ProjectManager, 
+        db_manager=db_manager,
+        project_repo_factory=project_repository_factory.provider
+    )
     git_sync_service = providers.Singleton(GitSyncService)
     ai_update_service = providers.Singleton(AIUpdateService, orchestrator=orchestrator)
     build_service = providers.Singleton(BuildService)

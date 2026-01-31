@@ -229,70 +229,64 @@ async def migrate_project(
         logger.error(f"Migration failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/fix")
+@router.post("/fix", response_model=BaseResponse[Dict[str, Any]])
 async def fix_code(
     request: FixCodeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Automatically fix code issues using open-source models."""
+    """Automatically fix code issues using AI Swarm."""
     try:
-        llm_service = get_llm_service()
-        model = llm_service.get_model_for_task("code")
-        
-        prompt = f"""Fix the following {request.language} code issue:
-
-Issue: {request.issue}
-
-Code:
-```{request.language}
-{request.code}
-```
-
-Provide the fixed code only, without explanations."""
-        
-        result = await llm_service.generate(prompt, model=model, temperature=0.2)
-        
-        return BaseResponse(
-            status=ResponseStatus.SUCCESS,
-            code="CODE_FIXED",
-            data={"result": result, "model_used": model}
+        if not container.ai_update_service:
+            raise HTTPException(status_code=503, detail="AI Update Service not ready")
+            
+        result = await container.ai_update_service.fix_code(
+            code=request.code,
+            issue=request.issue,
+            language=request.language
         )
+        
+        if result["success"]:
+            return BaseResponse(
+                status=ResponseStatus.SUCCESS,
+                code="CODE_FIXED",
+                message="Code fixed successfully",
+                data=result
+            )
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Fix failed"))
     except Exception as e:
         logger.error(f"Fix failed: {e}")
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/analyze")
+@router.post("/analyze", response_model=BaseResponse[Dict[str, Any]])
 async def analyze_code(
     request: AnalyzeCodeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Analyze code quality and security using open-source models."""
+    """Analyze code quality and security using AI."""
     try:
-        llm_service = get_llm_service()
-        model = llm_service.get_model_for_task("code")
-        
-        prompt = f"""Perform {request.analysis_type} analysis on this {request.language} code:
-
-```{request.language}
-{request.code}
-```
-
-Provide detailed analysis including:
-1. Issues found
-2. Security vulnerabilities
-3. Performance concerns
-4. Best practice violations
-5. Recommendations"""
-        
-        result = await llm_service.generate(prompt, model=model, temperature=0.3)
-        
-        return BaseResponse(
-            status=ResponseStatus.SUCCESS,
-            code="CODE_ANALYZED",
-            data={"result": result, "model_used": model}
+        if not container.ai_update_service:
+            raise HTTPException(status_code=503, detail="AI Update Service not ready")
+            
+        result = await container.ai_update_service.analyze_code(
+            code=request.code,
+            analysis_type=request.analysis_type,
+            language=request.language
         )
+        
+        if result["success"]:
+            return BaseResponse(
+                status=ResponseStatus.SUCCESS,
+                code="CODE_ANALYZED",
+                message="Code analysis completed",
+                data=result
+            )
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/test", response_model=BaseResponse[Dict[str, Any]])
@@ -349,35 +343,31 @@ async def refactor_code(
         logger.error(f"Refactor failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/explain")
+@router.post("/explain", response_model=BaseResponse[Dict[str, Any]])
 async def explain_code(
     request: ExplainCodeRequest,
     api_key: str = Depends(verify_api_key)
 ):
     """Explain code logic using open-source models."""
     try:
-        llm_service = get_llm_service()
-        model = llm_service.get_model_for_task("chat")
-        
-        prompt = f"""Explain the following {request.language} code in detail:
-
-```{request.language}
-{request.code}
-```
-
-Provide:
-1. High-level overview
-2. Step-by-step explanation
-3. Key algorithms/patterns used
-4. Potential use cases"""
-        
-        result = await llm_service.generate(prompt, model=model, temperature=0.5)
-        
-        return BaseResponse(
-            status=ResponseStatus.SUCCESS,
-            code="CODE_EXPLAINED",
-            data={"result": result, "model_used": model}
+        if not container.ai_update_service:
+            raise HTTPException(status_code=503, detail="AI Update Service not ready")
+            
+        result = await container.ai_update_service.explain_code(
+            code=request.code,
+            language=request.language
         )
+        
+        if result["success"]:
+            return BaseResponse(
+                status=ResponseStatus.SUCCESS,
+                code="CODE_EXPLAINED",
+                message="Code explanation generated",
+                data=result
+            )
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Explanation failed"))
     except Exception as e:
         logger.error(f"Explanation failed: {e}")
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))

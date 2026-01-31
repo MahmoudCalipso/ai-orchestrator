@@ -21,7 +21,7 @@ from platform_core.auth.models import User
 from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.project import ProjectCreateRequest, ProjectUpdateRequest, ProjectSearchRequest
 from dto.v1.responses.project import ProjectResponseDTO, ProjectListResponseDTO
-from schemas.spec import ProjectStatus, BuildStatus, RunStatus
+from dto.v1.schemas.enums import ProjectStatus, BuildStatus, RunStatus
 from core.security import get_security_manager
 
 logger = logging.getLogger(__name__)
@@ -58,9 +58,9 @@ async def check_access(user_info: dict, target_user_id: str, db: AsyncSession):
 
 # --- Endpoints ---
 
-@router.get("/user/{user_id}/projects", response_model=BaseResponse[ProjectListResponseDTO])
-async def list_user_projects(
-    user_id: str,
+@router.get("/", response_model=BaseResponse[ProjectListResponseDTO])
+async def list_projects(
+    user_id: Optional[str] = None,
     search: Optional[str] = None,
     status: Optional[str] = None,
     name: Optional[str] = None,
@@ -79,7 +79,9 @@ async def list_user_projects(
     if not user_info:
         raise HTTPException(401, "User not found")
         
-    await check_access(user_info, user_id, db)
+    # If user_id is provided, check admin access. Otherwise use current user.
+    target_user_id = user_id or user_info.get("user_id")
+    await check_access(user_info, target_user_id, db)
     
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
@@ -98,7 +100,7 @@ async def list_user_projects(
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
         code="PROJECTS_RETRIEVED",
-        message=f"Retrieved {len(projects)} projects for user {user_id}",
+        message=f"Retrieved {len(projects)} projects for user {target_user_id}",
         data=ProjectListResponseDTO(
             projects=projects,
             total=result["total"],
@@ -108,10 +110,9 @@ async def list_user_projects(
         meta={"filters": filters}
     )
 
-@router.get("/user/{user_id}/projects/{project_id}", response_model=BaseResponse[ProjectResponseDTO])
-async def get_user_project(
+@router.get("/{project_id}", response_model=BaseResponse[ProjectResponseDTO])
+async def get_project(
     project_id: str, 
-    user_id: str, 
     api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
@@ -126,8 +127,10 @@ async def get_user_project(
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
     project = await container.project_manager.get_project(project_id)
-    if not project or project["user_id"] != user_id:
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+        
+    await check_access(user_info, project["user_id"], db)
         
     return BaseResponse(
         status=ResponseStatus.SUCCESS,
@@ -136,9 +139,8 @@ async def get_user_project(
         data=ProjectResponseDTO.model_validate(project)
     )
 
-@router.post("/user/{user_id}/projects", response_model=BaseResponse[ProjectResponseDTO], status_code=status.HTTP_201_CREATED)
-async def create_user_project(
-    user_id: str, 
+@router.post("/", response_model=BaseResponse[ProjectResponseDTO], status_code=status.HTTP_201_CREATED)
+async def create_project(
     request: ProjectCreateRequest, 
     api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
@@ -147,13 +149,13 @@ async def create_user_project(
     sm = get_security_manager()
     user_info = await sm.get_user_info(api_key, db)
     if not user_info: raise HTTPException(401)
-    await check_access(user_info, user_id, db)
+    target_user_id = user_info.get("user_id")
     
     if not container.project_manager:
         raise HTTPException(status_code=503, detail="Project Manager not ready")
         
     project = await container.project_manager.create_project(
-        user_id=user_id,
+        user_id=target_user_id,
         project_name=request.project_name,
         description=request.description,
         git_repo_url=request.git_repo_url,
@@ -168,10 +170,9 @@ async def create_user_project(
         data=ProjectResponseDTO.model_validate(project)
     )
 
-@router.delete("/user/{user_id}/projects/{project_id}", response_model=BaseResponse[Dict[str, str]])
-async def delete_user_project(
+@router.delete("/{project_id}", response_model=BaseResponse[Dict[str, str]])
+async def delete_project(
     project_id: str, 
-    user_id: str, 
     api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
@@ -179,14 +180,15 @@ async def delete_user_project(
     sm = get_security_manager()
     user_info = await sm.get_user_info(api_key, db)
     if not user_info: raise HTTPException(401)
-    await check_access(user_info, user_id, db)
-    
-    if not container.project_manager:
-        raise HTTPException(status_code=503, detail="Project Manager not ready")
+    project = await container.project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
         
-    success = await container.project_manager.delete_project(project_id, user_id)
+    await check_access(user_info, project["user_id"], db)
+    
+    success = await container.project_manager.delete_project(project_id, project["user_id"])
     if not success:
-        raise HTTPException(status_code=404, detail="Project not found or unauthorized")
+        raise HTTPException(status_code=500, detail="Delete failed")
         
     return BaseResponse(
         status=ResponseStatus.SUCCESS,

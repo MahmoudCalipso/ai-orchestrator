@@ -1,18 +1,14 @@
-"""
-Build Service
-Handles project building using language-specific tools and Docker
-"""
 import logging
-import subprocess
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from core.utils.subprocess import run_command_async
+
 logger = logging.getLogger(__name__)
 
-
 class BuildService:
-    """Handles building projects"""
+    """Handles building projects asynchronously"""
     
     def __init__(self):
         pass
@@ -22,7 +18,7 @@ class BuildService:
         local_path: str,
         config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Build a project based on its language and configuration"""
+        """Build a project asynchronously based on its language and configuration"""
         local_path_obj = Path(local_path)
         logger.info(f"Building project at {local_path}")
         
@@ -39,32 +35,29 @@ class BuildService:
         logger.info(f"Detected build system: {build_info['type']}. Running: {' '.join(build_cmd)}")
         
         try:
-            # 2. Run build command
-            result = subprocess.run(
+            # 2. Run build command asynchronously
+            code, stdout, stderr = await run_command_async(
                 build_cmd,
                 cwd=local_path,
-                capture_output=True,
-                text=True,
-                timeout=600 # 10 minutes
+                timeout=600  # 10 minutes
             )
             
-            if result.returncode != 0:
-                logger.error(f"Build failed: {result.stderr}")
+            if code != 0:
+                logger.error(f"Build failed: {stderr}")
                 return {
                     "success": False,
-                    "error": result.stderr,
-                    "logs": result.stdout
+                    "error": stderr,
+                    "logs": stdout
                 }
                 
             return {
                 "success": True,
-                "logs": result.stdout,
+                "logs": stdout,
                 "message": "Build completed successfully"
             }
             
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Build timed out"}
         except Exception as e:
+            logger.error(f"Build exception: {e}")
             return {"success": False, "error": str(e)}
 
     def _detect_build_system(self, path: Path) -> Optional[Dict[str, Any]]:

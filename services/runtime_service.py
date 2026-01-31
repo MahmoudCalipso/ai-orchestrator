@@ -1,19 +1,15 @@
-"""
-Runtime Service
-Handles running project applications
-"""
 import logging
-import subprocess
+import asyncio
 import os
 import signal
+import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-
 class RuntimeService:
-    """Handles running applications using local processes or Docker sandboxes"""
+    """Handles running applications using local processes or Docker sandboxes asynchronously"""
     
     def __init__(self):
         self.active_processes: Dict[str, Dict[str, Any]] = {}
@@ -29,7 +25,7 @@ class RuntimeService:
         env_vars: Optional[Dict[str, str]] = None,
         config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Run a project application in a sandbox or locally"""
+        """Run a project application in a sandbox or locally asynchronously"""
         if project_id in self.active_sandboxes or project_id in self.active_processes:
             return {"success": False, "error": "Project is already running"}
             
@@ -71,7 +67,7 @@ class RuntimeService:
         return await self._run_local(project_id, local_path, full_config)
 
     async def _run_local(self, project_id: str, local_path: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Original local execution logic as fallback"""
+        """Run process locally using asyncio for non-blocking management"""
         local_path_obj = Path(local_path)
         start_info = self._detect_start_command(local_path_obj, config)
         
@@ -82,17 +78,30 @@ class RuntimeService:
         try:
             # Create log file for local execution
             log_path = local_path_obj / "app.log"
-            log_file = open(log_path, "a")
             
-            process = subprocess.Popen(
-                cmd,
+            # Use asyncio to start the process
+            # Note: We need to handle the output stream to write to the log file asynchronously
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
                 cwd=local_path,
-                stdout=log_file,
-                stderr=log_file,
-                text=True,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 env={**os.environ, **(config.get("env", {}) if config else {})},
-                preexec_fn=os.setsid if hasattr(os, 'setsid') else None
+                # Handle process group for clean termination
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
             )
+            
+            # Start background tasks to pipe stdout/stderr to log file
+            async def pipe_to_file(stream, path):
+                with open(path, "a") as f:
+                    while True:
+                        line = await stream.readline()
+                        if not line: break
+                        f.write(line.decode())
+                        f.flush()
+
+            asyncio.create_task(pipe_to_file(process.stdout, log_path))
+            asyncio.create_task(pipe_to_file(process.stderr, log_path))
             
             self.active_processes[project_id] = {
                 "process": process,
@@ -112,7 +121,7 @@ class RuntimeService:
             return {"success": False, "error": str(e)}
 
     async def stop_project(self, project_id: str) -> Dict[str, Any]:
-        """Stop a running project (sandbox or local)"""
+        """Stop a running project (sandbox or local) asynchronously"""
         success = False
         message = "Project not found"
         
@@ -131,15 +140,25 @@ class RuntimeService:
             info = self.active_processes.get(project_id)
             process = info["process"]
             try:
-                if hasattr(os, 'killpg'):
-                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                if os.name == 'nt':
+                    # Windows process group termination
+                    import subprocess
+                    subprocess.run(['taskkill', '/F', '/T', '/PID', str(process.pid)], capture_output=True)
                 else:
-                    process.terminate()
-                process.wait(timeout=5)
+                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                
+                # Non-blocking wait
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+                    
                 del self.active_processes[project_id]
                 success = True
                 message = "Local process stopped"
-            except:
+            except Exception as e:
+                logger.error(f"Failed to stop process: {e}")
                 if process: process.kill()
                 if project_id in self.active_processes:
                     del self.active_processes[project_id]
@@ -149,7 +168,7 @@ class RuntimeService:
         return {"success": success, "message": message}
 
     async def get_logs(self, project_id: str, lines: int = 100) -> str:
-        """Get project runtime logs"""
+        """Get project runtime logs asynchronously"""
         try:
             if project_id in self.active_sandboxes:
                 # Read from sandbox log file
@@ -160,11 +179,10 @@ class RuntimeService:
                 info = self.active_processes[project_id]
                 log_path = Path(info["log_path"])
                 if log_path.exists():
+                    # Use a non-blocking read or small buffer
                     with open(log_path, "r") as f:
-                        # Read last N lines
-                        # Simple implementation: read all then slice
-                        all_logs = f.readlines()
-                        return "".join(all_logs[-lines:])
+                        log_data = f.readlines()
+                        return "".join(log_data[-lines:])
                 return "Log file not found"
             
             return "No active session for this project"
@@ -186,7 +204,6 @@ class RuntimeService:
         elif (path / "index.js").exists():
             return {"command": ["node", "index.js"]}
         elif (path / "package.json").exists():
-            # Check for start script in package.json
             try:
                 with open(path / "package.json", 'r') as f:
                     data = json.load(f)
@@ -194,6 +211,4 @@ class RuntimeService:
                          return {"command": ["npm", "start"]}
             except:
                 pass
-            return {"command": ["npm", "install"]} # Fallback? No, start should be start.
-            
         return None

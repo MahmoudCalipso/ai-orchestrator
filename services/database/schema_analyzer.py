@@ -4,7 +4,8 @@ Database schema analyzer for reverse engineering entities
 import logging
 from typing import List, Dict
 
-from schemas.generation_spec import EntityDefinition, EntityField, ValidationRule, DatabaseConfig, DatabaseType
+from dto.v1.schemas.enums import DatabaseType
+from dto.v1.schemas.generation import EntityDefinition, EntityField, ValidationRule, DatabaseConfig
 from services.database.connection_manager import DatabaseConnectionManager
 
 logger = logging.getLogger(__name__)

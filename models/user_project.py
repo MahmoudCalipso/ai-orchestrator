@@ -10,9 +10,10 @@ import uuid
 
 
 from platform_core.auth.models import User
+from dto.v1.schemas.enums import ProjectStatus, BuildStatus, RunStatus, WorkflowStatus
+from sqlalchemy.orm import relationship, backref
 
 class UserProject(Base):
-
     """User project model for tracking user-owned projects"""
     __tablename__ = "user_projects"
     
@@ -23,40 +24,24 @@ class UserProject(Base):
     git_repo_url = Column(String(500))
     git_branch = Column(String(100), default="main")
     local_path = Column(String(500))
-    status = Column(String(50), default="active", index=True)  # active, archived, building, running
+    status = Column(String(50), default=ProjectStatus.ACTIVE.value, index=True)
     language = Column(String(50), index=True)
     framework = Column(String(100), index=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_opened_at = Column(DateTime, index=True)
-    build_status = Column(String(50), index=True)  # success, failed, pending, building
-    run_status = Column(String(50), index=True)  # running, stopped, crashed
+    build_status = Column(String(50), default=BuildStatus.PENDING.value, index=True)
+    run_status = Column(String(50), default=RunStatus.STOPPED.value, index=True)
     extra_metadata = Column(JSONB)
     
+    # Relationships
+    sessions = relationship("ProjectSession", backref="project", cascade="all, delete-orphan")
+    updates = relationship("ProjectUpdate", backref="project", cascade="all, delete-orphan")
+    workflow_executions = relationship("WorkflowExecution", backref="project", cascade="all, delete-orphan")
+
     __table_args__ = (
         Index('idx_user_status', 'user_id', 'status'),
     )
-    
-    def to_dict(self):
-        """Convert to dictionary"""
-        return {
-            "id": str(self.id),
-            "user_id": self.user_id,
-            "project_name": self.project_name,
-            "description": self.description,
-            "git_repo_url": self.git_repo_url,
-            "git_branch": self.git_branch,
-            "local_path": self.local_path,
-            "status": self.status,
-            "language": self.language,
-            "framework": self.framework,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "last_opened_at": self.last_opened_at.isoformat() if self.last_opened_at else None,
-            "build_status": self.build_status,
-            "run_status": self.run_status,
-            "extra_metadata": self.extra_metadata
-        }
 
 
 class ProjectSession(Base):
@@ -71,19 +56,6 @@ class ProjectSession(Base):
     started_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime)
     status = Column(String(50), default="active")  # active, closed
-    
-    def to_dict(self):
-        """Convert to dictionary"""
-        return {
-            "id": str(self.id),
-            "project_id": str(self.project_id),
-            "user_id": self.user_id,
-            "workspace_id": self.workspace_id,
-            "git_commit_hash": self.git_commit_hash,
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "ended_at": self.ended_at.isoformat() if self.ended_at else None,
-            "status": self.status
-        }
 
 
 class ProjectUpdate(Base):
@@ -99,20 +71,6 @@ class ProjectUpdate(Base):
     ai_prompt = Column(Text)
     git_commit_hash = Column(String(40))
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        """Convert to dictionary"""
-        return {
-            "id": str(self.id),
-            "project_id": str(self.project_id),
-            "user_id": self.user_id,
-            "update_type": self.update_type,
-            "description": self.description,
-            "files_changed": self.files_changed,
-            "ai_prompt": self.ai_prompt,
-            "git_commit_hash": self.git_commit_hash,
-            "created_at": self.created_at.isoformat() if self.created_at else None
-        }
 
 
 class WorkflowExecution(Base):
@@ -125,24 +83,11 @@ class WorkflowExecution(Base):
     workflow_type = Column(String(50))  # update-push-build-run, build-run, etc.
     steps = Column(JSONB)  # List of steps with status
     current_step = Column(String(50))
-    status = Column(String(50), default="pending", index=True)  # pending, in_progress, completed, failed
-    started_at = Column(DateTime, default=datetime.utcnow, index=True)
-    completed_at = Column(DateTime, index=True)
+    status = Column(String(50), default=WorkflowStatus.PENDING.value, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     error_message = Column(Text)
     logs = Column(JSONB)
-    
-    def to_dict(self):
-        """Convert to dictionary"""
-        return {
-            "id": str(self.id),
-            "project_id": str(self.project_id),
-            "user_id": self.user_id,
-            "workflow_type": self.workflow_type,
-            "steps": self.steps,
-            "current_step": self.current_step,
-            "status": self.status,
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "error_message": self.error_message,
-            "logs": self.logs
-        }
+
+    def __repr__(self):
+        return f"<WorkflowExecution {self.workflow_type} ({self.status})>"

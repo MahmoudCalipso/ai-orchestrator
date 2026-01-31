@@ -114,7 +114,7 @@ async def init_repository(
         if not container.repo_manager:
              raise HTTPException(status_code=503, detail="Repo Manager not ready")
              
-        success = container.repo_manager.init_repository(request.path)
+        success = await container.repo_manager.init_repository(request.path)
         return BaseResponse(
             status=ResponseStatus.SUCCESS if success else ResponseStatus.ERROR,
             code="GIT_REPO_INIT",
@@ -248,7 +248,7 @@ async def get_repository_status(
         logger.error(f"Git status failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/git/repositories/{repo_id}/branches")
+@router.get("/git/repositories/{repo_id}/branches", response_model=BaseResponse[GitBranchListResponseDTO])
 async def list_branches(
     repo_id: str,
     local_path: str,
@@ -259,39 +259,30 @@ async def list_branches(
 ):
     """List all branches in repository with search and pagination."""
     try:
-        import subprocess
+        if not container.git_sync_service:
+            raise HTTPException(status_code=503, detail="Git Sync service not ready")
+            
+        result = await container.git_sync_service.list_branches(local_path)
         
-        result = subprocess.run(
-            ["git", "branch", "-a"],
-            cwd=local_path,
-            capture_output=True,
-            text=True
-        )
-        
-        branches = []
-        current_branch = None
-        
-        for line in result.stdout.strip().split('\n'):
-            line = line.strip()
-            if line.startswith('*'):
-                current_branch = line[2:]
-                branches.append({"name": current_branch, "current": True})
-            elif line:
-                branches.append({"name": line, "current": False})
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to list branches"))
+            
+        branches_data = result["branches"]
+        current_branch = result["current_branch"]
         
         if search:
             search = search.lower()
-            branches = [b for b in branches if search in b["name"].lower()]
+            branches_data = [b for b in branches_data if search in b["name"].lower()]
             
-        total = len(branches)
+        total = len(branches_data)
         start = (page - 1) * page_size
         end = start + page_size
-        paginated_branches = branches[start:end]
+        paginated_branches = branches_data[start:end]
         
         return BaseResponse(
             status=ResponseStatus.SUCCESS,
             code="GIT_BRANCHES_RETRIEVED",
-            message=f"Retrieved {len(paginated_branches)} branches for repository {repo_id}",
+            message=f"Retrieved {len(paginated_branches)} branches",
             data=GitBranchListResponseDTO(
                 current_branch=current_branch,
                 branches=[GitBranchDTO(name=b["name"], is_current=b["current"]) for b in paginated_branches]
@@ -308,9 +299,10 @@ async def list_branches(
         )
     except Exception as e:
         logger.error(f"Git branches failed: {e}")
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/git/repositories/{repo_id}/checkout", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/git/repositories/{repo_id}/checkout", response_model=BaseResponse[GitCheckoutResponseDTO])
 async def checkout_branch(
     repo_id: str,
     request: GitBranchCreate,
@@ -318,40 +310,27 @@ async def checkout_branch(
 ):
     """Checkout a branch."""
     try:
-        import subprocess
-        
-        local_path = request.local_path
-        branch = request.branch_name
-        create = True # Assuming creation if base branch is provided or for this flow
-        
-        cmd = ["git", "checkout"]
-        # Basic logic: check if branch exists
-        check_cmd = ["git", "rev-parse", "--verify", branch]
-        exists = subprocess.run(check_cmd, cwd=local_path, capture_output=True).returncode == 0
-        
-        if not exists:
-            cmd.append("-b")
-        
-        cmd.append(branch)
-        
-        result = subprocess.run(
-            cmd,
-            cwd=local_path,
-            capture_output=True,
-            text=True
+        if not container.git_sync_service:
+            raise HTTPException(status_code=503, detail="Git Sync service not ready")
+            
+        result = await container.git_sync_service.checkout_branch(
+            local_path=request.local_path,
+            branch=request.branch_name,
+            create=bool(request.base_branch) # Assuming if base branch is given, we might want to create? or use a flag. Logic simplified for now.
         )
         
-        if result.returncode == 0:
+        if result["success"]:
             return BaseResponse(
                 status=ResponseStatus.SUCCESS,
                 code="GIT_CHECKOUT_SUCCESS",
-                message=f"Switched to branch '{branch}'",
-                data=GitCheckoutResponseDTO(branch=branch)
+                message=f"Switched to branch '{request.branch_name}'",
+                data=GitCheckoutResponseDTO(branch=request.branch_name)
             )
         else:
-            raise HTTPException(status_code=500, detail=result.stderr)
+            raise HTTPException(status_code=500, detail=result.get("error", "Checkout failed"))
     except Exception as e:
         logger.error(f"Git checkout failed: {e}")
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/git/repositories/{repo_id}/log", response_model=BaseResponse[GitLogResponseDTO])
@@ -381,7 +360,7 @@ async def get_repo_history(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/git/repositories/{repo_id}/diff")
+@router.get("/git/repositories/{repo_id}/diff", response_model=BaseResponse[Dict[str, Any]])
 async def get_repo_diff(
     repo_id: str,
     local_path: str,
@@ -392,7 +371,14 @@ async def get_repo_diff(
     try:
         if not container.git_sync_service:
             raise HTTPException(status_code=503, detail="Git Sync service not ready")
-        return await container.git_sync_service.get_diff(local_path, cached)
+        
+        result = await container.git_sync_service.get_diff(local_path, cached)
+        return BaseResponse(
+            status=ResponseStatus.SUCCESS if result["success"] else ResponseStatus.ERROR,
+            code="GIT_DIFF_RETRIEVED",
+            message="Diff retrieved" if result["success"] else "Failed to retrieve diff",
+            data=result
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -426,36 +412,42 @@ async def merge_branches(
     request: GitMergeRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Merge branches using Repo Manager."""
+    """Merge branches using Git Sync Service."""
     try:
-        import subprocess
-        subprocess.run(["git", "checkout", request.target_branch], cwd=request.local_path, check=True)
-        result = subprocess.run(["git", "merge", request.source_branch], cwd=request.local_path, capture_output=True, text=True)
+        if not container.git_sync_service:
+            raise HTTPException(status_code=503, detail="Git Sync service not ready")
+            
+        result = await container.git_sync_service.merge_branches(
+            local_path=request.local_path,
+            source_branch=request.source_branch,
+            target_branch=request.target_branch
+        )
         
-        if result.returncode == 0:
+        if result["success"]:
             return BaseResponse(
                 status=ResponseStatus.SUCCESS,
                 code="GIT_MERGE_SUCCESS",
-                message=f"Merged {request.source_branch} into {request.target_branch}",
+                message=result["message"],
                 data=GitActionResponseDTO(
                     success=True,
                     branch=request.target_branch,
-                    output=result.stdout
+                    output=result.get("output", "")
                 )
             )
         else:
             return BaseResponse(
                 status=ResponseStatus.WARNING,
                 code="GIT_MERGE_CONFLICT",
-                message="Merge conflict detected",
+                message=result.get("message", "Merge conflict detected"),
                 data=GitActionResponseDTO(
                     success=False,
                     branch=request.target_branch,
-                    output=result.stdout,
-                    error=result.stderr
+                    output=result.get("output", ""),
+                    error=result.get("error")
                 )
             )
     except Exception as e:
+        logger.error(f"Git merge failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/git/repositories/{repo_id}/remote", response_model=BaseResponse[Dict[str, Any]])

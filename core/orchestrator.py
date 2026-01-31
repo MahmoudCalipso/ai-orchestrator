@@ -30,6 +30,7 @@ from runtimes.ollama import OllamaRuntime
 from runtimes.vllm import VLLMRuntime
 from runtimes.transformers import TransformersRuntime
 from runtimes.llamacpp import LlamaCppRuntime
+from core.utils.resilience import retry, circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -159,14 +160,15 @@ class Orchestrator:
         
         logger.info("Orchestrator shut down complete")
         
+    @retry(retries=3, delay=1.0, backoff=2.0)
+    @circuit_breaker(failure_threshold=5, recovery_timeout=60.0)
     async def run_inference(
-        self,
-        prompt: str,
-        task_type: str = "chat",
-        model: Optional[str] = None,
-        parameters: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, 
+        prompt: str, 
+        task_type: TaskType = TaskType.CODE_GENERATION, 
+        context: Optional[Dict[str, Any]] = None, 
+        model: Optional[str] = None
+    ):
         """Run inference with automatic routing"""
         request_id = str(uuid.uuid4())
         start_time = time.time()

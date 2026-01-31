@@ -1,12 +1,13 @@
 from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field
-from schemas.generation_spec import (
+from dto.v1.schemas.enums import ArchitecturePattern
+from dto.v1.schemas.generation import (
     LanguageConfig, EntityDefinition, GitActionConfig, 
-    DatabaseType, ProjectType, ArchitecturePattern,
-    TemplateSource, DatabaseConfig, SecurityConfig,
+    DatabaseConfig, SecurityConfig,
     ArchitectureConfig, ScalabilityConfig, IntegrationConfig,
     DeploymentConfig, StackComponents, FrontendConfig,
-    LanguageFrameworkSpec
+    LanguageFrameworkSpec, DeploymentConfig, KubernetesConfig,
+    TemplateSource
 )
 
 class WorkbenchCreateRequest(BaseModel):
@@ -51,6 +52,10 @@ class GenerationRequest(BaseModel):
     technical_requirements: List[str] = Field(default_factory=list)
     git: Optional[GitActionConfig] = None
     requirements: Optional[str] = None
+    
+    # Deprecated fields kept for backward compatibility during migration
+    kubernetes: Optional[KubernetesConfig] = None
+    estimated_complexity: Optional[str] = None
 
 class DescriptionAnalysisRequest(BaseModel):
     """Request for description analysis"""

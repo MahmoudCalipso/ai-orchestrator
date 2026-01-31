@@ -1,38 +1,42 @@
 import logging
-import subprocess
 import httpx
 import json
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from .credential_manager import GitCredentialManager
+from core.utils.subprocess import run_command_async
+from core.utils.resilience import retry
 
 logger = logging.getLogger(__name__)
 
 class RepositoryManager:
-    """Manages Git repository operations"""
+    """Manages Git repository operations asynchronously"""
     
     def __init__(self, credential_manager: GitCredentialManager):
         self.credential_manager = credential_manager
         
-    def init_repository(self, path: str, git_config: Optional[Dict[str, Any]] = None) -> bool:
-        """Initialize a new local git repository"""
+    async def init_repository(self, path: str, git_config: Optional[Dict[str, Any]] = None) -> bool:
+        """Initialize a new local git repository asynchronously"""
         try:
             path_obj = Path(path)
-            if not path_obj.exists():
-                path_obj.mkdir(parents=True, exist_ok=True)
+            path_obj.mkdir(parents=True, exist_ok=True)
                 
             # git init
-            subprocess.run(["git", "init"], cwd=path, check=True)
+            code, stdout, stderr = await run_command_async(["git", "init"], cwd=path)
+            if code != 0:
+                logger.error(f"Failed to init repository: {stderr}")
+                return False
             
             # Configure user for this repo
             config = git_config or self.credential_manager.get_git_config()
             user_config = config.get("user", {})
             
             if user_config.get("name"):
-                subprocess.run(["git", "config", "user.name", user_config["name"]], cwd=path, check=True)
+                await run_command_async(["git", "config", "user.name", user_config["name"]], cwd=path)
             if user_config.get("email"):
-                subprocess.run(["git", "config", "user.email", user_config["email"]], cwd=path, check=True)
+                await run_command_async(["git", "config", "user.email", user_config["email"]], cwd=path)
                 
             logger.info(f"Initialized git repository at {path}")
             return True
@@ -41,7 +45,7 @@ class RepositoryManager:
             return False
 
     async def create_remote_repository(self, provider: str, name: str, description: str = "", private: bool = True) -> Optional[str]:
-        """Create a remote repository on the provider via API"""
+        """Create a remote repository on the provider via API (Async)"""
         creds = self.credential_manager.get_credentials(provider)
         if not creds:
              logger.error(f"No credentials for {provider}")
@@ -55,6 +59,7 @@ class RepositoryManager:
             
         return None
 
+    @retry(retries=3, delay=2.0)
     async def _create_github_repo(self, name: str, description: str, private: bool, token: str) -> Optional[str]:
         """Create repository via GitHub API"""
         url = "https://api.github.com/user/repos"
@@ -79,6 +84,7 @@ class RepositoryManager:
                 logger.error(f"GitHub repo creation failed: {response.text}")
                 return None
 
+    @retry(retries=3, delay=2.0)
     async def _create_gitlab_repo(self, name: str, description: str, private: bool, token: str) -> Optional[str]:
         """Create repository via GitLab API"""
         url = "https://gitlab.com/api/v4/projects"
@@ -100,49 +106,53 @@ class RepositoryManager:
                 logger.error(f"GitLab repo creation failed: {response.text}")
                 return None
 
-    def push_to_remote(self, path: str, remote_url: str, branch: str = "main") -> bool:
-         """Push local repo to remote"""
+    @retry(retries=3, delay=5.0)
+    async def push_to_remote(self, path: str, remote_url: str, branch: str = "main") -> bool:
+         """Push local repo to remote asynchronously"""
          try:
              # Add remote
-             subprocess.run(["git", "remote", "add", "origin", remote_url], cwd=path, check=True)
+             await run_command_async(["git", "remote", "add", "origin", remote_url], cwd=path)
              
              # Add all files
-             subprocess.run(["git", "add", "."], cwd=path, check=True)
+             await run_command_async(["git", "add", "."], cwd=path)
              
              # Commit
-             subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=path, check=True)
+             await run_command_async(["git", "commit", "-m", "Initial commit"], cwd=path)
              
-             # Push (blindly assuming auth works via credential helper or SSH key for now)
-             # In production, we'd inject credentials into the URL or use a custom helper
-             subprocess.run(["git", "push", "-u", "origin", branch], cwd=path, check=True)
-             
+             # Push
+             code, stdout, stderr = await run_command_async(["git", "push", "-u", "origin", branch], cwd=path)
+             if code != 0:
+                 logger.error(f"Push failed: {stderr}")
+                 return False
+                 
              logger.info(f"Pushed to {remote_url}")
              return True
          except Exception as e:
              logger.error(f"Failed to push to remote: {e}")
              return False
 
-    def create_ghost_branch(self, path: str, base_branch: str = "main") -> str:
-        """Create a temporary 'ghost' branch for AI changes"""
-        import time
+    async def create_ghost_branch(self, path: str, base_branch: str = "main") -> str:
+        """Create a temporary 'ghost' branch for AI changes asynchronously"""
         ghost_name = f"ai-ghost-{int(time.time())}"
         try:
-            subprocess.run(["git", "checkout", "-b", ghost_name, base_branch], cwd=path, check=True)
-            logger.info(f"Ghost branch {ghost_name} created from {base_branch}")
-            return ghost_name
+            code, stdout, stderr = await run_command_async(["git", "checkout", "-b", ghost_name, base_branch], cwd=path)
+            if code == 0:
+                logger.info(f"Ghost branch {ghost_name} created from {base_branch}")
+                return ghost_name
+            return base_branch
         except Exception as e:
             logger.error(f"Failed to create ghost branch: {e}")
             return base_branch
 
-    def merge_ghost(self, path: str, ghost_branch: str, target_branch: str = "main"):
-        """Merge ghost branch back with automatic conflict detection"""
+    async def merge_ghost(self, path: str, ghost_branch: str, target_branch: str = "main"):
+        """Merge ghost branch back with automatic conflict detection (Async)"""
         try:
-            subprocess.run(["git", "checkout", target_branch], cwd=path, check=True)
-            result = subprocess.run(["git", "merge", ghost_branch], cwd=path, capture_output=True, text=True)
+            await run_command_async(["git", "checkout", target_branch], cwd=path)
+            code, stdout, stderr = await run_command_async(["git", "merge", ghost_branch], cwd=path)
             
-            if result.returncode != 0:
+            if code != 0:
                 logger.warning(f"Merge conflict detected merging {ghost_branch} into {target_branch}")
-                conflicts = self._get_conflicted_files(path)
+                conflicts = await self._get_conflicted_files(path)
                 return {
                     "status": "conflict",
                     "conflicted_files": conflicts,
@@ -150,30 +160,27 @@ class RepositoryManager:
                 }
             
             # Cleanup ghost branch after successful merge
-            subprocess.run(["git", "branch", "-d", ghost_branch], cwd=path)
+            await run_command_async(["git", "branch", "-d", ghost_branch], cwd=path)
             return {"status": "success", "message": f"Successfully merged {ghost_branch}"}
         except Exception as e:
             logger.error(f"Merge error: {e}")
             return {"status": "error", "message": str(e)}
 
-    def _get_conflicted_files(self, path: str) -> list:
-        """Get list of files with merge conflicts"""
+    async def _get_conflicted_files(self, path: str) -> list:
+        """Get list of files with merge conflicts asynchronously"""
         try:
-            result = subprocess.run(["git", "diff", "--name-only", "--diff-filter=U"], cwd=path, capture_output=True, text=True)
-            return result.stdout.splitlines()
+            code, stdout, stderr = await run_command_async(["git", "diff", "--name-only", "--diff-filter=U"], cwd=path)
+            return stdout.splitlines() if code == 0 else []
         except:
             return []
 
     async def ai_resolve_conflict(self, path: str, file_path: str, orchestrator) -> bool:
-        """Use AI to resolve a merge conflict in a specific file"""
-        from pathlib import Path
+        """Use AI to resolve a merge conflict asynchronously"""
         full_path = Path(path) / file_path
         if not full_path.exists(): return False
         
         try:
-            with open(full_path, 'r') as f:
-                content = f.read()
-                
+            content = full_path.read_text()
             if "<<<<<<<" not in content:
                 return True # Already resolved?
                 
@@ -187,14 +194,12 @@ class RepositoryManager:
             Respond only with the resolved file content, no explanations.
             """
             
-            # Simple AI call via orchestrator
             result = await orchestrator.run_inference(prompt=prompt, task_type="fix")
             resolved_content = result.get("output", "")
             
             if resolved_content and "<<<<<<<" not in resolved_content:
-                with open(full_path, 'w') as f:
-                    f.write(resolved_content)
-                subprocess.run(["git", "add", file_path], cwd=path, check=True)
+                full_path.write_text(resolved_content)
+                await run_command_async(["git", "add", file_path], cwd=path)
                 return True
                 
             return False

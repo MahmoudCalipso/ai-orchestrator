@@ -7,6 +7,7 @@ from fastapi import Request, HTTPException, Security, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import os
+from core.utils.logging import user_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class JWTBearer(HTTPBearer):
             
             # Inject payload into request state
             request.state.user = payload
+            user_id_var.set(payload.get("sub"))
             return payload
         else:
             raise HTTPException(status_code=403, detail="Authorization required")

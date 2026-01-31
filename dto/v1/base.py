@@ -54,3 +54,4 @@ class ErrorResponse(BaseResponse[None]):
     status: ResponseStatus = ResponseStatus.ERROR
     errors: Optional[List[ErrorDetail]] = Field(None, description="List of specific validation or business errors")
     request_id: Optional[str] = Field(None, description="Unique trace ID for support or debugging")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional debug or context information")

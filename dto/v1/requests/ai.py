@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
-from schemas.spec import TaskType
+from dto.v1.schemas.enums import TaskType
 
 class CodeTaskRequest(BaseModel):
     """Refined base schema for code-centric AI operations"""

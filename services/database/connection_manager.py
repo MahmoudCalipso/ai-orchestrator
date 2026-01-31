@@ -4,7 +4,8 @@ Database connection manager and utilities
 import logging
 from typing import Dict, Any
 
-from schemas.generation_spec import DatabaseConfig, DatabaseType
+from dto.v1.schemas.enums import DatabaseType
+from dto.v1.schemas.generation import DatabaseConfig
 
 logger = logging.getLogger(__name__)
 

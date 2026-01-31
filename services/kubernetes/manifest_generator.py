@@ -4,7 +4,7 @@ Kubernetes Manifest Generator
 import logging
 import yaml
 from typing import Dict
-from schemas.generation_spec import KubernetesConfig
+from dto.v1.schemas.generation import KubernetesConfig
 
 logger = logging.getLogger(__name__)
 

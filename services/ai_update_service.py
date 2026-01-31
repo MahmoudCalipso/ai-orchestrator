@@ -132,3 +132,53 @@ class AIUpdateService:
                 "success": False,
                 "error": str(e)
             }
+    async def fix_code(self, code: str, issue: str, language: str) -> Dict[str, Any]:
+        """Automatically fix code issues asynchronously"""
+        task = f"Fix the following {language} code issue:\n\nIssue: {issue}\n\nCode:\n```{language}\n{code}\n```"
+        try:
+            result = await self.orchestrator.universal_agent.act(
+                task, 
+                {"type": "fix", "language": language, "issue": issue}
+            )
+            return {
+                "success": True,
+                "result": result.get("solution"),
+                "model_used": result.get("model")
+            }
+        except Exception as e:
+            logger.error(f"AI fix_code failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def analyze_code(self, code: str, analysis_type: str, language: str) -> Dict[str, Any]:
+        """Analyze code quality and security asynchronously"""
+        task = f"Perform {analysis_type} analysis on this {language} code:\n\n```{language}\n{code}\n```"
+        try:
+            result = await self.orchestrator.universal_agent.act(
+                task, 
+                {"type": "analyze", "language": language, "analysis_type": analysis_type}
+            )
+            return {
+                "success": True,
+                "result": result.get("solution"),
+                "model_used": result.get("model")
+            }
+        except Exception as e:
+            logger.error(f"AI analyze_code failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def explain_code(self, code: str, language: str) -> Dict[str, Any]:
+        """Explain code logic asynchronously"""
+        task = f"Explain the following {language} code in detail:\n\n```{language}\n{code}\n```"
+        try:
+            result = await self.orchestrator.universal_agent.act(
+                task, 
+                {"type": "explain", "language": language}
+            )
+            return {
+                "success": True,
+                "result": result.get("solution"),
+                "model_used": result.get("model")
+            }
+        except Exception as e:
+            logger.error(f"AI explain_code failed: {e}")
+            return {"success": False, "error": str(e)}

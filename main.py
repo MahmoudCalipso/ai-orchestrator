@@ -27,7 +27,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from core.orchestrator import Orchestrator
 from core.container import container
 from middleware.rate_limit import RateLimitMiddleware
-from dto.errors.error_response import ErrorResponse, ErrorDetail
+from dto.v1.base import ErrorResponse, ErrorDetail
 
 # Platform Components
 from services.git import GitCredentialManager, RepositoryManager
@@ -81,13 +81,12 @@ from app.controllers.v1.endpoints.tools import router as tools_router
 from app.controllers.v1.endpoints.registry import router as registry_router
 from app.controllers.v1.endpoints.emulator import router as emulator_router
 from app.controllers.ws.websocket_controller import router as ws_router
+from app.middleware.exception_handler import register_exception_handlers
+from app.middleware.logging_context import logging_context_middleware
+from core.utils.logging import setup_logging
 
 # Configure logging
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=getattr(logging, log_level, logging.INFO),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+setup_logging(os.getenv("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -292,51 +291,13 @@ app.add_middleware(
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)
 
-# --- Global Exception Handler (Magic JSON Errors) ---
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=ErrorResponse(
-            status="error",
-            code=f"HTTP_{exc.status_code}",
-            message=str(exc.detail),
-            details={"path": request.url.path}
-        ).model_dump(mode="json")
-    )
+# Add Logging Context Middleware
+app.middleware("http")(logging_context_middleware)
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    errors = [
-        ErrorDetail(field=".".join(map(str, err["loc"])), message=err["msg"], code=err["type"])
-        for err in exc.errors()
-    ]
-    return JSONResponse(
-        status_code=422,
-        content=ErrorResponse(
-            status="error",
-            code="VALIDATION_ERROR",
-            message="Input validation failed",
-            errors=errors,
-            details={"path": request.url.path}
-        ).model_dump(mode="json")
-    )
+# Register Centralized Exception Handlers
+register_exception_handlers(app)
 
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled Exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content=ErrorResponse(
-            status="error",
-            code="INTERNAL_SERVER_ERROR",
-            message="An unexpected server error occurred",
-            details={
-                "error_type": exc.__class__.__name__,
-                "debug": str(exc) if os.getenv("DEBUG") == "true" else "Hidden in production"
-            }
-        ).model_dump(mode="json")
-    )
+# Controllers
 
 # Include Controllers
 app.include_router(system_router) # Root /

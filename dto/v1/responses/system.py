@@ -1,11 +1,11 @@
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
+from dto.v1.schemas.enums import ModelStatus
 
 class SystemInfoDTO(BaseModel):
     service: str = "AI Orchestrator"
     version: str = "1.0.0"
     status: str = "running"
-from schemas.spec import ModelStatus
 
 class HealthResponseDTO(BaseModel):
     status: str

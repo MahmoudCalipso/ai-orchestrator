@@ -4,7 +4,7 @@ Entity code generator
 import logging
 from typing import List, Dict, Optional, Any
 
-from schemas.generation_spec import EntityDefinition
+from dto.v1.schemas.generation import EntityDefinition
 
 logger = logging.getLogger(__name__)
 
