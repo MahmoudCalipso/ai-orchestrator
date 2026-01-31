@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Tools"])
 
-@router.post("/api/figma/analyze", response_model=BaseResponse[FigmaAnalysisResponseDTO])
+@router.post("/figma/analyze", response_model=BaseResponse[FigmaAnalysisResponseDTO])
 async def analyze_figma_design(
     request: FigmaAnalyzeRequest,
     api_key: str = Depends(verify_api_key)
@@ -41,7 +41,7 @@ async def analyze_figma_design(
         logger.error(f"Figma analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/kubernetes/generate", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/kubernetes/generate", response_model=BaseResponse[Dict[str, Any]])
 async def generate_kubernetes_config(
     request: Dict[str, Any],
     api_key: str = Depends(verify_api_key)
@@ -64,7 +64,7 @@ async def generate_kubernetes_config(
         logger.error(f"K8s generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/security/scan", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/security/scan", response_model=BaseResponse[Dict[str, Any]])
 async def security_scan(
     request: SecurityScanRequest,
     api_key: str = Depends(verify_api_key)
@@ -83,7 +83,7 @@ async def security_scan(
         logger.error(f"Security scan failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/lifecycle/execute", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/lifecycle/execute", response_model=BaseResponse[Dict[str, Any]])
 async def execute_lifecycle(
     project_id: str,
     stack: str,

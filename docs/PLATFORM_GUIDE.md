@@ -37,9 +37,9 @@ All endpoints require `X-API-Key` authentication.
 ### Infrastructure Tools
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/api/figma/analyze` | `POST` | Convert Figma designs to clean code tokens. |
-| `/api/kubernetes/generate` | `POST` | AI-refined K8s manifests (Deployment/Service/Ingress). |
-| `/api/security/scan` | `POST` | SAST/SCA scan with AI-powered remediation. |
+| `/api/v1/figma/analyze` | `POST` | Convert Figma designs to clean code tokens. |
+| `/api/v1/kubernetes/generate` | `POST` | AI-refined K8s manifests (Deployment/Service/Ingress). |
+| `/api/v1/security/scan` | `POST` | SAST/SCA scan with AI-powered remediation. |
 
 ---
 
