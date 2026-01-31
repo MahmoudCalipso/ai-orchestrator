@@ -2,6 +2,7 @@
 User Project Models
 Database models for user project management
 """
+from typing import Dict, Any
 from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.core.database import Base
@@ -42,6 +43,27 @@ class UserProject(Base):
     __table_args__ = (
         Index('idx_user_status', 'user_id', 'status'),
     )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert project to dictionary representation."""
+        return {
+            "id": str(self.id) if self.id else None,
+            "user_id": self.user_id,
+            "project_name": self.project_name,
+            "description": self.description,
+            "git_repo_url": self.git_repo_url,
+            "git_branch": self.git_branch,
+            "local_path": self.local_path,
+            "status": self.status,
+            "language": self.language,
+            "framework": self.framework,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_opened_at": self.last_opened_at.isoformat() if self.last_opened_at else None,
+            "build_status": self.build_status,
+            "run_status": self.run_status,
+            "extra_metadata": self.extra_metadata
+        }
 
 
 class ProjectSession(Base):

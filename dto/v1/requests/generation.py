@@ -53,6 +53,9 @@ class GenerationRequest(BaseModel):
     git: Optional[GitActionConfig] = None
     requirements: Optional[str] = None
     
+    # RBAC: Target user for project generation (Super Admin/Enterprise Admin only)
+    user_id: Optional[str] = Field(None, description="Target user ID for project generation (Admin/Enterprise only)")
+    
     # Deprecated fields kept for backward compatibility during migration
     kubernetes: Optional[KubernetesConfig] = None
     estimated_complexity: Optional[str] = None

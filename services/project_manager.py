@@ -1,11 +1,17 @@
+import logging
 from typing import List, Optional, Dict, Any, Callable
 from datetime import datetime
 from pathlib import Path
 import uuid
 
-logger = logging.getLogger(__name__)
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import DatabaseManager
+from models.user_project import UserProject
+from platform_core.auth.models import User
+
+logger = logging.getLogger(__name__)
 
 class ProjectManager:
     """Manages user projects using the Repository Pattern"""
@@ -58,6 +64,91 @@ class ProjectManager:
             logger.info(f"Created project {project_id} for user {user_id}")
             return project.to_dict()
     
+    async def get_projects(
+        self,
+        user_ids: Optional[List[str]] = None,
+        tenant_id: Optional[str] = None,
+        status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Get projects with RBAC-aware filtering.
+        
+        Args:
+            user_ids: List of user IDs to filter by. None means all users (Super Admin).
+            tenant_id: Filter by tenant ID (for Enterprise Admin scope).
+            status: Filter by project status.
+            page: Page number for pagination.
+            page_size: Number of items per page.
+            filters: Additional filters (name, framework, language, solution_id).
+        
+        Returns:
+            Dict with projects, total count, and pagination info.
+        """
+        async with self.db_manager.session() as session:
+            # Build base query with optional tenant join
+            if tenant_id or user_ids is None:
+                # Need to join with User to filter by tenant
+                query = select(UserProject, User.tenant_id).join(User, UserProject.user_id == User.id)
+            else:
+                query = select(UserProject)
+            
+            # Apply user filter if specified
+            if user_ids is not None:
+                if len(user_ids) == 1:
+                    query = query.where(UserProject.user_id == user_ids[0])
+                else:
+                    query = query.where(UserProject.user_id.in_(user_ids))
+            
+            # Apply tenant filter if specified
+            if tenant_id:
+                query = query.where(User.tenant_id == tenant_id)
+            
+            # Apply status filter
+            if status:
+                query = query.where(UserProject.status == status)
+            
+            # Apply additional filters
+            if filters:
+                if filters.get("name"):
+                    query = query.where(
+                        UserProject.project_name.ilike(f"%{filters['name']}%")
+                    )
+                if filters.get("framework"):
+                    query = query.where(UserProject.framework == filters["framework"])
+                if filters.get("language"):
+                    query = query.where(UserProject.language == filters["language"])
+            
+            # Get total count before pagination
+            count_query = select(func.count()).select_from(query.subquery())
+            total_result = await session.execute(count_query)
+            total = total_result.scalar() or 0
+            
+            # Apply pagination
+            query = query.order_by(UserProject.created_at.desc())
+            query = query.offset((page - 1) * page_size).limit(page_size)
+            
+            result = await session.execute(query)
+            
+            # Extract projects from result (handle tuple with tenant_id if joined)
+            rows = result.all()
+            projects_list = []
+            for row in rows:
+                if isinstance(row, tuple):
+                    projects_list.append(row[0])  # UserProject is first element
+                else:
+                    projects_list.append(row)
+            
+            return {
+                "projects": [p.to_dict() for p in projects_list],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size
+            }
+    
     async def get_user_projects(
         self,
         user_id: str,
@@ -66,43 +157,17 @@ class ProjectManager:
         page_size: int = 20,
         filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Get all projects for a user via the repository"""
-        async with self.db_manager.session() as session:
-            repo = self.project_repo_factory(session)
-            
-            # Combine basic filters with custom filters
-            all_filters = filters.copy() if filters else {}
-            if status:
-                all_filters["status"] = status
-            
-            # Note: We still use the repository for basic list, 
-            # but specialized filtering might need the repo methods.
-            # For now, let's use the list method and handle specialized search if needed.
-            
-            # If name search is present, we might need a specialized repo method
-            # or just use the generic list if it supports ilike (it doesn't yet).
-            # For Phase 3, let's stick to the repo.
-            
-            projects_list = await repo.get_by_user(user_id, status)
-            
-            # Apply manual filtering/pagination for now to keep repo simple,
-            # or we could enhance the repo.
-            if filters and filters.get("name"):
-                name_filter = filters["name"].lower()
-                projects_list = [p for p in projects_list if name_filter in p.project_name.lower()]
-            
-            total = len(projects_list)
-            start = (page - 1) * page_size
-            end = start + page_size
-            paginated = projects_list[start:end]
-            
-            return {
-                "projects": [p.to_dict() for p in paginated],
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": (total + page_size - 1) // page_size
-            }
+        """
+        Get all projects for a specific user via the repository.
+        This is a convenience wrapper around get_projects for single-user queries.
+        """
+        return await self.get_projects(
+            user_ids=[user_id],
+            status=status,
+            page=page,
+            page_size=page_size,
+            filters=filters
+        )
     
     async def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         """Get project via repository"""

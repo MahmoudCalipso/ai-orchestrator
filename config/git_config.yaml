@@ -9,7 +9,7 @@ bitbucket:
   api_url: https://api.bitbucket.org/2.0
   auth_type: token
   credentials:
-    app_password: gAAAAABpdS0GdB4AUVYA0qk8v5u1IPmmWDQs4LqCBfZVeFhqkCwv1fCTsyZEP_WAx-ud9fsg60PiXHizfjQTfzc1PHC6Y84IHAze1UG_Mv_TzDwvBwUT7b22vk-E7YDa_FY9GoPEQH_qfpHS3b016v0zBtogcHjBuzLsLc8iltrfNX5PzQRd4h2k3CDkElKPNqvkI82bVzR6vqVK3863wrypDSf_WIoKMV0_yn3BjmAU2RRUN_jkTEUxWUjktOeX7MOHQjutQKLZntBHsWsLMijBW7OtlBZs24je5-oOliFDMsVIKV6sG4hxKi9NWOymofk4AY_H64S7mX0pmMGdMDT19WV4nSpsmw==
+    app_password: gAAAAABpfgf8n18DwNJoKZLImRCK02MSKVpJn7i4ZO6bRgR8guy4ScHNw_oWa2kiVVo2GPH9xjCiwLaZD3E_MQhWNyaACo2tjdif0oLCJ5E3KYLtkRJDs6SrX9JbFGpRF1sqf1F1HSWZGKLvc8Sa3njXe7pDjFHLVUdi9VXSoAHY0deQJmhotshpR7vzAup4256FCnfPrDKS5qNG_XcItUhnpmtwpJ1IwUxUT3AAnKyCn5E9_WXoKslLwyfCNpnLgSZkGzV3Y-M1tGMjLFCiGC4sTFBMksAobqad0VohCePwlUi3fTOC_QrKJeTpXo4YUkGCH079V4u9MfHQ0dAmThMKL8cp91t9Vw==
     client_id: ''
     client_secret: ''
     ssh_key_path: ''
@@ -36,7 +36,7 @@ github:
     client_secret: ''
     ssh_key_path: ''
     ssh_passphrase: ''
-    token: gAAAAABpdS0G_cEhO_9OCkhg0fHkSUGXnyGmodZSI-_YLugnZkakuJ2Jpe2R08nrvkK6oD4zfpFn26mPWEM4BwwiDJCCLn36tctAdrbELKD93g8C7oHk7kHrhYJyuMtmON11eDuktNvC
+    token: gAAAAABpfgf8JchmnhBDf4tXllu58__0aYz24OYVLfiL_yN0LMoinFUIr5ISqcJP-DBZGPlGFRJ2Zai74CU7rmWGfO1GJFGC0jC7PBEi7h8jG1LZTrVHeVxP7sPKZYokNpf_Qa7pEmEi
     username: calipso_777
   enabled: true
 gitlab:
@@ -47,7 +47,7 @@ gitlab:
     client_secret: ''
     ssh_key_path: ''
     ssh_passphrase: ''
-    token: gAAAAABpdS0G2Y3wfHoWAxkGYUlswQWcOdmPhDhcBVGb-PvTYRXhK8-136vXG7-aCMYrXkX9kTWgJ2fZTDMQsROKek_bNpMPAfY_0WLEkRMJIIpvpWpl6T5ntHO1KO7aAqqMEf67Me_HaeW5IDJ2thEqqDja_FzD7A==
+    token: gAAAAABpfgf8B39RRbXa1EK1obI8vKjfC4OFZdkcrnHmMYDeg9hy6bF2AO7fjbCSd8I2iyojQIiNGVDBQGW1hBYBB6oCU7VdjkRn-Qeec7rGyL68mPBWGyMlfVwTWES13QDsdLFRxNQ7X1WvUJnPW96h9C2lfFmn1g==
     username: ammarmahmoud1996
   enabled: true
 security:

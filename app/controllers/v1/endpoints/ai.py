@@ -6,11 +6,14 @@ from typing import Dict, Any, List, Optional
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 # Core & Services
-from core.security import verify_api_key
+from core.security import verify_api_key, get_security_manager, Role
 from core.container import container
 from ....core.llm.service import get_llm_service, ModelTier
+from ....core.database import get_db
 from dto.v1.base import BaseResponse, ResponseStatus
 from dto.v1.requests.ai import (
     InferenceRequest, FixCodeRequest, AnalyzeCodeRequest, TestCodeRequest,
@@ -19,6 +22,7 @@ from dto.v1.requests.ai import (
 )
 from dto.v1.requests.generation import GenerationRequest, MigrationRequest as SwarmMigrationRequest
 from dto.v1.responses.ai import ModelInfoDTO, InferenceResponseDTO, SwarmResponseDTO, ModelListResponseDTO, ModelSummaryDTO
+from platform_core.auth.models import User as AuthUserModel
 
 logger = logging.getLogger(__name__)
 
@@ -186,22 +190,70 @@ async def unload_model(
 @router.post("/generate", response_model=BaseResponse[SwarmResponseDTO])
 async def generate_project(
     request: GenerationRequest,
-    api_key: str = Depends(verify_api_key)
+    api_key: str = Depends(verify_api_key),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Generate a full project or component using AI swarm."""
+    """
+    Generate a full project or component using AI swarm.
+    RBAC: Super Admin can generate for any user/tenant.
+    Enterprise Admin can generate for their tenant users.
+    Developers can only generate for themselves.
+    """
     try:
+        sm = get_security_manager()
+        user_info = await sm.get_user_info(api_key, db)
+        if not user_info:
+            raise HTTPException(401, "Authentication required")
+        
+        role = user_info.get("role")
+        current_user_id = user_info.get("user_id")
+        tenant_id = user_info.get("tenant_id")
+        
+        # Determine target user for project creation
+        # Default to current user, but Super Admin/Enterprise Admin can specify target
+        target_user_id = current_user_id
+        
+        # If request includes a user_id (for admin/enterprise use)
+        if hasattr(request, 'user_id') and request.user_id:
+            if role == Role.ADMIN.value:
+                # Super Admin can generate for any user
+                target_user_id = request.user_id
+            elif role == Role.ENTERPRISE.value:
+                # Enterprise Admin can only generate for users in their tenant
+                result = await db.execute(select(AuthUserModel).where(AuthUserModel.id == request.user_id))
+                target_user = result.scalar_one_or_none()
+                if not target_user or target_user.tenant_id != tenant_id:
+                    raise HTTPException(403, "Cannot generate project for user outside your organization")
+                target_user_id = request.user_id
+            else:
+                # Developers can only generate for themselves
+                if request.user_id != current_user_id:
+                    raise HTTPException(403, "Developers can only generate projects for themselves")
+        
         if container.orchestrator and container.orchestrator.lead_architect:
+            # Pass target user info to the generation context
+            generation_context = {
+                **request.model_dump(),
+                "type": "full_project_generation",
+                "user_id": target_user_id,
+                "tenant_id": tenant_id,
+                "requested_by": current_user_id,
+                "requested_by_role": role
+            }
+            
             result = await container.orchestrator.lead_architect.act(
                 f"Generate project: {request.project_name}",
-                {**request.model_dump(), "type": "full_project_generation"}
+                generation_context
             )
             return BaseResponse(
                 status=ResponseStatus.SUCCESS,
                 code="GENERATION_STARTED",
-                message=f"Generation task for project '{request.project_name}' started",
+                message=f"Generation task for project '{request.project_name}' started for user {target_user_id}",
                 data=SwarmResponseDTO.model_validate(result)
             )
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

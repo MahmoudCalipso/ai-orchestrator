@@ -31,6 +31,7 @@ from runtimes.vllm import VLLMRuntime
 from runtimes.transformers import TransformersRuntime
 from runtimes.llamacpp import LlamaCppRuntime
 from core.utils.resilience import retry, circuit_breaker
+from dto.v1.schemas.enums import TaskType
 
 logger = logging.getLogger(__name__)
 
